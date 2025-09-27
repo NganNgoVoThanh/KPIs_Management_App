@@ -1,12 +1,23 @@
-import type { User, KpiDefinition, Approval, ApprovalWorkflow, ApprovalStatus } from "./types"
+import type { User, KpiDefinition, Approval, ApprovalStatus } from "./types"
 import { mockUsers, mockApprovals } from "./mockdata"
 
-export const getApprovalWorkflow = (kpiId: string): ApprovalWorkflow => {
-  const approvals = mockApprovals.filter((a) => a.kpiDefinitionId === kpiId)
+// Define ApprovalWorkflow interface locally if not in types
+interface ApprovalWorkflow {
+  kpiId: string
+  currentLevel: 1 | 2 | 3 | null
+  level1?: Approval
+  level2?: Approval
+  level3?: Approval
+  isComplete: boolean
+  finalStatus: "APPROVED" | "REJECTED" | "PENDING"
+}
 
-  const level1 = approvals.find((a) => a.level === 1)
-  const level2 = approvals.find((a) => a.level === 2)
-  const level3 = approvals.find((a) => a.level === 3)
+export const getApprovalWorkflow = (kpiId: string): ApprovalWorkflow => {
+  const approvals = mockApprovals.filter((a: any) => a.kpiDefinitionId === kpiId)
+
+  const level1 = approvals.find((a: any) => a.level === 1)
+  const level2 = approvals.find((a: any) => a.level === 2)
+  const level3 = approvals.find((a: any) => a.level === 3)
 
   let currentLevel: 1 | 2 | 3 | null = null
   let finalStatus: "APPROVED" | "REJECTED" | "PENDING" = "PENDING"
@@ -49,20 +60,20 @@ export const getApprovalWorkflow = (kpiId: string): ApprovalWorkflow => {
 }
 
 export const getNextApprover = (userId: string, level: 1 | 2 | 3): User | null => {
-  const user = mockUsers.find((u) => u.id === userId)
+  const user = mockUsers.find((u: any) => u.id === userId)
   if (!user) return null
 
   switch (level) {
     case 1:
       // Line Manager approval
-      return user.managerId ? mockUsers.find((u) => u.id === user.managerId) || null : null
+      return user.managerId ? mockUsers.find((u: any) => u.id === user.managerId) || null : null
     case 2:
       // Head of Department approval
-      const lineManager = user.managerId ? mockUsers.find((u) => u.id === user.managerId) : null
-      return lineManager?.managerId ? mockUsers.find((u) => u.id === lineManager.managerId) || null : null
+      const lineManager = user.managerId ? mockUsers.find((u: any) => u.id === user.managerId) : null
+      return lineManager?.managerId ? mockUsers.find((u: any) => u.id === lineManager.managerId) || null : null
     case 3:
       // BOD approval
-      return mockUsers.find((u) => u.role === "BOD") || null
+      return mockUsers.find((u: any) => u.role === "BOD") || null
     default:
       return null
   }
@@ -80,70 +91,73 @@ export const getApprovalStatusFromWorkflow = (workflow: ApprovalWorkflow): Appro
 
   switch (workflow.currentLevel) {
     case 1:
-      return "PENDING_LM"
+      return "PENDING"
     case 2:
-      return "PENDING_HOD"
+      return "PENDING"
     case 3:
-      return "PENDING_BOD"
+      return "PENDING"
     default:
-      return "SUBMITTED"
+      return "PENDING"
   }
 }
 
 export const getPendingApprovalsForUser = (userId: string): KpiDefinition[] => {
-  const user = mockUsers.find((u) => u.id === userId)
+  const user = mockUsers.find((u: any) => u.id === userId)
   if (!user) return []
 
-  // Mock KPI definitions that need approval
-  const mockKpiDefinitions = [
+  // Mock KPI definitions that need approval with proper types
+  const mockKpiDefinitions: KpiDefinition[] = [
     {
       id: "1",
       cycleId: "1",
       userId: "3",
+      orgUnitId: "org-rd",
       title: "Reduce Internal NCR Cases",
-      type: "QUANT_LOWER_BETTER" as const,
+      type: "QUANT_LOWER_BETTER",
       unit: "cases",
       target: 12,
       weight: 25,
       dataSource: "eQMS",
       ownerId: "3",
-      status: "PENDING_LM" as const,
-      createdAt: new Date("2025-01-15"),
-      submittedAt: new Date("2025-01-15"),
+      status: "PENDING_LM",
+      createdAt: new Date("2025-01-15").toISOString(),
+      submittedAt: new Date("2025-01-15").toISOString(),
     },
     {
       id: "2",
       cycleId: "1",
       userId: "3",
+      orgUnitId: "org-rd",
       title: "New Product Development",
-      type: "MILESTONE" as const,
+      type: "MILESTONE",
       unit: "milestones",
       target: 5,
       weight: 30,
       dataSource: "Project Management System",
       ownerId: "3",
-      status: "PENDING_HOD" as const,
-      createdAt: new Date("2025-01-15"),
-      submittedAt: new Date("2025-01-14"),
+      status: "PENDING_HOD",
+      createdAt: new Date("2025-01-15").toISOString(),
+      submittedAt: new Date("2025-01-14").toISOString(),
     },
     {
       id: "5",
       cycleId: "1",
       userId: "4",
+      orgUnitId: "org-production",
       title: "Team Performance Improvement",
-      type: "QUANT_HIGHER_BETTER" as const,
+      type: "QUANT_HIGHER_BETTER",
       unit: "percentage",
       target: 20,
       weight: 35,
       dataSource: "HR System",
       ownerId: "4",
-      status: "PENDING_BOD" as const,
-      createdAt: new Date("2025-01-13"),
-      submittedAt: new Date("2025-01-13"),
+      status: "PENDING_BOD",
+      createdAt: new Date("2025-01-13").toISOString(),
+      submittedAt: new Date("2025-01-13").toISOString(),
     },
   ]
 
-  return mockKpiDefinitions.filter((kpi) => {
+  return mockKpiDefinitions.filter((kpi: any) => {
     const workflow = getApprovalWorkflow(kpi.id)
     if (workflow.isComplete) return false
 
@@ -153,7 +167,7 @@ export const getPendingApprovalsForUser = (userId: string): KpiDefinition[] => {
 }
 
 export const getApprovalHistory = (kpiId: string): Approval[] => {
-  return mockApprovals.filter((a) => a.kpiDefinitionId === kpiId).sort((a, b) => a.level - b.level)
+  return mockApprovals.filter((a: any) => a.kpiDefinitionId === kpiId).sort((a: any, b: any) => a.level - b.level)
 }
 
 export const formatApprovalLevel = (level: 1 | 2 | 3): string => {

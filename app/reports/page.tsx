@@ -37,21 +37,61 @@ const getReportPermissions = (user: User) => {
 // Mock components since they might not exist yet
 const ReportFilters = ({ onFilterChange, permissions }: any) => (
   <div className="p-4 border rounded-lg">
-    <h3 className="font-semibold mb-4">Bộ lọc báo cáo</h3>
+    <h3 className="font-semibold mb-4">Report Filters</h3>
     <div className="space-y-4">
       <div>
-        <label className="block text-sm font-medium mb-2">Chu kỳ</label>
-        <select className="w-full p-2 border rounded" onChange={(e) => onFilterChange({ cycleId: e.target.value })}>
-          <option value="">Chọn chu kỳ</option>
-          <option value="all">Tất cả</option>
+        <label className="block text-sm font-medium mb-2">Cycle</label>
+        <select 
+          className="w-full p-2 border rounded" 
+          onChange={(e) => onFilterChange({ cycleId: e.target.value })}
+        >
+          <option value="">Select Cycle</option>
+          <option value="all">All Cycles</option>
+          <option value="q1-2025">Q1 2025</option>
+          <option value="q4-2024">Q4 2024</option>
+          <option value="q3-2024">Q3 2024</option>
+          <option value="h2-2024">H2 2024</option>
+          <option value="h1-2024">H1 2024</option>
+          <option value="annual-2024">Annual 2024</option>
+          <option value="annual-2023">Annual 2023</option>
         </select>
       </div>
       <div>
-        <label className="block text-sm font-medium mb-2">Phòng ban</label>
-        <select className="w-full p-2 border rounded" onChange={(e) => onFilterChange({ department: e.target.value })}>
-          <option value="">Chọn phòng ban</option>
-          <option value="all">Tất cả</option>
+        <label className="block text-sm font-medium mb-2">Department</label>
+        <select 
+          className="w-full p-2 border rounded" 
+          onChange={(e) => onFilterChange({ department: e.target.value })}
+        >
+          <option value="">Select Department</option>
+          <option value="all">All Departments</option>
+          <option value="hr">HR</option>
+          <option value="rnd">R&D</option>
+          <option value="production">Production</option>
+          <option value="sales">Sales</option>
+          <option value="technical">Technical</option>
+          <option value="marketing">Marketing</option>
+          <option value="finance">Finance</option>
+          <option value="logistics">Logistics</option>
+          <option value="quality">Quality Assurance</option>
+          <option value="it">IT</option>
         </select>
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-2">Date Range</label>
+        <div className="space-y-2">
+          <input 
+            type="date" 
+            className="w-full p-2 border rounded"
+            placeholder="From"
+            onChange={(e) => onFilterChange({ dateRange: { start: e.target.value, end: '' } })}
+          />
+          <input 
+            type="date" 
+            className="w-full p-2 border rounded"
+            placeholder="To"
+            onChange={(e) => onFilterChange({ dateRange: { start: '', end: e.target.value } })}
+          />
+        </div>
       </div>
     </div>
   </div>
@@ -61,27 +101,27 @@ const ReportDashboard = ({ data, permissions }: any) => (
   <div className="space-y-6">
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
       <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold">Tổng KPIs</h4>
+        <h4 className="font-semibold">Total KPIs</h4>
         <p className="text-2xl font-bold">{data.summary.totalKpis}</p>
       </div>
       <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold">Đã hoàn thành</h4>
+        <h4 className="font-semibold">Completed</h4>
         <p className="text-2xl font-bold">{data.summary.completedKpis}</p>
       </div>
       <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold">Điểm trung bình</h4>
+        <h4 className="font-semibold">Average Score</h4>
         <p className="text-2xl font-bold">{data.summary.averageScore.toFixed(1)}</p>
       </div>
       <div className="p-4 border rounded-lg">
-        <h4 className="font-semibold">Tỷ lệ tham gia</h4>
+        <h4 className="font-semibold">Participation Rate</h4>
         <p className="text-2xl font-bold">{data.summary.participationRate.toFixed(1)}%</p>
       </div>
     </div>
     
     <div className="p-4 border rounded-lg">
-      <h3 className="font-semibold mb-4">Báo cáo theo phòng ban</h3>
+      <h3 className="font-semibold mb-4">Department Breakdown</h3>
       {data.departmentBreakdown.length === 0 ? (
-        <p className="text-gray-500">Chưa có dữ liệu báo cáo</p>
+        <p className="text-gray-500">No report data available</p>
       ) : (
         <div className="space-y-2">
           {data.departmentBreakdown.map((dept: any, index: number) => (
@@ -128,7 +168,7 @@ export default function ReportsPage() {
           {
             id: 'user-1',
             email: 'staff@intersnack.com.vn',
-            name: 'Nhân viên mẫu',
+            name: 'Sample Employee',
             role: 'STAFF',
             orgUnitId: 'org-rnd',
             status: 'ACTIVE'
@@ -190,8 +230,8 @@ export default function ReportsPage() {
     return (
       <div className="container mx-auto p-6">
         <div className="text-center py-16">
-          <h2 className="text-xl font-semibold mb-4">Cần đăng nhập</h2>
-          <p className="text-gray-600">Vui lòng đăng nhập để xem báo cáo</p>
+          <h2 className="text-xl font-semibold mb-4">Login Required</h2>
+          <p className="text-gray-600">Please login to view reports</p>
         </div>
       </div>
     )
@@ -205,9 +245,9 @@ export default function ReportsPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Báo cáo & Phân tích</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Reports & Analytics</h1>
             <p className="text-muted-foreground">
-              Theo dõi hiệu suất và xu hướng KPI
+              Track performance and KPI trends
             </p>
           </div>
           {permissions.canExport && (
@@ -215,7 +255,7 @@ export default function ReportsPage() {
               onClick={handleExport}
               className="px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
             >
-              Xuất Excel
+              Export Excel
             </button>
           )}
         </div>
@@ -238,7 +278,7 @@ export default function ReportsPage() {
               />
             ) : (
               <div className="text-center py-16">
-                <p className="text-gray-600">Không có dữ liệu báo cáo</p>
+                <p className="text-gray-600">No report data available</p>
               </div>
             )}
           </div>

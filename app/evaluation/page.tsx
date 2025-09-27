@@ -152,7 +152,7 @@ export default function EvaluationPage() {
 
   const getScoreBandColor = (score: number) => {
     if (score >= 5) return "bg-green-100 text-green-700"
-    if (score >= 4) return "bg-blue-100 text-blue-700"
+    if (score >= 4) return "bg-red-100 text-red-700"
     if (score >= 3) return "bg-yellow-100 text-yellow-700"
     if (score >= 2) return "bg-orange-100 text-orange-700"
     return "bg-red-100 text-red-700"
@@ -272,7 +272,7 @@ export default function EvaluationPage() {
                     {actualValue && (
                       <div className="bg-gray-50 rounded-lg p-4">
                         <div className="flex items-center gap-2 mb-2">
-                          <Calculator className="h-4 w-4 text-blue-600" />
+                          <Calculator className="h-4 w-4 text-red-600" />
                           <span className="text-sm font-medium">Score Preview</span>
                         </div>
                         {(() => {

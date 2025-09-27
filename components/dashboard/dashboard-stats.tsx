@@ -97,8 +97,8 @@ export function DashboardStats({ user }: DashboardStatsProps) {
       title: "Average Score",
       value: stats.averageScore,
       icon: TrendingUp,
-      color: "text-blue-600",
-      bgColor: "bg-blue-50",
+      color: "text-red-600",
+      bgColor: "bg-red-50",
       description: "Out of 5.0",
       suffix: "/5"
     },

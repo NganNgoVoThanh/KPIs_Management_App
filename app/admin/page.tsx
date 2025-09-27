@@ -8,7 +8,55 @@ import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, Building2, Settings, FileText, Calendar, Shield } from "lucide-react"
-import { mockUsers, mockOrgUnits, mockCycles } from "@/lib/mockdata"
+import type { User, OrgUnit, Cycle } from "@/lib/types"
+
+// Mock data with proper types
+const mockUsers: User[] = [
+  {
+    id: "1",
+    name: "Admin User",
+    email: "admin@intersnack.com.vn",
+    role: "ADMIN",
+    orgUnitId: "org-1",
+    status: "ACTIVE"
+  },
+  {
+    id: "2",
+    name: "HR Manager",
+    email: "hr@intersnack.com.vn",
+    role: "HR",
+    orgUnitId: "org-1",
+    status: "ACTIVE"
+  }
+]
+
+const mockOrgUnits: OrgUnit[] = [
+  {
+    id: "org-1",
+    name: "Intersnack Vietnam",
+    parentId: null,
+    type: "COMPANY"
+  },
+  {
+    id: "org-2",
+    name: "R&D Department",
+    parentId: "org-1",
+    type: "DEPARTMENT"
+  }
+]
+
+const mockCycles: Cycle[] = [
+  {
+    id: "cycle-1",
+    name: "2025 Annual Review",
+    type: "YEARLY",
+    periodStart: "2025-01-01",
+    periodEnd: "2025-12-31",
+    status: "ACTIVE",
+    createdBy: "admin",
+    createdAt: new Date().toISOString()
+  }
+]
 
 export default function AdminPage() {
   const [activeTab, setActiveTab] = useState("users")
@@ -16,7 +64,7 @@ export default function AdminPage() {
   return (
     <div className="p-6 space-y-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold text-balance">System Administration</h1>
+        <h1 className="text-3xl font-bold">System Administration</h1>
         <p className="text-muted-foreground mt-1">Manage users, organization structure, and system settings</p>
       </div>
 
@@ -104,7 +152,7 @@ export default function AdminPage() {
                     <div>
                       <h3 className="font-medium">{cycle.name}</h3>
                       <p className="text-sm text-muted-foreground">
-                        {cycle.periodStart.toLocaleDateString()} - {cycle.periodEnd.toLocaleDateString()}
+                        {new Date(cycle.periodStart).toLocaleDateString()} - {new Date(cycle.periodEnd).toLocaleDateString()}
                       </p>
                     </div>
                     <Badge variant={cycle.status === "ACTIVE" ? "default" : "secondary"}>{cycle.status}</Badge>

@@ -38,7 +38,7 @@ export function QuickActions({ user }: QuickActionsProps) {
         description: "Track your progress",
         icon: Target,
         onClick: () => router.push("/kpis"),
-        color: "bg-blue-600 hover:bg-blue-700"
+        color: "bg-red-600 hover:bg-red-700"
       },
       {
         title: "Submit Actuals",

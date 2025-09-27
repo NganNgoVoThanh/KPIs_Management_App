@@ -62,7 +62,7 @@ export function RecentActivity({ user }: RecentActivityProps) {
             activity.title = 'KPI Created/Updated'
             activity.description = 'Modified KPI definition'
             activity.icon = FileText
-            activity.color = 'text-blue-600'
+            activity.color = 'text-red-600'
           } else if (log.entity === 'kpi_actual') {
             activity.title = 'Actual Submitted'
             activity.description = 'Submitted actual results'

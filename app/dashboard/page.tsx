@@ -6,11 +6,14 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { DashboardStats } from "@/components/dashboard/dashboard-stats"
 import { RecentActivity } from "@/components/dashboard/recent-activity"
 import { QuickActions } from "@/components/dashboard/quick-actions"
-import { AnomalyDetector } from "@/components/ai/anomaly-detector"
+import { EnhancedAnomalyDetector } from "@/components/ai/enhanced-anomaly-detector"
+import { AIInsightsPanel } from "@/components/ai/ai-insights-panel"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { enhancedAIService } from "@/lib/ai-services-enhanced"
 import { authService } from "@/lib/auth-service"
 import { storageService } from "@/lib/storage-service"
 import { notificationService } from "@/lib/notification-service"
-import { Loader2, Bell } from "lucide-react"
+import { Loader2, Bell, Brain } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
@@ -23,7 +26,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import type { User, Notification } from "@/lib/types"
 
-// Helper function for relative time
 const getRelativeTime = (date: Date): string => {
   const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000)
   
@@ -71,12 +73,10 @@ export default function DashboardPage() {
 
   const loadData = async (currentUser: User) => {
     try {
-      // Load notifications
       const userNotifications = storageService.getNotifications(currentUser.id)
-      setNotifications(userNotifications.slice(0, 5)) // Show latest 5
+      setNotifications(userNotifications.slice(0, 5))
       setUnreadCount(notificationService.getUnreadCount(currentUser.id))
 
-      // Load KPI data for anomaly detection
       const currentCycle = storageService.getCurrentCycle()
       if (currentCycle) {
         const kpis = storageService.getKpiDefinitions({
@@ -107,11 +107,9 @@ export default function DashboardPage() {
   }
 
   const handleNotificationClick = (notification: Notification) => {
-    // Mark as read
     notificationService.markAsRead(notification.id)
     setUnreadCount(prev => Math.max(0, prev - 1))
     
-    // Navigate if action URL provided
     if (notification.actionUrl) {
       router.push(notification.actionUrl)
     }
@@ -121,7 +119,6 @@ export default function DashboardPage() {
     if (user) {
       notificationService.markAllAsRead(user.id)
       setUnreadCount(0)
-      // Reload notifications
       const updatedNotifications = storageService.getNotifications(user.id)
       setNotifications(updatedNotifications.slice(0, 5))
     }
@@ -149,12 +146,9 @@ export default function DashboardPage() {
     return roleNames[role] || role
   }
 
-
-
   return (
     <AppLayout>
       <div className="p-6 space-y-6">
-        {/* Header with Notifications */}
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold">Dashboard</h1>
@@ -163,7 +157,6 @@ export default function DashboardPage() {
             </p>
           </div>
           
-          {/* Notification Bell */}
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" size="icon" className="relative">
@@ -239,7 +232,6 @@ export default function DashboardPage() {
           </DropdownMenu>
         </div>
 
-        {/* Welcome Message */}
         <div className="bg-gradient-to-r from-red-600 to-red-700 text-white p-6 rounded-lg shadow-lg">
           <h2 className="text-2xl font-bold mb-2">Welcome back, {user.name}!</h2>
           <p className="opacity-90">
@@ -247,19 +239,36 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        {/* Dashboard Stats */}
         <DashboardStats user={user} />
 
-        {/* Main Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <RecentActivity user={user} />
           <QuickActions user={user} />
         </div>
 
-        {/* Anomaly Detection */}
         {kpiData.length > 0 && (
           <div className="mt-8">
-            <AnomalyDetector kpiData={kpiData} />
+            <EnhancedAnomalyDetector 
+              kpiData={kpiData}
+              showStatisticalAnalysis={true}
+              showBehaviorAnalysis={true}
+              showRiskScoring={true}
+              autoRefresh={true}
+              refreshInterval={30000}
+              className="mb-6"
+            />
+
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Brain className="h-5 w-5 text-red-600" />
+                  AI Performance Insights
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <AIInsightsPanel userId={user.id} />
+              </CardContent>
+            </Card>
           </div>
         )}
       </div>

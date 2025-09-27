@@ -13,42 +13,42 @@ interface AuthorizedUser {
 const AUTHORIZED_USERS: AuthorizedUser[] = [
   {
     email: 'hr@intersnack.com.vn',
-    name: 'Nguyễn Thị Hương',
+    name: 'Nguyen Thi Minh Tram',
     role: 'HR',
     department: 'Human Resources',
     employeeId: 'VICC-HR-001'
   },
   {
     email: 'admin@intersnack.com.vn',
-    name: 'Trần Văn Nam',
+    name: 'Vu Van Tai',
     role: 'ADMIN',
     department: 'IT',
     employeeId: 'VICC-IT-001'
   },
   {
     email: 'staff@intersnack.com.vn',
-    name: 'Lê Thị Mai',
+    name: 'Ngo Vo Thanh Ngan',
     role: 'STAFF',
     department: 'R&D',
     employeeId: 'VICC-RD-001'
   },
   {
     email: 'linemanager@intersnack.com.vn',
-    name: 'Phạm Văn Đức',
+    name: 'Dang Quoc Hung',
     role: 'LINE_MANAGER',
-    department: 'Production',
-    employeeId: 'VICC-PD-001'
+    department: 'R&D',
+    employeeId: 'VICC-RD-002'
   },
   {
     email: 'hod@intersnack.com.vn',
-    name: 'Võ Thị Lan',
+    name: 'Nguyen Trung Viet',
     role: 'HEAD_OF_DEPT',
-    department: 'Quality',
-    employeeId: 'VICC-QA-001'
+    department: 'Technical',
+    employeeId: 'VICC-TECH-001'
   },
   {
     email: 'bod@intersnack.com.vn',
-    name: 'Nguyễn Văn Long',
+    name: 'Nguyen Viet Cuong',
     role: 'BOD',
     department: 'Executive',
     employeeId: 'VICC-EX-001'
@@ -212,33 +212,49 @@ class AuthService {
   }
 
   private clearUserData(): void {
-    // Clear all user-specific data from localStorage
-    const keysToKeep = ['vicc_kpi_templates', 'vicc_kpi_cycles']
-    const allKeys = Object.keys(localStorage)
-    
-    allKeys.forEach(key => {
-      if (!keysToKeep.includes(key) && key.startsWith('vicc_')) {
-        localStorage.removeItem(key)
+    // Fixed: Prevent infinite recursion
+    try {
+      // Keys to keep in localStorage
+      const keysToKeep = ['vicc_kpi_templates', 'vicc_kpi_cycles']
+      
+      // Get all localStorage keys
+      const allKeys: string[] = []
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (key) allKeys.push(key)
       }
-    })
+      
+      // Remove user-specific keys
+      allKeys.forEach(key => {
+        if (!keysToKeep.includes(key) && key.startsWith('vicc_')) {
+          localStorage.removeItem(key)
+        }
+      })
+    } catch (error) {
+      console.error('Error clearing user data:', error)
+    }
   }
 
   private logActivity(action: string, userId: string): void {
-    const activities = JSON.parse(localStorage.getItem('vicc_auth_activities') || '[]')
-    activities.push({
-      action,
-      userId,
-      timestamp: new Date().toISOString(),
-      ip: 'localhost', // In production, get real IP
-      userAgent: navigator.userAgent
-    })
-    
-    // Keep only last 100 activities
-    if (activities.length > 100) {
-      activities.splice(0, activities.length - 100)
+    try {
+      const activities = JSON.parse(localStorage.getItem('vicc_auth_activities') || '[]')
+      activities.push({
+        action,
+        userId,
+        timestamp: new Date().toISOString(),
+        ip: 'localhost', // In production, get real IP
+        userAgent: navigator.userAgent
+      })
+      
+      // Keep only last 100 activities
+      if (activities.length > 100) {
+        activities.splice(0, activities.length - 100)
+      }
+      
+      localStorage.setItem('vicc_auth_activities', JSON.stringify(activities))
+    } catch (error) {
+      console.error('Error logging activity:', error)
     }
-    
-    localStorage.setItem('vicc_auth_activities', JSON.stringify(activities))
   }
 }
 

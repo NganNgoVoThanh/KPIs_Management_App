@@ -39,7 +39,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
   const quickLoginUsers = [
     { email: "hr@intersnack.com.vn", role: "HR", color: "bg-purple-100 text-purple-700" },
-    { email: "admin@intersnack.com.vn", role: "Admin", color: "bg-blue-100 text-blue-700" },
+    { email: "admin@intersnack.com.vn", role: "Admin", color: "bg-red-100 text-red-700" },
     { email: "staff@intersnack.com.vn", role: "Staff", color: "bg-green-100 text-green-700" },
     { email: "linemanager@intersnack.com.vn", role: "Line Manager", color: "bg-yellow-100 text-yellow-700" },
     { email: "hod@intersnack.com.vn", role: "Head of Dept", color: "bg-orange-100 text-orange-700" },
@@ -136,7 +136,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
           </div>
 
           <div className="text-center text-xs text-muted-foreground pt-4 border-t border-red-100">
-            <p>© 2024 Vietnam Intersnack Cashew Company (VICC)</p>
+            <p>© Vietnam Intersnack Cashew Company</p>
             <p>KPI Management System v1.0</p>
           </div>
         </CardContent>

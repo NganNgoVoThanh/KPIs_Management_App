@@ -50,13 +50,13 @@ export default function CyclesPage() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'ACTIVE':
-        return 'Đang hoạt động'
+        return 'Active'
       case 'CLOSED':
-        return 'Đã đóng'
+        return 'Closed'
       case 'DRAFT':
-        return 'Bản nháp'
+        return 'Draft'
       case 'ARCHIVED':
-        return 'Đã lưu trữ'
+        return 'Archived'
       default:
         return status
     }
@@ -109,14 +109,14 @@ export default function CyclesPage() {
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">Quản lý chu kỳ đánh giá</h1>
+            <h1 className="text-3xl font-bold tracking-tight">Performance Review Cycles</h1>
             <p className="text-muted-foreground">
-              Tạo và quản lý các chu kỳ đánh giá hiệu suất
+              Create and manage performance evaluation cycles
             </p>
           </div>
           <Button>
             <Plus className="mr-2 h-4 w-4" />
-            Tạo chu kỳ mới
+            Create New Cycle
           </Button>
         </div>
 
@@ -124,7 +124,7 @@ export default function CyclesPage() {
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Tổng chu kỳ</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Cycles</CardTitle>
               <Calendar className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -133,7 +133,7 @@ export default function CyclesPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Đang hoạt động</CardTitle>
+              <CardTitle className="text-sm font-medium">Active</CardTitle>
               <Target className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -144,7 +144,7 @@ export default function CyclesPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Đã hoàn thành</CardTitle>
+              <CardTitle className="text-sm font-medium">Completed</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -155,7 +155,7 @@ export default function CyclesPage() {
           </Card>
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Bản nháp</CardTitle>
+              <CardTitle className="text-sm font-medium">Drafts</CardTitle>
               <Users className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
@@ -169,10 +169,10 @@ export default function CyclesPage() {
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList>
-            <TabsTrigger value="active">Đang hoạt động</TabsTrigger>
-            <TabsTrigger value="closed">Đã đóng</TabsTrigger>
-            <TabsTrigger value="draft">Bản nháp</TabsTrigger>
-            <TabsTrigger value="all">Tất cả</TabsTrigger>
+            <TabsTrigger value="active">Active</TabsTrigger>
+            <TabsTrigger value="closed">Closed</TabsTrigger>
+            <TabsTrigger value="draft">Drafts</TabsTrigger>
+            <TabsTrigger value="all">All</TabsTrigger>
           </TabsList>
 
           <TabsContent value={activeTab} className="space-y-4">
@@ -180,16 +180,16 @@ export default function CyclesPage() {
               <Card>
                 <CardContent className="flex flex-col items-center justify-center py-16">
                   <Calendar className="h-12 w-12 text-muted-foreground mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">Chưa có chu kỳ nào</h3>
+                  <h3 className="text-lg font-semibold mb-2">No cycles yet</h3>
                   <p className="text-muted-foreground text-center mb-4">
-                    {activeTab === 'active' && 'Chưa có chu kỳ đang hoạt động.'}
-                    {activeTab === 'closed' && 'Chưa có chu kỳ nào đã đóng.'}
-                    {activeTab === 'draft' && 'Chưa có chu kỳ nào ở trạng thái bản nháp.'}
-                    {activeTab === 'all' && 'Chưa có chu kỳ nào được tạo.'}
+                    {activeTab === 'active' && 'No active cycles available.'}
+                    {activeTab === 'closed' && 'No closed cycles available.'}
+                    {activeTab === 'draft' && 'No draft cycles available.'}
+                    {activeTab === 'all' && 'No cycles have been created yet.'}
                   </p>
                   <Button variant="outline">
                     <Plus className="mr-2 h-4 w-4" />
-                    Tạo chu kỳ đầu tiên
+                    Create Your First Cycle
                   </Button>
                 </CardContent>
               </Card>
@@ -205,17 +205,17 @@ export default function CyclesPage() {
                         </Badge>
                       </div>
                       <CardDescription>
-                        {cycle.type === 'YEARLY' && 'Chu kỳ hàng năm'}
-                        {cycle.type === 'SEMI_ANNUAL' && 'Chu kỳ 6 tháng'}
-                        {cycle.type === 'QUARTERLY' && 'Chu kỳ quý'}
-                        {cycle.type === 'MONTHLY' && 'Chu kỳ hàng tháng'}
+                        {cycle.type === 'YEARLY' && 'Annual Cycle'}
+                        {cycle.type === 'SEMI_ANNUAL' && 'Semi-Annual Cycle'}
+                        {cycle.type === 'QUARTERLY' && 'Quarterly Cycle'}
+                        {cycle.type === 'MONTHLY' && 'Monthly Cycle'}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-2">
                         <div className="flex items-center text-sm text-muted-foreground">
                           <Calendar className="mr-2 h-4 w-4" />
-                          {new Date(cycle.periodStart).toLocaleDateString('vi-VN')} - {new Date(cycle.periodEnd).toLocaleDateString('vi-VN')}
+                          {new Date(cycle.periodStart).toLocaleDateString('en-US')} - {new Date(cycle.periodEnd).toLocaleDateString('en-US')}
                         </div>
                         {cycle.settings && (
                           <div className="text-sm text-muted-foreground">
@@ -226,10 +226,10 @@ export default function CyclesPage() {
                       </div>
                       <div className="flex items-center justify-between mt-4">
                         <div className="text-xs text-muted-foreground">
-                          Tạo: {new Date(cycle.createdAt).toLocaleDateString('vi-VN')}
+                          Created: {new Date(cycle.createdAt).toLocaleDateString('en-US')}
                         </div>
                         <Button variant="outline" size="sm">
-                          Xem chi tiết
+                          View Details
                         </Button>
                       </div>
                     </CardContent>

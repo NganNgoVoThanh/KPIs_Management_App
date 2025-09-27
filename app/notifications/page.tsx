@@ -80,7 +80,7 @@ export default function NotificationsPage() {
       case 'ACTUAL_APPROVAL_REQUIRED':
         return <Clock className="h-5 w-5 text-yellow-600" />
       default:
-        return <Info className="h-5 w-5 text-blue-600" />
+        return <Info className="h-5 w-5 text-red-600" />
     }
   }
 

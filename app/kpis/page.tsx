@@ -4,7 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { AppLayout } from "@/components/layout/app-layout"
 import { KpiTemplateSelector } from "@/components/kpi/kpi-template-selector"
-import { KpiForm } from "@/components/kpi/kpi-form"
+import { KpiForm } from "@/components/kpi/enhanced-kpi-form"
 import type { KpiTemplate } from "@/lib/types"
 import { authService } from "@/lib/auth-service"
 import { storageService } from "@/lib/storage-service"
@@ -110,7 +110,7 @@ export default function CreateKpiPage() {
         )}
 
         {step === "create-kpis" && (
-          <KpiForm 
+          <EnhancedKpiForm
             template={selectedTemplate} 
             onSubmit={handleSubmitKpis} 
             onCancel={handleCancel} 

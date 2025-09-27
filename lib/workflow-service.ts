@@ -73,7 +73,7 @@ class WorkflowService {
     const steps = this.getWorkflowConfig()
     
     // Assign approvers based on org hierarchy
-    const enhancedSteps = steps.map(step => ({
+    const Steps = steps.map(step => ({
       ...step,
       approver: this.getApproverForLevel(submitterId, step.level)
     }))
@@ -82,13 +82,13 @@ class WorkflowService {
       entityId,
       entityType,
       currentLevel: 1,
-      steps: enhancedSteps,
+      steps: Steps,
       status: 'IN_PROGRESS',
       createdAt: new Date().toISOString()
     }
 
     // Create first approval
-    const firstApprover = enhancedSteps[0].approver
+    const firstApprover = Steps[0].approver
     if (firstApprover) {
       this.createApprovalRequest(
         entityId,

@@ -421,3 +421,123 @@ export interface ReportFilter {
   status?: string
   performanceLevel?: 'HIGH' | 'MEDIUM' | 'LOW'
 }
+// AI-specific interfaces
+export interface AIValidationResult {
+  score: number;
+  level: 'Poor' | 'Fair' | 'Good' | 'Excellent';
+  feedback: string;
+  improvements: string[];
+  validatedAt: string;
+}
+
+export interface AIKpiSuggestion {
+  id: string;
+  title: string;
+  description: string;
+  type: KpiType;
+  suggestedTarget: number;
+  unit: string;
+  weight: number;
+  category: 'Business Objective' | 'Individual Development' | 'Core Values';
+  confidenceScore: number;
+  smartScore: number;
+  riskFactors: string[];
+  ogsmAlignment: string;
+  dataSource: string;
+  rationale: string;
+}
+
+export interface AIAnomalyResult {
+  id: string;
+  kpiId: string;
+  anomalyType: 'statistical' | 'behavioral' | 'evidence' | 'pattern';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  riskScore: number;
+  confidence: number;
+  description: string;
+  recommendations: string[];
+  autoActions: string[];
+  needsHumanReview: boolean;
+  detectedAt: string;
+}
+
+export interface AIApprovalRecommendation {
+  decision: 'APPROVE' | 'REQUEST_CHANGES' | 'REJECT';
+  confidence: number;
+  reasoning: {
+    primaryFactors: string[];
+    positiveAspects: string[];
+    concerningAspects: string[];
+    riskAssessment: string;
+  };
+  suggestedComments: {
+    professional: string;
+    constructive: string;
+    developmental: string;
+  };
+  timeEstimate: number;
+  generatedAt: string;
+}
+
+// Enhanced KPI with AI metadata
+export interface EnhancedKpiDefinition extends KpiDefinition {
+  aiEnhancements?: {
+    smartScore: number;
+    smartFeedback: string[];
+    riskFactors: string[];
+    suggestedImprovements: string[];
+    validatedAt: string;
+  };
+}
+// Enhanced anomaly detection type
+export interface EnhancedAnomalyDetection {
+  id: string;
+  kpiId: string;
+  userId: string;
+  anomalyType: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  riskScore: number;
+  confidence: number;
+  needsHumanReview: boolean;
+  autoActions: string[];
+  suggestedActions: string[];
+  description: string;
+  behaviorPattern: {
+    submissionTime: string;
+    editCount: number;
+    timeSpent: number;
+    deviceInfo: string;
+  };
+  statisticalAnalysis: {
+    zScore: number;
+    percentile: number;
+    trend: 'improving' | 'stable' | 'declining';
+  };
+}
+// Add this to lib/types.ts - Replace the existing Approval interface
+
+export interface Approval {
+  id: string
+  kpiDefinitionId: string  // ✅ Added this field
+  entityId: string
+  entityType: ApprovalEntityType
+  level: 1 | 2 | 3
+  approverId: string
+  status: ApprovalStatus
+  comment?: string
+  createdAt: string
+  decidedAt?: string
+  delegatedTo?: string
+  delegatedAt?: string
+}
+
+// Also add ApprovalWorkflow interface to types.ts
+export interface ApprovalWorkflow {
+  kpiId: string
+  currentLevel: 1 | 2 | 3 | null
+  level1?: Approval
+  level2?: Approval
+  level3?: Approval
+  isComplete: boolean
+  finalStatus: "APPROVED" | "REJECTED" | "PENDING"
+}

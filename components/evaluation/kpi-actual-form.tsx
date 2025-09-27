@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
-import type { KpiDefinition, KpiActual } from "@/lib/types"
+import type { KpiDefinition, KpiActual, Evidence } from "@/lib/types"
 import { calculateKpiActualScore, getScoreBand } from "@/lib/evaluation-utils"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,7 @@ interface KpiActualFormProps {
 export function KpiActualForm({ kpiDefinition, initialActual, onSave, onCancel }: KpiActualFormProps) {
   const [actualValue, setActualValue] = useState(initialActual?.actualValue || 0)
   const [selfComment, setSelfComment] = useState(initialActual?.selfComment || "")
-  const [evidenceFiles, setEvidenceFiles] = useState(initialActual?.evidenceFiles || [])
+  const [evidenceFiles, setEvidenceFiles] = useState<Evidence[]>(initialActual?.evidenceFiles ?? [])
 
   const { percentage, score } = calculateKpiActualScore(kpiDefinition, actualValue)
   const scoreBand = getScoreBand(percentage)
@@ -43,7 +43,7 @@ export function KpiActualForm({ kpiDefinition, initialActual, onSave, onCancel }
     }
 
     if (!initialActual) {
-      actualData.submittedAt = new Date()
+      actualData.submittedAt = new Date().toISOString()
     }
 
     onSave(actualData)
@@ -55,7 +55,7 @@ export function KpiActualForm({ kpiDefinition, initialActual, onSave, onCancel }
 
     // Mock file upload - in real app, you'd upload to storage
     Array.from(files).forEach((file, index) => {
-      const mockFile = {
+      const mockFile: Evidence = {
         id: `file-${Date.now()}-${index}`,
         actualId: initialActual?.id || "new",
         fileName: file.name,
@@ -293,3 +293,4 @@ export function KpiActualForm({ kpiDefinition, initialActual, onSave, onCancel }
     </div>
   )
 }
+
