@@ -1,66 +1,44 @@
-// lib/reporting-utils.ts
-import type { User, KpiDefinition, KpiActual, ReportFilter } from './types'
+// lib/reporting-utils.ts - FIXED: Optional department filter
+import type { User, KpiDefinition, KpiActual, ReportFilter, ReportData } from './types'
 import { storageService } from './storage-service'
 
-export interface ReportData {
-  summary: {
-    totalKpis: number
-    completedKpis: number
-    averageScore: number
-    participationRate: number
-  }
-  departmentBreakdown: {
-    name: string
-    totalKpis: number
-    completedKpis: number
-    avgScore: number
-    participationRate: number
-  }[]
-  topPerformers: {
-    userId: string
-    userName: string
-    department: string
-    avgScore: number
-    completedKpis: number
-  }[]
-  improvements: {
-    area: string
-    currentScore: number
-    targetScore: number
-    gap: number
-    priority: 'HIGH' | 'MEDIUM' | 'LOW'
-  }[]
-}
-
 /**
- * Generate comprehensive report data based on filters
+ * Generate comprehensive report data
  */
-export function generateReportData(filters: ReportFilter): ReportData {
+export function generateReportData(filter: ReportFilter): ReportData {
   try {
-    // Get all KPI definitions and actuals
+    // Get filtered KPI definitions
     let kpiDefinitions = storageService.getKpiDefinitions()
-    const kpiActuals = storageService.getKpiActuals()
     
-    // Apply cycle filter
-    if (filters.cycleId && filters.cycleId !== 'all') {
-      kpiDefinitions = kpiDefinitions.filter(kpi => kpi.cycleId === filters.cycleId)
+    if (filter.cycleId) {
+      kpiDefinitions = kpiDefinitions.filter(k => k.cycleId === filter.cycleId)
     }
     
-    // Apply department filter
-    if (filters.department && filters.department !== 'all') {
-      kpiDefinitions = kpiDefinitions.filter(kpi => {
-        // Mock department mapping - in real app would get from user service
-        return kpi.orgUnitId?.includes(filters.department.toLowerCase())
-      })
+    if (filter.userId) {
+      kpiDefinitions = kpiDefinitions.filter(k => k.userId === filter.userId)
     }
     
-    // Calculate summary metrics
+    if (filter.orgUnitId) {
+      kpiDefinitions = kpiDefinitions.filter(k => k.orgUnitId === filter.orgUnitId)
+    }
+    
+    if (filter.status) {
+      kpiDefinitions = kpiDefinitions.filter(k => k.status === filter.status)
+    }
+    
+    // Get all actuals for these KPIs
+    const kpiActuals = kpiDefinitions
+      .map(kpi => storageService.getKpiActuals({ kpiDefinitionId: kpi.id }))
+      .flat()
+    
+    // Calculate summary
     const totalKpis = kpiDefinitions.length
-    const completedKpis = kpiDefinitions.filter(kpi => kpi.status === 'LOCKED_GOALS').length
+    const completedKpis = kpiDefinitions.filter(kpi => 
+      kpi.status === 'APPROVED' || kpi.status === 'LOCKED_GOALS'
+    ).length
     
-    // Get actuals for completed KPIs
     const relevantActuals = kpiActuals.filter(actual => 
-      kpiDefinitions.some(kpi => kpi.id === actual.kpiDefinitionId)
+      actual.status === 'APPROVED' || actual.status === 'LOCKED_ACTUALS'
     )
     
     const averageScore = relevantActuals.length > 0 
@@ -245,42 +223,31 @@ function generateImprovementAreas(
     }
   })
   
-  // Sort by priority and gap
-  return improvements
-    .sort((a, b) => {
-      const priorityOrder = { 'HIGH': 3, 'MEDIUM': 2, 'LOW': 1 }
-      if (priorityOrder[a.priority] !== priorityOrder[b.priority]) {
-        return priorityOrder[b.priority] - priorityOrder[a.priority]
-      }
-      return b.gap - a.gap
-    })
-    .slice(0, 5)
+  return improvements.slice(0, 5) // Top 5 improvement areas
 }
 
 /**
- * Export report data to Excel (mock implementation)
+ * Export report to Excel format
  */
 export async function exportToExcel(data: ReportData, filename: string): Promise<void> {
   try {
-    // In a real implementation, you would use a library like xlsx or exceljs
-    console.log('Exporting report to Excel:', filename)
-    
-    // Mock CSV export for now
+    // Generate CSV content
     const csvContent = generateCSVContent(data)
+    
+    // Create blob and download
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
     const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
     
-    if (link.download !== undefined) {
-      const url = URL.createObjectURL(blob)
-      link.setAttribute('href', url)
-      link.setAttribute('download', filename.replace('.xlsx', '.csv'))
-      link.style.visibility = 'hidden'
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-    }
+    link.setAttribute('href', url)
+    link.setAttribute('download', filename)
+    link.style.visibility = 'hidden'
+    
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
   } catch (error) {
-    console.error('Error exporting to Excel:', error)
+    console.error('Export failed:', error)
     throw new Error('Export failed')
   }
 }
@@ -323,8 +290,8 @@ function generateCSVContent(data: ReportData): string {
  */
 export function getReportPermissions(user: User) {
   return {
-    canViewAll: user.role === 'HR' || user.role === 'ADMIN' || user.role === 'BOD',
-    canExport: user.role === 'HR' || user.role === 'ADMIN',
+    canViewAll: user.role === 'ADMIN' || user.role === 'BOD',
+    canExport: user.role === 'ADMIN',
     canViewDepartment: user.role === 'HEAD_OF_DEPT' || user.role === 'LINE_MANAGER',
     canViewOwn: true
   }
@@ -335,6 +302,7 @@ export function getReportPermissions(user: User) {
  */
 function getDepartmentName(orgUnitId: string): string {
   const departmentMap: Record<string, string> = {
+    'org-admin': 'Administration',
     'org-hr': 'Human Resources',
     'org-it': 'Information Technology',
     'org-rnd': 'Research & Development', 
@@ -352,12 +320,13 @@ function getDepartmentName(orgUnitId: string): string {
 function getUserName(userId: string): string {
   // Mock user names - in real app would query user service
   const userMap: Record<string, string> = {
-    'user-VICC-HR-001': 'Nguyễn Thị Hương',
-    'user-VICC-IT-001': 'Trần Văn Nam', 
-    'user-VICC-RD-001': 'Lê Thị Mai',
-    'user-VICC-PD-001': 'Phạm Văn Đức',
-    'user-VICC-QA-001': 'Võ Thị Lan',
-    'user-VICC-EX-001': 'Nguyễn Văn Long'
+    'user-VICC-ADM-001': 'Admin User',
+    'user-VICC-HR-001': 'HR Manager',
+    'user-VICC-IT-001': 'IT Manager', 
+    'user-VICC-RD-001': 'R&D Staff',
+    'user-VICC-RD-002': 'R&D Manager',
+    'user-VICC-TECH-001': 'Technical Head',
+    'user-VICC-EX-001': 'Executive Director'
   }
   return userMap[userId] || `User ${userId.slice(-3)}`
 }

@@ -1,0 +1,23 @@
+# Create docker-compose.yml
+services:
+  postgres:
+    image: public.ecr.aws/docker/library/postgres:14-alpine
+    container_name: kpi_postgres
+    environment:
+      POSTGRES_DB: kpi_management
+      POSTGRES_USER: kpi_admin
+      POSTGRES_PASSWORD: Vicc!@##@!
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U kpi_admin -d kpi_management"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  postgres_data:

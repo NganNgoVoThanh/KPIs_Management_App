@@ -1,0 +1,410 @@
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER & ORGANIZATION ====================
+
+model User {
+  id            String   @id @default(uuid())
+  email         String   @unique
+  name          String
+  role          String   // ADMIN, STAFF, LINE_MANAGER, HEAD_OF_DEPT, BOD
+  orgUnitId     String
+  department    String?
+  employeeId    String?  @unique
+  managerId     String?
+  status        String   @default("ACTIVE") // ACTIVE, INACTIVE, SUSPENDED
+  locale        String   @default("vi-VN")
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  lastLoginAt   DateTime?
+
+  // Relations
+  orgUnit              OrgUnit              @relation(fields: [orgUnitId], references: [id])
+  manager              User?                @relation("UserManager", fields: [managerId], references: [id])
+  subordinates         User[]               @relation("UserManager")
+  
+  kpiDefinitions       KpiDefinition[]
+  kpiActuals           KpiActual[]
+  approvals            Approval[]
+  changeRequests       ChangeRequest[]      @relation("ChangeRequestRequester")
+  templates            KpiTemplate[]
+  cycles               Cycle[]
+  notifications        Notification[]
+  documents            CompanyDocument[]
+  auditLogs            AuditLog[]
+  hierarchiesAsUser    ApprovalHierarchy[]  @relation("HierarchyUser")
+  hierarchiesAsL1      ApprovalHierarchy[]  @relation("HierarchyLevel1")
+  hierarchiesAsL2      ApprovalHierarchy[]  @relation("HierarchyLevel2")
+  hierarchiesAsL3      ApprovalHierarchy[]  @relation("HierarchyLevel3")
+  historicalData       HistoricalKpiData[]
+
+  @@index([email])
+  @@index([orgUnitId])
+  @@index([role])
+  @@map("users")
+}
+
+model OrgUnit {
+  id        String    @id @default(uuid())
+  name      String
+  parentId  String?
+  type      String    // COMPANY, DEPARTMENT, TEAM, GROUP
+  managerId String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  parent    OrgUnit?  @relation("OrgUnitHierarchy", fields: [parentId], references: [id])
+  children  OrgUnit[] @relation("OrgUnitHierarchy")
+  users     User[]
+  kpis      KpiDefinition[]
+
+  @@index([parentId])
+  @@map("org_units")
+}
+
+// ==================== KPI MANAGEMENT ====================
+
+model Cycle {
+  id                  String    @id @default(uuid())
+  name                String
+  type                String    // QUARTERLY, YEARLY, SEMI_ANNUAL, MONTHLY
+  periodStart         DateTime
+  periodEnd           DateTime
+  status              String    @default("DRAFT") // DRAFT, ACTIVE, CLOSED, ARCHIVED
+  createdBy           String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  openedAt            DateTime?
+  closedAt            DateTime?
+  notificationSentAt  DateTime?
+  targetUsers         String[]  // Array of user IDs
+  settings            Json?     // Flexible settings object
+
+  // Relations
+  creator             User      @relation(fields: [createdBy], references: [id])
+  kpiDefinitions      KpiDefinition[]
+  historicalData      HistoricalKpiData[]
+
+  @@index([status])
+  @@index([createdBy])
+  @@map("cycles")
+}
+
+model KpiTemplate {
+  id             String   @id @default(uuid())
+  name           String
+  department     String
+  description    String?
+  kpiFields      Json     // Array of KPI field definitions
+  defaultWeights Json?    // Map of field ID to weight
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  isActive       Boolean  @default(true)
+
+  // Relations
+  creator        User     @relation(fields: [createdBy], references: [id])
+  kpiDefinitions KpiDefinition[]
+
+  @@index([department])
+  @@index([isActive])
+  @@map("kpi_templates")
+}
+
+model KpiDefinition {
+  id                    String    @id @default(uuid())
+  cycleId               String
+  userId                String
+  orgUnitId             String
+  title                 String
+  description           String?
+  type                  String    // QUANT_HIGHER_BETTER, QUANT_LOWER_BETTER, MILESTONE, BOOLEAN, BEHAVIOR
+  unit                  String
+  target                Float
+  formula               String?
+  weight                Float
+  dataSource            String?
+  ownerId               String
+  contributors          String[]  // Array of user IDs
+  status                String    @default("DRAFT") // DRAFT, SUBMITTED, PENDING_LM, PENDING_HOD, PENDING_BOD, APPROVED, REJECTED, LOCKED_GOALS, CHANGE_REQUESTED
+  createdFromTemplateId String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  lockedAt              DateTime?
+  
+  // Approval tracking
+  approvedByLevel1      String?
+  approvedAtLevel1      DateTime?
+  approvedByLevel2      String?
+  approvedAtLevel2      DateTime?
+  approvedByLevel3      String?
+  approvedAtLevel3      DateTime?
+  
+  // Rejection tracking
+  rejectedBy            String?
+  rejectedAt            DateTime?
+  rejectionReason       String?
+  
+  // Change request tracking
+  changeRequestedBy     String?
+  changeRequestedAt     DateTime?
+  changeRequestReason   String?
+
+  // Relations
+  cycle                 Cycle           @relation(fields: [cycleId], references: [id])
+  user                  User            @relation(fields: [userId], references: [id])
+  orgUnit               OrgUnit         @relation(fields: [orgUnitId], references: [id])
+  template              KpiTemplate?    @relation(fields: [createdFromTemplateId], references: [id])
+  
+  actuals               KpiActual[]
+  approvals             Approval[]
+  changeRequests        ChangeRequest[]
+
+  @@index([cycleId])
+  @@index([userId])
+  @@index([orgUnitId])
+  @@index([status])
+  @@map("kpi_definitions")
+}
+
+model KpiActual {
+  id              String    @id @default(uuid())
+  kpiDefinitionId String
+  actualValue     Float
+  percentage      Float
+  score           Float
+  selfComment     String?
+  status          String    @default("DRAFT") // DRAFT, SUBMITTED, PENDING_LM, PENDING_HOD, PENDING_BOD, APPROVED, REJECTED, LOCKED_ACTUALS
+  submittedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  approvedAt      DateTime?
+  approvedBy      String?
+  rejectedAt      DateTime?
+  rejectedBy      String?
+  rejectionReason String?
+  lastModifiedAt  DateTime  @default(now())
+
+  // Relations
+  kpiDefinition   KpiDefinition @relation(fields: [kpiDefinitionId], references: [id], onDelete: Cascade)
+  approver        User?         @relation(fields: [approvedBy], references: [id])
+  evidences       Evidence[]
+  approvals       Approval[]
+
+  @@index([kpiDefinitionId])
+  @@index([status])
+  @@map("kpi_actuals")
+}
+
+// ==================== APPROVAL & CHANGE MANAGEMENT ====================
+
+model Approval {
+  id              String    @id @default(uuid())
+  kpiDefinitionId String?
+  actualId        String?
+  entityId        String
+  entityType      String    // KPI, ACTUAL, CHANGE_REQUEST
+  level           Int       // 1, 2, 3
+  approverId      String
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED, CANCELLED
+  comment         String?
+  createdAt       DateTime  @default(now())
+  decidedAt       DateTime?
+  reassignedBy    String?
+  reassignedAt    DateTime?
+  reassignReason  String?
+
+  // Relations
+  kpiDefinition   KpiDefinition? @relation(fields: [kpiDefinitionId], references: [id], onDelete: Cascade)
+  actual          KpiActual?     @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  approver        User           @relation(fields: [approverId], references: [id])
+
+  @@index([entityId])
+  @@index([entityType])
+  @@index([approverId])
+  @@index([status])
+  @@map("approvals")
+}
+
+model ChangeRequest {
+  id                String    @id @default(uuid())
+  kpiDefinitionId   String
+  requesterId       String
+  requesterType     String    // USER, ADMIN
+  changeType        String    // TARGET, WEIGHT, DESCRIPTION, FORMULA, ALL
+  currentValues     Json
+  proposedValues    Json
+  reason            String
+  status            String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+  resolvedBy        String?
+  resolutionComment String?
+  requiresApproval  Boolean   @default(false)
+  approvalWorkflow  Json?
+
+  // Relations
+  kpiDefinition     KpiDefinition @relation(fields: [kpiDefinitionId], references: [id], onDelete: Cascade)
+  requester         User          @relation("ChangeRequestRequester", fields: [requesterId], references: [id])
+
+  @@index([kpiDefinitionId])
+  @@index([requesterId])
+  @@index([status])
+  @@map("change_requests")
+}
+
+model ApprovalHierarchy {
+  id                String    @id @default(uuid())
+  userId            String
+  level1ApproverId  String?
+  level2ApproverId  String?
+  level3ApproverId  String?
+  effectiveFrom     DateTime
+  effectiveTo       DateTime?
+  createdBy         String
+  createdAt         DateTime  @default(now())
+  isActive          Boolean   @default(true)
+
+  // Relations
+  user              User      @relation("HierarchyUser", fields: [userId], references: [id])
+  level1Approver    User?     @relation("HierarchyLevel1", fields: [level1ApproverId], references: [id])
+  level2Approver    User?     @relation("HierarchyLevel2", fields: [level2ApproverId], references: [id])
+  level3Approver    User?     @relation("HierarchyLevel3", fields: [level3ApproverId], references: [id])
+
+  @@index([userId])
+  @@index([isActive])
+  @@map("approval_hierarchies")
+}
+
+// ==================== FILES & EVIDENCE ====================
+
+model Evidence {
+  id              String    @id @default(uuid())
+  actualId        String
+  fileName        String
+  fileSize        Int
+  fileType        String
+  storageUrl      String?
+  checksum        String?
+  uploadedBy      String
+  uploadedAt      DateTime  @default(now())
+  description     String?
+  virusScanStatus String?   // PENDING, CLEAN, INFECTED
+  virusScanAt     DateTime?
+
+  // Relations
+  actual          KpiActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+
+  @@index([actualId])
+  @@map("evidences")
+}
+
+model CompanyDocument {
+  id           String    @id @default(uuid())
+  title        String
+  type         String    // OGSM, STRATEGIC_PLAN, POLICY, GUIDELINE, TEMPLATE, OTHER
+  fileName     String
+  fileSize     Int
+  fileType     String
+  storageUrl   String
+  department   String?
+  uploadedBy   String
+  uploadedAt   DateTime  @default(now())
+  tags         String[]
+  description  String?
+  isPublic     Boolean   @default(true)
+  aiIndexed    Boolean   @default(false)
+  aiIndexedAt  DateTime?
+
+  // Relations
+  uploader     User      @relation(fields: [uploadedBy], references: [id])
+
+  @@index([type])
+  @@index([aiIndexed])
+  @@map("company_documents")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id             String    @id @default(uuid())
+  userId         String
+  type           String    // KPI_CREATED, KPI_SUBMITTED, APPROVAL_REQUIRED, etc.
+  title          String
+  message        String
+  priority       String    @default("MEDIUM") // LOW, MEDIUM, HIGH
+  status         String    @default("UNREAD") // UNREAD, READ, ARCHIVED
+  actionRequired Boolean   @default(false)
+  actionUrl      String?
+  metadata       Json?
+  createdAt      DateTime  @default(now())
+  readAt         DateTime?
+  archivedAt     DateTime?
+
+  // Relations
+  user           User      @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+// ==================== HISTORICAL & ANALYTICS ====================
+
+model HistoricalKpiData {
+  id                 String   @id @default(uuid())
+  userId             String
+  cycleId            String?
+  year               Int
+  quarter            Int?
+  kpis               Json     // Array of KPI data
+  totalScore         Float
+  performanceRating  String
+  createdAt          DateTime @default(now())
+
+  // Relations
+  user               User     @relation(fields: [userId], references: [id])
+  cycle              Cycle?   @relation(fields: [cycleId], references: [id])
+
+  @@index([userId])
+  @@index([year])
+  @@map("historical_kpi_data")
+}
+
+// ==================== AUDIT & LOGGING ====================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actorName  String
+  actorRole  String
+  entityType String   // USER, KPI, CYCLE, TEMPLATE, APPROVAL, CHANGE_REQUEST
+  entityId   String
+  action     String
+  beforeData Json?
+  afterData  Json?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  actor      User     @relation(fields: [actorId], references: [id])
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

@@ -1,4 +1,4 @@
-// lib/auth-service.ts
+// lib/auth-service.ts - UPDATED: Admin role với đầy đủ quyền
 import type { User, UserRole } from './types'
 
 interface AuthorizedUser {
@@ -9,21 +9,14 @@ interface AuthorizedUser {
   employeeId: string
 }
 
-// Danh sách users với quyền truy cập
+// Danh sách users - UPDATED: Admin thay thế HR
 const AUTHORIZED_USERS: AuthorizedUser[] = [
-  {
-    email: 'hr@intersnack.com.vn',
-    name: 'Nguyen Thi Minh Tram',
-    role: 'HR',
-    department: 'Human Resources',
-    employeeId: 'VICC-HR-001'
-  },
   {
     email: 'admin@intersnack.com.vn',
     name: 'Vu Van Tai',
     role: 'ADMIN',
-    department: 'IT',
-    employeeId: 'VICC-IT-001'
+    department: 'Administration',
+    employeeId: 'VICC-ADM-001'
   },
   {
     email: 'staff@intersnack.com.vn',
@@ -139,19 +132,20 @@ class AuthService {
   }
 
   /**
-   * Check if user has specific permission
+   * Check if user has specific permission - UPDATED with Admin permissions
    */
   hasPermission(permission: string): boolean {
     const user = this.getCurrentUser()
     if (!user) return false
 
+    // Admin permissions - FULL ACCESS
     const permissions: Record<UserRole, string[]> = {
-      'HR': ['manage_templates', 'view_all_kpis', 'manage_cycles', 'generate_reports'],
       'ADMIN': ['*'], // All permissions
       'STAFF': ['view_own_kpis', 'submit_kpis', 'update_actuals'],
       'LINE_MANAGER': ['approve_level_1', 'view_team_kpis', 'submit_kpis'],
       'HEAD_OF_DEPT': ['approve_level_2', 'view_dept_kpis', 'manage_dept_templates'],
-      'BOD': ['approve_level_3', 'view_all_kpis', 'strategic_decisions']
+      'BOD': ['approve_level_3', 'view_all_kpis', 'strategic_decisions'],
+      HR: []
     }
 
     const userPermissions = permissions[user.role] || []
@@ -166,7 +160,7 @@ class AuthService {
   }
 
   /**
-   * Check if user has admin role
+   * Check if user has admin role - UPDATED
    */
   isAdmin(): boolean {
     const user = this.getCurrentUser()
@@ -201,74 +195,46 @@ class AuthService {
 
   private getManagerId(role: UserRole): string | undefined {
     const managerMap: Record<UserRole, string | undefined> = {
-      'STAFF': 'user-VICC-PD-001', // Reports to Line Manager
-      'LINE_MANAGER': 'user-VICC-QA-001', // Reports to HoD
+      'STAFF': 'user-VICC-RD-002', // Reports to Line Manager
+      'LINE_MANAGER': 'user-VICC-TECH-001', // Reports to HoD
       'HEAD_OF_DEPT': 'user-VICC-EX-001', // Reports to BOD
-      'HR': 'user-VICC-EX-001', // Reports to BOD
-      'ADMIN': undefined,
-      'BOD': undefined
+      'ADMIN': undefined, // Admin không có manager
+      'BOD': undefined,
+      HR: undefined
     }
     return managerMap[role]
   }
 
-  private clearUserData(): void {
-    // Fixed: Prevent infinite recursion
-    try {
-      // Keys to keep in localStorage
-      const keysToKeep = ['vicc_kpi_templates', 'vicc_kpi_cycles']
-      
-      // Get all localStorage keys
-      const allKeys: string[] = []
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (key) allKeys.push(key)
-      }
-      
-      // Remove user-specific keys
-      allKeys.forEach(key => {
-        if (!keysToKeep.includes(key) && key.startsWith('vicc_')) {
-          localStorage.removeItem(key)
-        }
-      })
-    } catch (error) {
-      console.error('Error clearing user data:', error)
+  private logActivity(action: string, userId: string): void {
+    const logs = JSON.parse(localStorage.getItem('auth_logs') || '[]')
+    logs.push({
+      action,
+      userId,
+      timestamp: new Date().toISOString(),
+      userAgent: navigator.userAgent
+    })
+    
+    // Keep last 100 logs
+    if (logs.length > 100) {
+      logs.shift()
     }
+    
+    localStorage.setItem('auth_logs', JSON.stringify(logs))
   }
 
-  private logActivity(action: string, userId: string): void {
-    try {
-      const activities = JSON.parse(localStorage.getItem('vicc_auth_activities') || '[]')
-      activities.push({
-        action,
-        userId,
-        timestamp: new Date().toISOString(),
-        ip: 'localhost', // In production, get real IP
-        userAgent: navigator.userAgent
-      })
-      
-      // Keep only last 100 activities
-      if (activities.length > 100) {
-        activities.splice(0, activities.length - 100)
+  private clearUserData(): void {
+    // Clear all user-specific data
+    const keysToRemove = []
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (key && key.startsWith('vicc_')) {
+        keysToRemove.push(key)
       }
-      
-      localStorage.setItem('vicc_auth_activities', JSON.stringify(activities))
-    } catch (error) {
-      console.error('Error logging activity:', error)
     }
+    
+    keysToRemove.forEach(key => localStorage.removeItem(key))
   }
 }
 
 export const authService = new AuthService()
-
-// Export helper functions for backward compatibility
-export function getCurrentUser(): User | null {
-  return authService.getCurrentUser()
-}
-
-export function isAuthenticated(): boolean {
-  return authService.isAuthenticated()
-}
-
-export function hasPermission(permission: string): boolean {
-  return authService.hasPermission(permission)
-}
+export default authService

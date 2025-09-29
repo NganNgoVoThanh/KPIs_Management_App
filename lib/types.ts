@@ -51,6 +51,7 @@ export type KpiStatus =
   | "APPROVED" 
   | "REJECTED" 
   | "LOCKED_GOALS"
+  | "CHANGE_REQUESTED" // NEW: Admin yêu cầu thay đổi
 
 export interface KpiDefinition {
   id: string
@@ -83,6 +84,9 @@ export interface KpiDefinition {
   rejectedBy?: string
   rejectedAt?: string
   rejectionReason?: string
+  changeRequestedBy?: string // NEW: Admin ID who requested change
+  changeRequestedAt?: string // NEW: Timestamp
+  changeRequestReason?: string // NEW: Lý do yêu cầu thay đổi
   [key: string]: any
 }
 
@@ -134,12 +138,15 @@ export interface Cycle {
   updatedAt?: string
   openedAt?: string
   closedAt?: string
+  notificationSentAt?: string // NEW: Tracking notification
+  targetUsers?: string[] // NEW: Users được gửi thông báo
   settings?: {
     allowLateSubmission?: boolean
     requireEvidence?: boolean
     minKpisPerUser?: number
     maxKpisPerUser?: number
     totalWeightMustEqual?: number
+    autoNotifyUsers?: boolean // NEW: Tự động thông báo
   }
 }
 
@@ -147,9 +154,12 @@ export interface Cycle {
 export type ActualStatus = 
   | "DRAFT" 
   | "SUBMITTED" 
-  | "PENDING_REVIEW" 
+  | "PENDING_LM" 
+  | "PENDING_HOD" 
+  | "PENDING_BOD" 
   | "APPROVED" 
-  | "REJECTED"
+  | "REJECTED" 
+  | "LOCKED_ACTUALS"
 
 export interface KpiActual {
   id: string
@@ -174,47 +184,44 @@ export interface KpiActual {
 // Approval Types
 export type ApprovalStatus = "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED"
 export type ApprovalEntityType = "KPI" | "ACTUAL" | "CHANGE_REQUEST"
+export type ApprovalLevel = 1 | 2 | 3
 
 export interface Approval {
   id: string
   entityId: string
   entityType: ApprovalEntityType
-  level: 1 | 2 | 3
+  level: ApprovalLevel
   approverId: string
   status: ApprovalStatus
   comment?: string
   createdAt: string
   decidedAt?: string
-  delegatedTo?: string
-  delegatedAt?: string
+  reassignedBy?: string // NEW: Admin re-route
+  reassignedAt?: string
+  reassignReason?: string
 }
 
 // Change Request Types
-export type ChangeRequestStatus = 
-  | "DRAFT" 
-  | "SUBMITTED" 
-  | "APPROVED" 
-  | "REJECTED" 
-  | "CANCELLED"
-
 export interface ChangeRequest {
   id: string
   kpiDefinitionId: string
   requesterId: string
+  requesterType: "USER" | "ADMIN" // NEW: Phân biệt nguồn yêu cầu
+  changeType: "TARGET" | "WEIGHT" | "DESCRIPTION" | "FORMULA" | "ALL"
+  currentValues: Record<string, any>
+  proposedValues: Record<string, any>
   reason: string
-  changes: {
-    field: string
-    oldValue: any
-    newValue: any
-  }[]
-  status: ChangeRequestStatus
+  status: "PENDING" | "APPROVED" | "REJECTED"
   createdAt: string
-  updatedAt?: string
-  approvedAt?: string
-  approvedBy?: string
-  rejectedAt?: string
-  rejectedBy?: string
-  rejectionReason?: string
+  resolvedAt?: string
+  resolvedBy?: string
+  resolutionComment?: string
+  requiresApproval: boolean
+  approvalWorkflow?: {
+    level1?: { approverId: string; status: ApprovalStatus; decidedAt?: string }
+    level2?: { approverId: string; status: ApprovalStatus; decidedAt?: string }
+    level3?: { approverId: string; status: ApprovalStatus; decidedAt?: string }
+  }
 }
 
 // Evidence/File Types
@@ -225,11 +232,12 @@ export interface Evidence {
   fileSize: number
   fileType: string
   storageUrl?: string
-  base64Data?: string
-  uploadedBy: string
-  uploadedAt: Date | string
-  description?: string
   checksum?: string
+  uploadedBy: string
+  uploadedAt: Date
+  description?: string
+  virusScanStatus?: "PENDING" | "CLEAN" | "INFECTED"
+  virusScanAt?: Date
 }
 
 // Notification Types
@@ -318,16 +326,17 @@ export interface Calibration {
 // Audit Log Types
 export interface AuditLog {
   id: string
-  userId: string
-  entityType: string
+  actorId: string
+  actorName: string
+  actorRole: UserRole
+  entityType: "USER" | "KPI" | "CYCLE" | "TEMPLATE" | "APPROVAL" | "CHANGE_REQUEST"
   entityId: string
   action: string
-  beforeValue?: any
-  afterValue?: any
-  metadata?: Record<string, any>
+  beforeData?: Record<string, any>
+  afterData?: Record<string, any>
   ipAddress?: string
   userAgent?: string
-  timestamp: string
+  createdAt: string
 }
 
 // Dashboard & Analytics Types
@@ -418,9 +427,42 @@ export interface ReportFilter {
     start: string
     end: string
   }
-  status?: string
+  status?: KpiStatus
+  dateFrom?: string
+  dateTo?: string
   performanceLevel?: 'HIGH' | 'MEDIUM' | 'LOW'
 }
+
+export interface ReportData {
+  summary: {
+    totalKpis: number
+    completedKpis: number
+    averageScore: number
+    participationRate: number
+  }
+  departmentBreakdown: {
+    name: string
+    totalKpis: number
+    completedKpis: number
+    avgScore: number
+    participationRate: number
+  }[]
+  topPerformers: {
+    userId: string
+    userName: string
+    department: string
+    avgScore: number
+    completedKpis: number
+  }[]
+  improvements: {
+    area: string
+    currentScore: number
+    targetScore: number
+    gap: number
+    priority: "HIGH" | "MEDIUM" | "LOW"
+  }[]
+}
+
 // AI-specific interfaces
 export interface AIValidationResult {
   score: number;
@@ -540,4 +582,64 @@ export interface ApprovalWorkflow {
   level3?: Approval
   isComplete: boolean
   finalStatus: "APPROVED" | "REJECTED" | "PENDING"
+}
+// Admin-specific Types - NEW
+export interface AdminNotificationConfig {
+  cycleId: string
+  templateId?: string
+  targetRoles?: UserRole[]
+  targetDepartments?: string[]
+  targetUsers?: string[]
+  subject: string
+  message: string
+  includeKpiTemplate: boolean
+  dueDate?: string
+  scheduledSendAt?: string
+}
+
+export interface CompanyDocument {
+  id: string
+  title: string
+  type: "OGSM" | "STRATEGIC_PLAN" | "POLICY" | "GUIDELINE" | "TEMPLATE" | "OTHER"
+  fileName: string
+  fileSize: number
+  fileType: string
+  storageUrl: string
+  department?: string
+  uploadedBy: string
+  uploadedAt: string
+  tags?: string[]
+  description?: string
+  isPublic: boolean
+  aiIndexed: boolean // NEW: Đã được AI index để tham chiếu
+  aiIndexedAt?: string
+}
+
+export interface ApprovalHierarchy {
+  userId: string
+  level1ApproverId?: string // Line Manager
+  level2ApproverId?: string // Head of Dept
+  level3ApproverId?: string // BOD
+  effectiveFrom: string
+  effectiveTo?: string
+  createdBy: string
+  createdAt: string
+  isActive: boolean
+}
+
+// Historical KPI Data for AI Reference - NEW
+export interface HistoricalKpiData {
+  userId: string
+  year: number
+  quarter?: number
+  kpis: {
+    title: string
+    type: KpiType
+    target: number
+    actual: number
+    score: number
+    weight: number
+  }[]
+  totalScore: number
+  performanceRating: string
 }
