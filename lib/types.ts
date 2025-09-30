@@ -68,6 +68,7 @@ export interface KpiDefinition {
   dataSource?: string
   ownerId: string
   contributors?: string[]
+  adminNote?: string
   status: KpiStatus
   createdFromTemplateId?: string
   createdAt: string
@@ -179,6 +180,8 @@ export interface KpiActual {
   rejectionReason?: string
   evidenceFiles?: Evidence[]
   lastModifiedAt?: Date | string
+  adminNote?: string
+  userId?: string
 }
 
 // Approval Types
@@ -643,3 +646,76 @@ export interface HistoricalKpiData {
   totalScore: number
   performanceRating: string
 }
+
+
+export interface KpiLibraryEntry {
+  id: string
+  stt: number
+  ogsmTarget: string
+  department: string
+  jobTitle: string
+  kpiName: string
+  kpiType: 'I' | 'II' | 'III' | 'IV'
+  unit: string
+  dataSource: string
+  yearlyTarget?: number | string
+  quarterlyTarget?: number | string
+  createdAt: string
+  updatedAt: string
+  uploadedBy: string
+  status: 'ACTIVE' | 'INACTIVE' | 'PENDING_APPROVAL'
+  version: number
+  isTemplate: boolean
+}
+
+export interface KpiLibraryUpload {
+  id: string
+  fileName: string
+  uploadedBy: string
+  uploadedAt: string
+  totalEntries: number
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  approvedBy?: string
+  approvedAt?: string
+  rejectionReason?: string
+}
+
+export interface KpiLibraryChangeRequest {
+  id: string
+  requestType: 'ADD' | 'EDIT' | 'DELETE'
+  requestedBy: string
+  requestedAt: string
+  department: string
+  currentEntry?: KpiLibraryEntry
+  proposedEntry: Partial<KpiLibraryEntry>
+  reason: string
+  status: 'PENDING' | 'APPROVED' | 'REJECTED'
+  reviewedBy?: string
+  reviewedAt?: string
+  reviewComment?: string
+}
+
+// ==================== ADMIN PROXY TYPES ====================
+
+export type ProxyActionType = 
+  | 'RETURN_TO_STAFF' 
+  | 'APPROVE_AS_MANAGER' 
+  | 'REJECT_AS_MANAGER' 
+  | 'REASSIGN_APPROVER'
+
+export interface ProxyAction {
+  id: string
+  actionType: ProxyActionType
+  performedBy: string
+  performedAt: string
+  targetUserId?: string
+  entityType: 'KPI' | 'ACTUAL'
+  entityId: string
+  level?: number
+  reason: string
+  comment?: string
+  previousApproverId?: string
+  newApproverId?: string
+  metadata?: Record<string, any>
+}
+

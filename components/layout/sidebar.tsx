@@ -42,7 +42,8 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     kpis: true,
     evaluation: false,
-    management: false
+    management: false,
+    admin: false
   })
 
   const toggleSection = (section: string) => {
@@ -129,12 +130,6 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
           show: true
         },
         {
-          label: "Users",
-          href: "/admin/users",
-          icon: Users,
-          show: user.role === "ADMIN"
-        },
-        {
           label: "Reports",
           href: "/reports",
           icon: BarChart3,
@@ -157,10 +152,30 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
     },
     {
       label: "Admin Panel",
-      href: "/admin",
       icon: Shield,
-      show: user.role === "ADMIN"
-    }
+      show: user.role === "ADMIN",
+      section: "admin",
+      children: [
+       {
+        label: "Admin Dashboard",
+        href: "/admin",
+        icon: Shield,
+        show: true
+       },
+       {
+        label: "KPI Library",
+        href: "/admin/kpi-library",
+        icon: FileText,
+        show: true
+       },
+       {
+        label: "Users",
+        href: "/admin/users",
+        icon: Users,
+        show: true
+       }
+     ]
+   }
   ]
 
   const renderMenuItem = (item: any, index: number) => {

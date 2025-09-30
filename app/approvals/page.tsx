@@ -33,6 +33,8 @@ import {
   Calendar,
   Target
 } from "lucide-react"
+// ⭐ IMPORT COMPONENT ADMIN PROXY
+import { AdminProxyActions } from "@/components/admin/admin-proxy-actions"
 
 export default function ApprovalsPage() {
   const { toast } = useToast()
@@ -48,6 +50,9 @@ export default function ApprovalsPage() {
   const [isProcessing, setIsProcessing] = useState(false)
   const [showDialog, setShowDialog] = useState(false)
   const [dialogAction, setDialogAction] = useState<'APPROVE' | 'REJECT' | null>(null)
+  // ⭐ STATE CHO ADMIN PROXY VIEW
+  const [showAdminProxy, setShowAdminProxy] = useState(false)
+  const [selectedForProxy, setSelectedForProxy] = useState<any>(null)
 
   useEffect(() => {
     const currentUser = authService.getCurrentUser()
@@ -67,6 +72,12 @@ export default function ApprovalsPage() {
     setDialogAction(action)
     setShowDialog(true)
     setComment("")
+  }
+
+  // ⭐ HANDLER CHO ADMIN PROXY
+  const handleAdminProxyView = (approval: any) => {
+    setSelectedForProxy(approval)
+    setShowAdminProxy(true)
   }
 
   const processApproval = async () => {
@@ -233,7 +244,38 @@ export default function ApprovalsPage() {
               <XCircle className="h-4 w-4 mr-2" />
               Reject
             </Button>
+            {/* ⭐ NÚT ADMIN ACTIONS - CHỈ HIỆN CHO ADMIN */}
+            {user?.role === 'ADMIN' && (
+              <Button
+                variant="outline"
+                onClick={() => handleAdminProxyView(item)}
+                className="border-yellow-500 text-yellow-700 hover:bg-yellow-50"
+              >
+                Admin Actions
+              </Button>
+            )}
           </div>
+
+          {/* ⭐ ADMIN PROXY PANEL - INLINE */}
+          {user?.role === 'ADMIN' && showAdminProxy && selectedForProxy?.approval.entityId === approval.entityId && (
+            <div className="mt-4">
+              <AdminProxyActions
+                entityType={approval.entityType}
+                entityId={entity.id}
+                staffUserId={entity.userId}
+                staffName={submitter.name}
+                onActionComplete={() => {
+                  setShowAdminProxy(false)
+                  setSelectedForProxy(null)
+                  if (user) loadApprovals(user)
+                  toast({
+                    title: "Action completed",
+                    description: "The admin action has been processed successfully"
+                  })
+                }}
+              />
+            </div>
+          )}
         </CardContent>
       </Card>
     )
@@ -248,6 +290,12 @@ export default function ApprovalsPage() {
           <p className="text-muted-foreground mt-1">
             Review and approve KPIs and performance evaluations
           </p>
+          {/* ⭐ ADMIN BADGE */}
+          {user?.role === 'ADMIN' && (
+            <Badge className="mt-2 bg-yellow-100 text-yellow-800 border-yellow-300">
+              Admin Mode: Proxy actions available
+            </Badge>
+          )}
         </div>
 
         {/* Stats */}

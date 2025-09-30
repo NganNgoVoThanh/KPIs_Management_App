@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { authService } from '@/lib/auth-service'
 import { storageService } from '@/lib/storage-service'
 import { KpiForm } from '@/components/kpi/enhanced-kpi-form'
+import { KpiLibraryButton } from '@/components/kpi/kpi-library-button'
 import type { KpiDefinition, Notification } from '@/lib/types'
 
 export default function CreateKpiPage() {
@@ -72,12 +73,11 @@ export default function CreateKpiPage() {
         savedKpis.push(kpiDefinition)
       }
 
-      // Create notification for Line Manager - FIXED TYPE
       if (user.managerId) {
         const notification: Notification = {
           id: `notif-${Date.now()}`,
           userId: user.managerId,
-          type: 'APPROVAL_REQUIRED', // ✅ This is now correctly typed as NotificationType
+          type: 'APPROVAL_REQUIRED',
           title: 'New KPI Approval Request',
           message: `${user.name} has submitted ${savedKpis.length} KPIs for your approval.`,
           priority: 'HIGH',
@@ -101,6 +101,17 @@ export default function CreateKpiPage() {
     if (confirm('Are you sure you want to cancel? All unsaved changes will be lost.')) {
       router.push('/kpis')
     }
+  }
+
+  const handleKpiSelect = (selectedKpi: any) => {
+    alert(
+      `KPI Selected from Library:\n\n` +
+      `Name: ${selectedKpi.kpiName}\n` +
+      `Type: ${selectedKpi.kpiType}\n` +
+      `Unit: ${selectedKpi.unit}\n` +
+      `Data Source: ${selectedKpi.dataSource}\n\n` +
+      `Please use this information to fill the form below.`
+    )
   }
 
   if (loading) {
@@ -137,20 +148,54 @@ export default function CreateKpiPage() {
   }
 
   return (
-    <KpiForm
-      userProfile={{
-        id: user.id,
-        name: user.name,
-        department: user.department || 'Unknown',
-        jobTitle: user.jobTitle || 'Employee'
-      }}
-      showAISuggestions={true}
-      enableSmartValidation={true}
-      enableRealTimeAnalysis={false}
-      maxKpis={5}
-      cycleYear={new Date().getFullYear()}
-      onSubmit={handleKpiSubmit}
-      onCancel={handleCancel}
-    />
+    <div className="min-h-screen bg-gradient-to-br from-red-50 via-white to-orange-50 p-6">
+      <div className="max-w-7xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold text-gray-900">Create KPI Goals</h1>
+          <p className="text-gray-600 mt-1">
+            Define your performance objectives for {currentCycle.name}
+          </p>
+        </div>
+
+        {/* KPI Library Button */}
+        <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+          <div className="flex items-start gap-3">
+            <div className="flex-shrink-0 mt-1">
+              <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <div className="flex-1">
+              <h3 className="text-sm font-medium text-gray-900 mb-1">
+                Quick Start: Select from KPI Library
+              </h3>
+              <p className="text-sm text-gray-600 mb-3">
+                Choose from pre-approved KPI templates for your department to save time.
+              </p>
+              <KpiLibraryButton
+                userDepartment={user.department}
+                onSelect={handleKpiSelect}
+              />
+            </div>
+          </div>
+        </div>
+
+        <KpiForm
+          userProfile={{
+            id: user.id,
+            name: user.name,
+            department: user.department || 'Unknown',
+            jobTitle: user.jobTitle || 'Employee'
+          }}
+          showAISuggestions={true}
+          enableSmartValidation={true}
+          enableRealTimeAnalysis={false}
+          maxKpis={5}
+          cycleYear={new Date().getFullYear()}
+          onSubmit={handleKpiSubmit}
+          onCancel={handleCancel}
+        />
+      </div>
+    </div>
   )
 }

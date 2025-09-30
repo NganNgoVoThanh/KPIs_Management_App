@@ -25,7 +25,12 @@ class StorageService {
     CHANGE_REQUESTS: 'vicc_change_requests',
     EVIDENCES: 'vicc_evidences',
     NOTIFICATIONS: 'vicc_notifications',
-    AUDIT_LOGS: 'vicc_audit_logs'
+    AUDIT_LOGS: 'vicc_audit_logs',
+    // ⭐ NEW KEYS - Thêm vào cuối
+    KPI_LIBRARY: 'vicc_kpi_library',
+    KPI_LIBRARY_UPLOADS: 'vicc_kpi_library_uploads',
+    KPI_LIBRARY_CHANGE_REQUESTS: 'vicc_kpi_library_change_requests',
+    ADMIN_PROXY_ACTIONS: 'vicc_admin_proxy_actions'
   }
 
   public getItem<T>(key: string): T[] {
