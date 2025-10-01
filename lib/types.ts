@@ -59,13 +59,13 @@ export interface KpiDefinition {
   userId: string
   orgUnitId: string
   title: string
-  description?: string
+  description?: string | null
   type: KpiType
   unit: string
   target: number
-  formula?: string
+  formula?: string | null
   weight: number
-  dataSource?: string
+  dataSource?: string  | null
   ownerId: string
   contributors?: string[]
   adminNote?: string
