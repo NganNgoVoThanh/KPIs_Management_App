@@ -1,0 +1,11 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "AzureWebJobsStorage": "UseDevelopmentStorage=true",
+    "FUNCTIONS_WORKER_RUNTIME": "node",
+    "ONELAKE_SERVER": "3wwk3pmo57zuvpnpqrivh2qfry-jgyijnfyedaudovyjeti2olglu.datawarehouse.fabric.microsoft.com",
+    "ONELAKE_DATABASE": "KPIs_Management_Lakehouse",
+    "ONELAKE_WORKSPACE_ID": "b484b049-20b8-41c1-bab8-49268d39665d",
+    "ONELAKE_LAKEHOUSE_ID": "1f12d922-eed0-4668-8a07-7cf498fb6bc8"
+  }
+}

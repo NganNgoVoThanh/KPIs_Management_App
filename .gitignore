@@ -1,0 +1,14 @@
+﻿.continue/
+*.env
+.env.local
+.env.*.local
+node_modules/
+.next/
+.local-storage/
+# Environment files with secrets
+.env
+.env.local
+.env.*.local
+.env.old
+.env.backup
+*.key

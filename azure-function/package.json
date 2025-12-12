@@ -1,0 +1,23 @@
+{
+  "name": "kpi-onelake-proxy",
+  "version": "1.0.0",
+  "description": "Azure Function proxy for OneLake SQL Endpoint with Managed Identity",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "start": "func start",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@azure/functions": "^4.0.0",
+    "@azure/identity": "^4.0.0",
+    "mssql": "^10.0.0"
+  },
+  "devDependencies": {
+    "@azure/functions": "^4.0.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "azure-functions-core-tools": "^4.0.0"
+  }
+}

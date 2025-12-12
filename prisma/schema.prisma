@@ -1,0 +1,661 @@
+// prisma/schema.prisma - MySQL Version
+// Database: tripsmgm_kpi (temporary MySQL server)
+// IMPORTANT: Export database before any schema changes!
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================== USER & ORGANIZATION ====================
+
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  name          String
+  role          String    // ADMIN, STAFF, LINE_MANAGER, MANAGER
+  orgUnitId     String
+  department    String?
+  employeeId    String?   @unique
+  managerId     String?
+  status        String    @default("ACTIVE")
+  locale        String    @default("vi-VN")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  lastLoginAt   DateTime?
+
+  // Relations
+  orgUnit              OrgUnit              @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  manager              User?                @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  subordinates         User[]               @relation("UserManager")
+
+  kpiDefinitions       KpiDefinition[]
+  kpiActuals           KpiActual[]
+  approvals            Approval[]
+  changeRequests       ChangeRequest[]      @relation("ChangeRequestRequester")
+  templates            KpiTemplate[]
+  cycles               Cycle[]
+  notifications        Notification[]
+  documents            CompanyDocument[]
+  auditLogs            AuditLog[]
+  hierarchiesAsUser    ApprovalHierarchy[]  @relation("HierarchyUser")
+  hierarchiesAsL1      ApprovalHierarchy[]  @relation("HierarchyLevel1")
+  hierarchiesAsL2      ApprovalHierarchy[]  @relation("HierarchyLevel2")
+  historicalData       HistoricalKpiData[]
+  kpiLibraryEntries    KpiLibraryEntry[]
+  kpiLibraryUploads    KpiLibraryUpload[]
+  proxyActions         ProxyAction[]
+  kpiResourcesUploaded KpiResource[]        @relation("KpiResourceUploader")
+  kpiResourcesApproved KpiResource[]        @relation("KpiResourceApprover")
+
+  @@index([email])
+  @@index([orgUnitId])
+  @@index([role])
+  @@index([managerId])
+  @@map("users")
+}
+
+model OrgUnit {
+  id        String    @id @default(uuid())
+  name      String
+  parentId  String?
+  type      String    // COMPANY, DEPARTMENT, TEAM, GROUP
+  managerId String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  parent    OrgUnit?  @relation("OrgUnitHierarchy", fields: [parentId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  children  OrgUnit[] @relation("OrgUnitHierarchy")
+  users     User[]
+  kpis      KpiDefinition[]
+
+  @@index([parentId])
+  @@map("org_units")
+}
+
+// ==================== KPI MANAGEMENT ====================
+
+model Cycle {
+  id                  String    @id @default(uuid())
+  name                String
+  type                String    // QUARTERLY, YEARLY, SEMI_ANNUAL, MONTHLY
+  periodStart         DateTime
+  periodEnd           DateTime
+  status              String    @default("DRAFT")
+  createdBy           String
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  openedAt            DateTime?
+  closedAt            DateTime?
+  notificationSentAt  DateTime?
+  targetUsers         Json?     // MySQL: Native JSON type
+  settings            Json?     // MySQL: Native JSON type
+
+  // Relations
+  creator             User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  kpiDefinitions      KpiDefinition[]
+  historicalData      HistoricalKpiData[]
+
+  @@index([status])
+  @@index([createdBy])
+  @@index([periodStart])
+  @@index([periodEnd])
+  @@map("cycles")
+}
+
+// Enhanced KPI Template model - Unified system for all templates
+model KpiTemplate {
+  id             String   @id @default(uuid())
+
+  // Basic information
+  name           String
+  description    String?  @db.Text
+  department     String
+  jobTitle       String?
+  category       String?  // SALES, OPERATIONS, HR, FINANCE, etc.
+
+  // KPI Details
+  kpiType        String   // QUANTITATIVE, QUALITATIVE
+  unit           String?
+  formula        String?  @db.Text
+  dataSource     String?  @db.Text
+  targetValue    Float?
+  weight         Float?
+
+  // Template structure (for form-based templates)
+  kpiFields      Json?    // MySQL: Native JSON type - deprecated, keeping for migration
+  defaultWeights Json?    // MySQL: Native JSON type - deprecated
+
+  // Metadata
+  tags           Json?    // MySQL: Native JSON type - array of strings
+  ogsmAlignment  String?
+  frequency      String?  // DAILY, WEEKLY, MONTHLY, QUARTERLY, YEARLY
+  priority       String?  // HIGH, MEDIUM, LOW
+
+  // Source tracking
+  source         String   @default("MANUAL") // MANUAL, EXCEL_UPLOAD, CLONED, IMPORTED
+  uploadId       String?  // Reference to KpiLibraryUpload if from Excel
+  clonedFromId   String?  // Reference to another template if cloned
+
+  // Approval workflow
+  status         String   @default("DRAFT") // DRAFT, PENDING, APPROVED, REJECTED, ARCHIVED
+  submittedBy    String?
+  submittedAt    DateTime?
+  reviewedBy     String?
+  reviewedAt     DateTime?
+  reviewComment  String?  @db.Text
+  rejectionReason String? @db.Text
+
+  // Usage statistics
+  usageCount     Int      @default(0)
+  lastUsedAt     DateTime?
+
+  // Versioning
+  version        Int      @default(1)
+  isActive       Boolean  @default(true)
+
+  // Timestamps
+  createdBy      String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  creator        User     @relation(fields: [createdBy], references: [id], onDelete: Cascade)
+  kpiDefinitions KpiDefinition[]
+
+  @@index([department])
+  @@index([isActive])
+  @@index([status])
+  @@index([category])
+  @@index([source])
+  @@index([kpiType])
+  @@map("kpi_templates")
+}
+
+model KpiDefinition {
+  id                    String    @id @default(uuid())
+  cycleId               String
+  userId                String
+  orgUnitId             String
+  title                 String
+  description           String?
+  type                  String
+  unit                  String
+  target                Float
+  formula               String?
+  weight                Float
+  dataSource            String?   @db.Text
+  ownerId               String
+  contributors          Json?     // MySQL: Native JSON type
+  status                String    @default("DRAFT")
+  createdFromTemplateId String?
+  scoringRules          Json?     // MySQL: Native JSON type
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  lockedAt              DateTime?
+
+  // Additional KPI Form fields
+  category              String?
+  ogsmAlignment         String?
+  frequency             String?
+  priority              String?
+  dependencies          String?
+  evidenceRequirements  String?
+  startDate             DateTime?
+  dueDate               DateTime?
+
+  // Approval tracking
+  approvedByLevel1      String?
+  approvedAtLevel1      DateTime?
+  approvedByLevel2      String?
+  approvedAtLevel2      DateTime?
+
+  // Rejection tracking
+  rejectedBy            String?
+  rejectedAt            DateTime?
+  rejectionReason       String?
+
+  // Change request tracking
+  changeRequestedBy     String?
+  changeRequestedAt     DateTime?
+  changeRequestReason   String?
+
+  // Relations
+  cycle                 Cycle           @relation(fields: [cycleId], references: [id], onDelete: Cascade)
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orgUnit               OrgUnit         @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  template              KpiTemplate?    @relation(fields: [createdFromTemplateId], references: [id], onDelete: SetNull)
+
+  actuals               KpiActual[]
+  approvals             Approval[]
+  changeRequests        ChangeRequest[]
+
+  @@index([cycleId])
+  @@index([userId])
+  @@index([orgUnitId])
+  @@index([status])
+  @@index([cycleId, userId])
+  @@index([category])
+  @@index([priority])
+  @@map("kpi_definitions")
+}
+
+model KpiActual {
+  id              String    @id @default(uuid())
+  kpiDefinitionId String
+  actualValue     Float
+  percentage      Float
+  score           Float
+  selfComment     String?
+  status          String    @default("DRAFT")
+  submittedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  approvedAt      DateTime?
+  approvedBy      String?
+  rejectedAt      DateTime?
+  rejectedBy      String?
+  rejectionReason String?
+  lastModifiedAt  DateTime  @default(now())
+
+  // Relations
+  kpiDefinition   KpiDefinition @relation(fields: [kpiDefinitionId], references: [id], onDelete: Cascade)
+  approver        User?         @relation(fields: [approvedBy], references: [id], onDelete: SetNull)
+  evidences       Evidence[]
+  approvals       Approval[]
+
+  @@index([kpiDefinitionId])
+  @@index([status])
+  @@map("kpi_actuals")
+}
+
+// ==================== APPROVAL & CHANGE MANAGEMENT ====================
+
+model Approval {
+  id              String    @id @default(uuid())
+  kpiDefinitionId String?
+  actualId        String?
+  entityId        String
+  entityType      String
+  level           Int
+  approverId      String
+  status          String    @default("PENDING")
+  comment         String?
+  createdAt       DateTime  @default(now())
+  decidedAt       DateTime?
+  reassignedBy    String?
+  reassignedAt    DateTime?
+  reassignReason  String?
+
+  // Relations
+  kpiDefinition   KpiDefinition? @relation(fields: [kpiDefinitionId], references: [id], onDelete: Cascade)
+  actual          KpiActual?     @relation(fields: [actualId], references: [id], onDelete: Cascade)
+  approver        User           @relation(fields: [approverId], references: [id], onDelete: Cascade)
+
+  @@index([entityId])
+  @@index([entityType])
+  @@index([approverId])
+  @@index([status])
+  @@index([approverId, status])
+  @@map("approvals")
+}
+
+model ChangeRequest {
+  id                String    @id @default(uuid())
+  kpiDefinitionId   String
+  requesterId       String
+  requesterType     String
+  changeType        String
+  currentValues     Json      // MySQL: Native JSON type
+  proposedValues    Json      // MySQL: Native JSON type
+  reason            String    @db.Text
+  status            String    @default("PENDING")
+  createdAt         DateTime  @default(now())
+  resolvedAt        DateTime?
+  resolvedBy        String?
+  resolutionComment String?   @db.Text
+  requiresApproval  Boolean   @default(false)
+  approvalWorkflow  Json?     // MySQL: Native JSON type
+
+  // Relations
+  kpiDefinition     KpiDefinition @relation(fields: [kpiDefinitionId], references: [id], onDelete: Cascade)
+  requester         User          @relation("ChangeRequestRequester", fields: [requesterId], references: [id], onDelete: Cascade)
+
+  @@index([kpiDefinitionId])
+  @@index([requesterId])
+  @@index([status])
+  @@map("change_requests")
+}
+
+model ApprovalHierarchy {
+  id                String    @id @default(uuid())
+  userId            String
+  level1ApproverId  String?
+  level2ApproverId  String?
+  effectiveFrom     DateTime
+  effectiveTo       DateTime?
+  createdBy         String
+  createdAt         DateTime  @default(now())
+  isActive          Boolean   @default(true)
+
+  // Relations
+  user              User      @relation("HierarchyUser", fields: [userId], references: [id], onDelete: Cascade)
+  level1Approver    User?     @relation("HierarchyLevel1", fields: [level1ApproverId], references: [id], onDelete: SetNull)
+  level2Approver    User?     @relation("HierarchyLevel2", fields: [level2ApproverId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([isActive])
+  @@index([userId, isActive])
+  @@map("approval_hierarchies")
+}
+
+// ==================== FILES & EVIDENCE ====================
+
+model Evidence {
+  id              String    @id @default(uuid())
+  actualId        String
+  provider        String    @default("M365")
+  providerRef     String
+  siteId          String?
+  driveId         String?
+  fileHash        String?
+  fileName        String
+  fileSize        Int
+  fileType        String
+  uploadedBy      String
+  uploadedAt      DateTime  @default(now())
+  description     String?   @db.Text
+  sharedAccess    Boolean   @default(false)
+  category        String?
+  metadata        Json?     // MySQL: Native JSON type
+  virusScanStatus String    @default("PENDING")
+  virusScanAt     DateTime?
+
+  // Relations
+  actual          KpiActual @relation(fields: [actualId], references: [id], onDelete: Cascade)
+
+  @@index([actualId])
+  @@index([provider])
+  @@map("evidences")
+}
+
+model CompanyDocument {
+  id           String    @id @default(uuid())
+  title        String
+  type         String
+  fileName     String
+  fileSize     Int
+  fileType     String
+  storageUrl   String
+  department   String?
+  uploadedBy   String
+  uploadedAt   DateTime  @default(now())
+  tags         Json?     // MySQL: Native JSON type
+  description  String?   @db.Text
+  isPublic     Boolean   @default(true)
+  aiIndexed    Boolean   @default(false)
+  aiIndexedAt  DateTime?
+
+  // Relations
+  uploader     User      @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([type])
+  @@index([aiIndexed])
+  @@index([department])
+  @@map("company_documents")
+}
+
+// ==================== KPI LIBRARY ====================
+
+// KPI Library Upload - Tracks Excel file uploads with approval workflow
+model KpiLibraryUpload {
+  id              String    @id @default(uuid())
+  fileName        String
+  fileSize        Int
+  mimeType        String
+  storageUrl      String?   @db.Text
+
+  // Parsed data from Excel
+  rawData         Json      // MySQL: Native JSON type - original Excel data
+  totalEntries    Int       @default(0)
+  validEntries    Int       @default(0)
+  invalidEntries  Int       @default(0)
+  parseErrors     Json?     // MySQL: Native JSON type - array of errors
+
+  // Upload tracking
+  uploadedBy      String
+  uploadedAt      DateTime  @default(now())
+
+  // Approval workflow
+  status          String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  reviewComment   String?   @db.Text
+  rejectionReason String?   @db.Text
+
+  // Processing
+  processedAt     DateTime?
+  processedCount  Int       @default(0)
+
+  // Relations
+  uploader        User      @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@index([uploadedBy])
+  @@index([uploadedAt])
+  @@map("kpi_library_uploads")
+}
+
+// KPI Templates - Structured KPI data for reference when creating new KPIs
+model KpiLibraryEntry {
+  id              String   @id @default(uuid())
+  stt             Int
+  ogsmTarget      String
+  department      String
+  jobTitle        String
+  kpiName         String
+  kpiType         String
+  unit            String
+  dataSource      String
+  yearlyTarget    String?
+  quarterlyTarget String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  uploadedBy      String
+  uploadId        String?  // Reference to KpiLibraryUpload
+  status          String   @default("ACTIVE")
+  version         Int      @default(1)
+  isTemplate      Boolean  @default(true)
+
+  // Relations
+  uploader        User     @relation(fields: [uploadedBy], references: [id], onDelete: Cascade)
+
+  @@index([department])
+  @@index([jobTitle])
+  @@index([status])
+  @@index([kpiType])
+  @@index([uploadId])
+  @@map("kpi_library_entries")
+}
+
+// KPI Resources - Extended document storage (PDF, Excel, Word, Images, BI Dashboards, etc.)
+model KpiResource {
+  id              String    @id @default(uuid())
+  title           String
+  description     String?   @db.Text
+  category        String    // TEMPLATE, GUIDE, REPORT, EXAMPLE, DASHBOARD, BI_REPORT, OTHER
+  department      String?
+  tags            Json?     // MySQL: Native JSON type - array of strings
+
+  // Resource type
+  resourceType    String    @default("FILE") // FILE, BI_DASHBOARD, LINK, EMBEDDED
+
+  // File information (for FILE type)
+  fileName        String?
+  fileType        String?   // pdf, xlsx, xls, docx, pptx, jpg, png, gif, csv, etc.
+  fileSize        Int?      // in bytes
+  mimeType        String?
+  storageProvider String?   // M365, LOCAL, AZURE_BLOB, S3
+  storageUrl      String?   @db.Text
+
+  // Microsoft 365 specific (if using SharePoint/OneDrive)
+  driveId         String?
+  fileId          String?
+
+  // BI Dashboard specific (for BI_DASHBOARD type)
+  dashboardUrl    String?   @db.Text
+  dashboardType   String?   // POWER_BI, FABRIC, TABLEAU, LOOKER, etc.
+  embedUrl        String?   @db.Text
+  workspaceId     String?
+  reportId        String?
+  datasetId       String?
+  requiresAuth    Boolean   @default(false)
+  authConfig      Json?     // MySQL: Native JSON type - authentication configuration
+
+  // External link (for LINK type)
+  externalUrl     String?   @db.Text
+
+  // Metadata
+  uploadedBy      String
+  uploadedAt      DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  status          String    @default("ACTIVE") // ACTIVE, ARCHIVED, DELETED
+  isPublic        Boolean   @default(true)
+  isFeatured      Boolean   @default(false)
+  downloadCount   Int       @default(0)
+  viewCount       Int       @default(0)
+
+  // Approval workflow
+  approvalStatus  String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  approvedBy      String?
+  approvedAt      DateTime?
+  rejectionReason String?   @db.Text
+
+  // Versioning & updates
+  version         Int       @default(1)
+  lastSyncedAt    DateTime? // For BI dashboards that sync data
+
+  // Relations
+  uploader        User      @relation("KpiResourceUploader", fields: [uploadedBy], references: [id], onDelete: Cascade)
+  approver        User?     @relation("KpiResourceApprover", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@index([category])
+  @@index([department])
+  @@index([status])
+  @@index([approvalStatus])
+  @@index([uploadedBy])
+  @@index([resourceType])
+  @@index([dashboardType])
+  @@map("kpi_resources")
+}
+
+// ==================== ADMIN PROXY ACTIONS ====================
+
+model ProxyAction {
+  id                String   @id @default(uuid())
+  actionType        String
+  performedBy       String
+  performedAt       DateTime @default(now())
+  targetUserId      String?
+  entityType        String
+  entityId          String
+  level             Int?
+  reason            String
+  comment           String?  @db.Text
+  previousApproverId String?
+  newApproverId     String?
+  metadata          Json?    // MySQL: Native JSON type
+
+  // Relations
+  performer         User     @relation(fields: [performedBy], references: [id], onDelete: Cascade)
+
+  @@index([performedBy])
+  @@index([entityId])
+  @@index([actionType])
+  @@index([performedAt])
+  @@map("proxy_actions")
+}
+
+// ==================== NOTIFICATIONS ====================
+
+model Notification {
+  id             String    @id @default(uuid())
+  userId         String
+  type           String
+  title          String
+  message        String
+  priority       String    @default("MEDIUM")
+  status         String    @default("UNREAD")
+  actionRequired Boolean   @default(false)
+  actionUrl      String?   @db.Text
+  metadata       Json?     // MySQL: Native JSON type
+  createdAt      DateTime  @default(now())
+  readAt         DateTime?
+  archivedAt     DateTime?
+
+  // Relations
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([userId, status])
+  @@map("notifications")
+}
+
+// ==================== HISTORICAL & ANALYTICS ====================
+
+model HistoricalKpiData {
+  id                 String   @id @default(uuid())
+  userId             String
+  cycleId            String?
+  year               Int
+  quarter            Int?
+  kpis               Json     // MySQL: Native JSON type
+  totalScore         Float
+  performanceRating  String
+  createdAt          DateTime @default(now())
+
+  // Relations
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cycle              Cycle?   @relation(fields: [cycleId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@index([year])
+  @@index([userId, year])
+  @@map("historical_kpi_data")
+}
+
+// ==================== AUDIT & LOGGING ====================
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  actorId    String
+  actorName  String
+  actorRole  String
+  entityType String
+  entityId   String
+  action     String
+  beforeData Json?    // MySQL: Native JSON type
+  afterData  Json?    // MySQL: Native JSON type
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  // Relations
+  actor      User     @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  @@index([actorId])
+  @@index([entityType])
+  @@index([entityId])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
