@@ -132,12 +132,21 @@ export class SmartKpiSuggestionService {
     const historicalAnalysis = await this.analyzeHistoricalPerformance(input.user.id, input.historicalData);
     const peerBenchmarks = await this.getPeerBenchmarks(input.user.department || '', input.user.jobTitle || '');
 
+    // RAG: Retrieve context from Knowledge Base
+    const { KnowledgeBaseService } = await import('./knowledge-base-service');
+    const kbService = new KnowledgeBaseService();
+    const ragContext = await kbService.retrieveContext(
+      `KPIs for ${input.user.jobTitle} in ${input.user.department}`,
+      { department: input.user.department }
+    );
+
     const aiPrompt = this.buildKpiSuggestionPrompt(
       input.user,
       ogsmObjectives,
       departmentTemplate,
       historicalAnalysis,
-      peerBenchmarks
+      peerBenchmarks,
+      ragContext // Pass context
     );
 
     const aiResponse = await this.aiManager.callService<any>(
@@ -203,10 +212,14 @@ export class SmartKpiSuggestionService {
     ogsmObjectives: OGSMObjective[],
     template: DepartmentTemplate,
     historical: any,
-    benchmarks: PeerBenchmark[]
+    benchmarks: PeerBenchmark[],
+    ragContext: string = ''
   ): string {
     return `
-    You are an expert KPI consultant for Intersnack Vietnam. Generate intelligent, balanced KPI suggestions based on comprehensive analysis.
+    You are an expert KPI consultant for Intersnack Vietnam. Generate intelligent, balanced KPI suggestions.
+    
+    REFERENCE MATERIALS (LIBRARY CONTEXT):
+    ${ragContext}
 
     EMPLOYEE PROFILE:
     - Name: ${user.name}
@@ -302,11 +315,11 @@ export class SmartKpiSuggestionService {
     const businessWeight = suggestions
       .filter(s => s.category === 'Business Objective')
       .reduce((sum, s) => sum + s.weight, 0);
-    
+
     const personalWeight = suggestions
       .filter(s => s.category === 'Individual Development')
       .reduce((sum, s) => sum + s.weight, 0);
-    
+
     const coreValuesWeight = suggestions
       .filter(s => s.category === 'Core Values')
       .reduce((sum, s) => sum + s.weight, 0);
@@ -314,9 +327,9 @@ export class SmartKpiSuggestionService {
     let balance: 'Excellent' | 'Good' | 'Needs Adjustment' | 'Poor';
     const recommendations: string[] = [];
 
-    if (businessWeight >= 60 && businessWeight <= 80 && 
-        personalWeight >= 15 && personalWeight <= 25 &&
-        coreValuesWeight >= 5 && coreValuesWeight <= 15) {
+    if (businessWeight >= 60 && businessWeight <= 80 &&
+      personalWeight >= 15 && personalWeight <= 25 &&
+      coreValuesWeight >= 5 && coreValuesWeight <= 15) {
       balance = 'Excellent';
     } else if (businessWeight >= 50 && personalWeight >= 10) {
       balance = 'Good';
@@ -338,15 +351,15 @@ export class SmartKpiSuggestionService {
   }
 
   private async comparWithDepartment(
-    department: string, 
+    department: string,
     suggestions: SmartKpiSuggestion[]
   ): Promise<any> {
     const deptStats = await this.dbService.getDepartmentKpiStatistics(department);
-    
+
     return {
       avgKpiCount: deptStats.avgKpiCount,
       avgBusinessWeight: deptStats.avgBusinessWeight,
-      yourPositioning: suggestions.length > deptStats.avgKpiCount ? 
+      yourPositioning: suggestions.length > deptStats.avgKpiCount ?
         'Above average KPI count' : 'Standard KPI count'
     };
   }
@@ -354,7 +367,7 @@ export class SmartKpiSuggestionService {
   private getExperienceLevel(user: User): string {
     const joiningDate = new Date(user.joiningDate || '');
     const yearsExp = (new Date().getFullYear() - joiningDate.getFullYear());
-    
+
     if (yearsExp < 2) return 'Junior';
     if (yearsExp < 5) return 'Mid-level';
     return 'Senior';
@@ -369,31 +382,31 @@ export class SmartKpiSuggestionService {
       target: suggestion.suggestedTarget,
       unit: suggestion.unit
     });
-    
+
     return validation.overallScore;
   }
 
   private async assessRiskFactors(suggestion: any, input: KpiSuggestionInput): Promise<string[]> {
     const risks: string[] = [];
-    
+
     if (suggestion.dataSource?.includes('external') || suggestion.dataSource?.includes('market')) {
       risks.push('External market dependency');
     }
-    
-    if (suggestion.description?.toLowerCase().includes('new system') || 
-        suggestion.description?.toLowerCase().includes('implement')) {
+
+    if (suggestion.description?.toLowerCase().includes('new system') ||
+      suggestion.description?.toLowerCase().includes('implement')) {
       risks.push('Requires significant resources');
     }
-    
+
     if (input.historicalData) {
-      const similarKpis = input.historicalData.filter(h => 
+      const similarKpis = input.historicalData.filter(h =>
         h.achievementPercent < 80
       );
       if (similarKpis.length > 0) {
         risks.push('Similar KPIs had achievement challenges');
       }
     }
-    
+
     return risks;
   }
 
@@ -402,15 +415,15 @@ export class SmartKpiSuggestionService {
     historical?: HistoricalPerformance[]
   ): Promise<any> {
     if (!historical || historical.length === 0) return undefined;
-    
-    const similar = historical.filter(h => 
+
+    const similar = historical.filter(h =>
       h.kpiId.toLowerCase().includes(suggestion.title.toLowerCase().split(' ')[0])
     );
-    
+
     if (similar.length === 0) return undefined;
-    
+
     const avgPerformance = similar.reduce((sum, s) => sum + s.achievementPercent, 0) / similar.length;
-    
+
     return {
       similarKpiPerformance: Math.round(avgPerformance),
       trendAnalysis: avgPerformance > 100 ? 'Historically over-achieving' : 'Historically under-achieving',
@@ -426,10 +439,10 @@ export class SmartKpiSuggestionService {
     if (!historical) {
       historical = await this.dbService.getHistoricalPerformance(userId);
     }
-    
+
     return {
-      averageAchievement: historical.length > 0 
-        ? historical.reduce((sum, h) => sum + h.achievementPercent, 0) / historical.length 
+      averageAchievement: historical.length > 0
+        ? historical.reduce((sum, h) => sum + h.achievementPercent, 0) / historical.length
         : 100,
       trends: this.analyzeTrends(historical),
       strengths: this.identifyStrengths(historical),
@@ -439,15 +452,15 @@ export class SmartKpiSuggestionService {
 
   private analyzeTrends(historical: HistoricalPerformance[]): string {
     if (historical.length < 2) return 'Insufficient data for trend analysis';
-    
+
     const recent = historical.slice(-3);
     const older = historical.slice(0, -3);
-    
+
     const recentAvg = recent.reduce((sum, h) => sum + h.achievementPercent, 0) / recent.length;
-    const olderAvg = older.length > 0 
-      ? older.reduce((sum, h) => sum + h.achievementPercent, 0) / older.length 
+    const olderAvg = older.length > 0
+      ? older.reduce((sum, h) => sum + h.achievementPercent, 0) / older.length
       : recentAvg;
-    
+
     if (recentAvg > olderAvg + 10) return 'Improving performance trend';
     if (recentAvg < olderAvg - 10) return 'Declining performance trend';
     return 'Stable performance trend';

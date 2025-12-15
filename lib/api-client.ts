@@ -37,9 +37,27 @@ export async function authenticatedFetch(
   const headers = new Headers(options.headers)
 
   // Add user ID header for server-side authentication
-  if (user) {
-    headers.set('x-user-id', user.id)
-    console.log('[API-CLIENT] ✅ Added x-user-id header:', user.id)
+  let userId = user?.id;
+
+  // Fallback: Try to get from localStorage directly if authService returns null (Client-side only)
+  if (!userId && typeof window !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('vicc_kpi_current_user');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed.user?.id) {
+          userId = parsed.user.id;
+          console.log('[API-CLIENT] ⚠️ Retrieved User ID from localStorage fallback:', userId);
+        }
+      }
+    } catch (e) {
+      console.error('[API-CLIENT] Failed to parse localStorage in fallback:', e);
+    }
+  }
+
+  if (userId) {
+    headers.set('x-user-id', userId)
+    console.log('[API-CLIENT] ✅ Added x-user-id header:', userId)
   } else {
     console.error('[API-CLIENT] ❌ NO USER - x-user-id header NOT added!')
     console.error('[API-CLIENT] This will cause 401/403 errors on the server!')
@@ -47,8 +65,10 @@ export async function authenticatedFetch(
   console.log('[API-CLIENT] =========================================================')
 
   // Ensure Content-Type is set for POST/PUT requests
+  // BUT NOT if it's FormData (let browser set multipart/form-data with boundary)
   if (options.method === 'POST' || options.method === 'PUT' || options.method === 'PATCH') {
-    if (!headers.has('Content-Type')) {
+    const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+    if (!headers.has('Content-Type') && !isFormData) {
       headers.set('Content-Type', 'application/json')
     }
   }

@@ -70,7 +70,7 @@ export class SmartValidator {
    */
   async validateKPI(kpiInput: KpiInput): Promise<SmartValidationResult> {
     const cacheKey = this.generateCacheKey(kpiInput);
-    
+
     // Check cache for recent validation
     if (this.validationCache.has(cacheKey)) {
       const cached = this.validationCache.get(cacheKey)!;
@@ -81,10 +81,10 @@ export class SmartValidator {
 
     // Perform comprehensive SMART validation
     const validation = await this.performSmartValidation(kpiInput);
-    
+
     // Cache result
     this.validationCache.set(cacheKey, validation);
-    
+
     return validation;
   }
 
@@ -227,7 +227,7 @@ export class SmartValidator {
 
     // Process AI response and add visual metrics
     const result = this.processValidationResponse(aiResponse.data || aiResponse, kpiInput);
-    
+
     return result;
   }
 
@@ -236,14 +236,14 @@ export class SmartValidator {
    */
   private processValidationResponse(aiResponse: any, originalInput: KpiInput): SmartValidationResult {
     const { criteria, autoImprovements } = aiResponse;
-    
+
     // Calculate overall score
     const overallScore = Math.round(
-      (criteria.specific.score + 
-       criteria.measurable.score + 
-       criteria.achievable.score + 
-       criteria.relevant.score + 
-       criteria.timeBound.score) / 5
+      (criteria.specific.score +
+        criteria.measurable.score +
+        criteria.achievable.score +
+        criteria.relevant.score +
+        criteria.timeBound.score) / 5
     );
 
     // Determine overall level
@@ -283,8 +283,8 @@ export class SmartValidator {
     const scores = Object.values(criteria).map((c: any) => c.score);
     const strengthsCount = scores.filter(score => score >= 80).length;
     const weaknessesCount = scores.filter(score => score < 70).length;
-    
-    const improvementPotential = Math.max(0, 
+
+    const improvementPotential = Math.max(0,
       Math.min(...scores.filter(score => score < 90)) + 20 - Math.max(...scores)
     );
 
@@ -306,7 +306,7 @@ export class SmartValidator {
   ): any {
     // Identify the weakest criteria for targeted improvements
     const weakestCriterion = Object.entries(criteria)
-      .sort(([,a], [,b]) => (a as any).score - (b as any).score)[0];
+      .sort(([, a], [, b]) => (a as any).score - (b as any).score)[0];
 
     // Generate targeted improvements based on weakest area
     let enhancedTitle = improvements.suggestedTitle || originalInput.title;
@@ -318,7 +318,7 @@ export class SmartValidator {
       enhancedTitle = this.improveSpecificity(originalInput.title);
       enhancedDescription = this.addSpecificDetails(originalInput.description);
     }
-    
+
     if (weakestCriterion[0] === 'measurable' && (weakestCriterion[1] as any).score < 70) {
       enhancedMeasurement = this.improveMeasurability(originalInput);
     }
@@ -360,39 +360,39 @@ export class SmartValidator {
 
   private addSpecificDetails(description: string): string {
     let enhanced = description;
-    
+
     if (!description.includes('specifically')) {
       enhanced = `Specifically, ${enhanced.toLowerCase()}`;
     }
-    
+
     if (!description.includes('measured') && !description.includes('tracking')) {
       enhanced += ' This will be measured through systematic tracking and reporting.';
     }
-    
+
     return enhanced;
   }
 
   private improveMeasurability(input: KpiInput): string {
     const improvements = [];
-    
+
     if (!input.dataSource) {
       improvements.push('Data source: [Specify system/report name]');
     }
-    
+
     if (!input.measurementMethod) {
       improvements.push('Measurement: [Define calculation method]');
     }
-    
+
     improvements.push('Frequency: [Daily/Weekly/Monthly tracking]');
     improvements.push('Reporting: [Dashboard/Report format]');
-    
+
     return improvements.join(' | ');
   }
 
   private generateTargetedImprovements(weakestCriterion: [string, any]): string[] {
     const [criterionName, criterionData] = weakestCriterion;
     const improvements = [];
-    
+
     switch (criterionName) {
       case 'specific':
         improvements.push('Add quantifiable outcomes');
@@ -420,7 +420,7 @@ export class SmartValidator {
         improvements.push('Establish review schedules');
         break;
     }
-    
+
     return improvements;
   }
 
@@ -429,7 +429,7 @@ export class SmartValidator {
    */
   private processCriteria(criteria: any): any {
     const processed: any = {};
-    
+
     for (const [key, criterion] of Object.entries(criteria)) {
       const typedCriterion = criterion as any;
       processed[key] = {
@@ -439,7 +439,7 @@ export class SmartValidator {
         improvementNeeded: typedCriterion.score < 70
       };
     }
-    
+
     return processed;
   }
 
@@ -486,7 +486,7 @@ export class SmartValidator {
     const validations = await Promise.all(
       kpis.map(kpi => this.validateKPI(kpi))
     );
-    
+
     return validations;
   }
 
@@ -495,9 +495,9 @@ export class SmartValidator {
    */
   async getValidationSummary(kpis: KpiInput[]): Promise<ValidationSummary> {
     const validations = await this.validateMultipleKPIs(kpis);
-    
+
     const totalScore = validations.reduce((sum, v) => sum + v.overallScore, 0) / validations.length;
-    
+
     const criteriaAverages = {
       specific: validations.reduce((sum, v) => sum + v.criteria.specific.score, 0) / validations.length,
       measurable: validations.reduce((sum, v) => sum + v.criteria.measurable.score, 0) / validations.length,
@@ -507,7 +507,7 @@ export class SmartValidator {
     };
 
     const weakestCriterion = Object.entries(criteriaAverages)
-      .sort(([,a], [,b]) => a - b)[0];
+      .sort(([, a], [, b]) => a - b)[0];
 
     return {
       totalKpis: kpis.length,
@@ -527,19 +527,19 @@ export class SmartValidator {
    * Generate top recommendations across all KPIs
    */
   private generateTopRecommendations(validations: SmartValidationResult[]): string[] {
-    const allImprovements = validations.flatMap(v => 
+    const allImprovements = validations.flatMap(v =>
       Object.values(v.criteria).flatMap((c: any) => c.improvements)
     );
-    
+
     // Count frequency of improvement suggestions
     const improvementCounts = allImprovements.reduce((counts, improvement) => {
       counts[improvement] = (counts[improvement] || 0) + 1;
       return counts;
     }, {} as Record<string, number>);
-    
+
     // Return top 5 most common improvements
     return Object.entries(improvementCounts)
-      .sort(([,a], [,b]) => b - a)
+      .sort(([, a], [, b]) => (b as number) - (a as number))
       .slice(0, 5)
       .map(([improvement]) => improvement);
   }
@@ -566,6 +566,62 @@ export class SmartValidator {
     if ((this as any)._realtimeTimeout) {
       clearTimeout((this as any)._realtimeTimeout);
     }
+  }
+  /**
+   * AI Gatekeeper: Validate evidence against reported data (Phase 3)
+   */
+  async validateEvidence(
+    input: {
+      actualValue: number;
+      targetValue: number;
+      reportedDate: string;
+      evidenceContent: string; // Text extracted from file (OCR)
+      evidenceType: string;
+    }
+  ): Promise<{
+    isValid: boolean;
+    confidence: number;
+    reason: string;
+    discrepancies: string[];
+  }> {
+    const prompt = `
+      You are an AI Auditor. Verify if the submitted evidence supports the reported KPI result.
+
+      REPORTED DATA:
+      - Actual Value: ${input.actualValue}
+      - Target Value: ${input.targetValue}
+      - Date: ${input.reportedDate}
+
+      EVIDENCE CONTENT (Extracted/OCR):
+      """${input.evidenceContent}"""
+
+      TASK:
+      1. Check if the evidence content mentions numbers matching or close to the 'Actual Value' (${input.actualValue}).
+      2. Check if the dates in evidence match the reported date (${input.reportedDate}).
+      3. Identify any major discrepancies.
+      4. Determine if the evidence is "Valid" (supports the claim), "Invalid" (contradicts), or "Inconclusive" (not enough info).
+
+      RESPONSE FORMAT (JSON):
+      {
+        "isValid": boolean,
+        "confidence": number (0-100),
+        "reason": "Short explanation",
+        "discrepancies": ["List of specific mismatch points"]
+      }
+    `;
+
+    const aiResponse = await this.aiManager.callService<any>(
+      'smart-validator',
+      'validateEvidence',
+      { prompt }
+    );
+
+    return aiResponse.data || {
+      isValid: false,
+      confidence: 0,
+      reason: "AI Service unavailable",
+      discrepancies: []
+    };
   }
 }
 

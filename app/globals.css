@@ -5,49 +5,67 @@
 
 :root {
   /* Professional Red Theme Color Palette */
-  --background: 0 0% 100%; /* Pure white */
-  --foreground: 0 0% 20%; /* Dark gray for text */
-  
+  --background: 0 0% 100%;
+  /* Pure white */
+  --foreground: 0 0% 20%;
+  /* Dark gray for text */
+
   /* Primary red colors matching Trips app */
-  --primary: 0 84% 50%; /* #E82228 - Main red */
+  --primary: 0 84% 50%;
+  /* #E82228 - Main red */
   --primary-foreground: 0 0% 100%;
-  
+
   /* Secondary colors */
-  --secondary: 0 70% 45%; /* Darker red */
+  --secondary: 0 70% 45%;
+  /* Darker red */
   --secondary-foreground: 0 0% 100%;
-  
+
   /* Card and surface colors */
-  --card: 0 0% 98%; /* Light gray background */
+  --card: 0 0% 98%;
+  /* Light gray background */
   --card-foreground: 0 0% 20%;
-  
+
   /* Accent colors */
-  --accent: 0 84% 95%; /* Light red for backgrounds */
+  --accent: 0 84% 95%;
+  /* Light red for backgrounds */
   --accent-foreground: 0 84% 40%;
-  
+
   /* Muted colors */
   --muted: 0 0% 96%;
   --muted-foreground: 0 0% 45%;
-  
+
   /* Status colors */
-  --success: 142 71% 45%; /* Green */
-  --warning: 38 92% 50%; /* Yellow */
-  --error: 0 84% 50%; /* Red */
-  --info: 199 89% 48%; /* Blue */
-  
+  --success: 142 71% 45%;
+  /* Green */
+  --warning: 38 92% 50%;
+  /* Yellow */
+  --error: 0 84% 50%;
+  /* Red */
+  --info: 199 89% 48%;
+  /* Blue */
+
+  --destructive: 0 84% 50%;
+  --destructive-foreground: 0 0% 98%;
+
   /* Border and input */
   --border: 0 0% 90%;
   --input: 0 0% 90%;
   --ring: 0 84% 50%;
-  
+
   /* Chart colors */
-  --chart-1: 0 84% 50%; /* Red */
-  --chart-2: 142 71% 45%; /* Green */
-  --chart-3: 199 89% 48%; /* Blue */
-  --chart-4: 38 92% 50%; /* Yellow */
-  --chart-5: 262 52% 47%; /* Purple */
-  
+  --chart-1: 0 84% 50%;
+  /* Red */
+  --chart-2: 142 71% 45%;
+  /* Green */
+  --chart-3: 199 89% 48%;
+  /* Blue */
+  --chart-4: 38 92% 50%;
+  /* Yellow */
+  --chart-5: 262 52% 47%;
+  /* Purple */
+
   --radius: 0.5rem;
-  
+
   /* Sidebar specific */
   --sidebar-background: 0 0% 98%;
   --sidebar-foreground: 0 0% 20%;
@@ -56,33 +74,43 @@
   --sidebar-accent: 0 84% 95%;
   --sidebar-accent-foreground: 0 84% 40%;
   --sidebar-border: 0 0% 90%;
+
+  /* Popover colors - Fix for transparent dropdowns */
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 20%;
 }
 
 .dark {
   --background: 0 0% 7%;
   --foreground: 0 0% 95%;
-  
+
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 98%;
+
   --primary: 0 84% 60%;
   --primary-foreground: 0 0% 100%;
-  
+
   --secondary: 0 70% 50%;
   --secondary-foreground: 0 0% 100%;
-  
+
   --card: 0 0% 10%;
   --card-foreground: 0 0% 95%;
-  
+
   --accent: 0 84% 15%;
   --accent-foreground: 0 84% 70%;
-  
+
   --muted: 0 0% 15%;
   --muted-foreground: 0 0% 65%;
-  
+
   --border: 0 0% 20%;
   --input: 0 0% 20%;
-  
+
   --sidebar-background: 0 0% 10%;
   --sidebar-foreground: 0 0% 95%;
   --sidebar-accent: 0 84% 15%;
+
+  --popover: 0 0% 10%;
+  --popover-foreground: 0 0% 95%;
 }
 
 /* Global styles */
@@ -171,7 +199,7 @@ body {
   .border-l-3 {
     border-left-width: 3px;
   }
-  
+
   .shadow-professional {
     box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   }
@@ -187,6 +215,7 @@ body {
     transform: translateX(-100%);
     opacity: 0;
   }
+
   to {
     transform: translateX(0);
     opacity: 1;
@@ -197,6 +226,7 @@ body {
   from {
     opacity: 0;
   }
+
   to {
     opacity: 1;
   }

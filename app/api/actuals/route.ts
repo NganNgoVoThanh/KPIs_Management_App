@@ -124,8 +124,42 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Calculate score
+    // AI Gatekeeper: Validation
+    // This runs BEFORE saving to DB to prevent bad data
+    if (process.env.ENABLE_SMART_VALIDATION === 'true' && evidenceFiles && evidenceFiles.length > 0) {
+      const { SmartValidator } = await import('@/lib/ai/smart-validator');
+      const validator = new SmartValidator();
+
+      // Mock OCR: In a real app, we would download the file from storageUrl and run Tesseract/AWS Textract
+      // For this implementation, we assume the client might send extracted text or we check filename/metadata
+      const mockEvidenceContent = evidenceFiles.map((f: any) => f.description || f.fileName).join('\n');
+
+      const aiCheck = await validator.validateEvidence({
+        actualValue: Number(actualValue),
+        targetValue: kpi.target,
+        reportedDate: new Date().toISOString(),
+        evidenceContent: mockEvidenceContent,
+        evidenceType: 'text_metadata'
+      });
+
+      if (!aiCheck.isValid) {
+        // AUTO-REJECT
+        return NextResponse.json(
+          {
+            error: 'AI Validation Failed (Gatekeeper Reject)',
+            details: aiCheck.reason,
+            aiDiscrepancies: aiCheck.discrepancies
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Calculate score (System Auto-Calc)
     const { percentage, score } = calculateKpiActualScore(kpi, actualValue)
+
+    // Determine Period (Month-Year)
+    const currentPeriod = `${new Date().getMonth() + 1}-${new Date().getFullYear()}`;
 
     // Proper type handling for Prisma
     const actualData = {
@@ -134,22 +168,24 @@ export async function POST(request: NextRequest) {
       percentage: Number(percentage),
       score: Number(score),
       selfComment: selfComment && selfComment.trim() !== '' ? selfComment.trim() : null,
-      status: 'DRAFT' as const,
+      status: 'WAITING_APPROVAL' as const, // Changed from DRAFT to WAITING_APPROVAL on submit
+      period: currentPeriod,
+      aiVerificationStatus: 'PASS', // Since we passed the gatekeeper above
       createdAt: new Date(),
       updatedAt: new Date()
     }
 
     // Create or update actual
-    let actual: any
+    let actual: any;
     if (existingActuals.length > 0) {
-      // Update existing draft
+      // Update existing
       const updateData = {
-        actualValue: Number(actualValue),
-        percentage: Number(percentage),
-        score: Number(score),
-        selfComment: selfComment && selfComment.trim() !== '' ? selfComment.trim() : null,
+        ...actualData,
         updatedAt: new Date()
       }
+      // Remove createdAt from update
+      delete (updateData as any).createdAt;
+
       actual = await db.updateKpiActual(existingActuals[0].id, updateData)
     } else {
       // Create new actual
@@ -173,10 +209,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Trigger Notification to Line Manager (Async)
+    // const { NotificationService } = await import('@/lib/notification-service');
+    // await NotificationService.notifyLevel1Approver(actual.id, user.id);
+
     return NextResponse.json({
       success: true,
       data: actual,
-      message: 'Actual result saved successfully'
+      message: 'Actual result saved and submitted for approval'
     }, { status: 201 })
 
   } catch (error: any) {

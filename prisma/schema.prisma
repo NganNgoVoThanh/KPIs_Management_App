@@ -96,6 +96,14 @@ model Cycle {
   targetUsers         Json?     // MySQL: Native JSON type
   settings            Json?     // MySQL: Native JSON type
 
+  // Phase Timelines (Strict Validation)
+  settingStart        DateTime?
+  settingEnd          DateTime?
+  trackingStart       DateTime?
+  trackingEnd         DateTime?
+  evaluationStart     DateTime?
+  evaluationEnd       DateTime?
+
   // Relations
   creator             User      @relation(fields: [createdBy], references: [id], onDelete: Cascade)
   kpiDefinitions      KpiDefinition[]
@@ -264,6 +272,13 @@ model KpiActual {
   rejectedBy      String?
   rejectionReason String?
   lastModifiedAt  DateTime  @default(now())
+
+  // Monthly Tracking specific
+  period          String?   // e.g., "01-2025"
+  
+  // AI Gatekeeper
+  aiVerificationStatus String?   @default("PENDING") // PENDING, PASS, FAIL, BYPASS
+  aiVerificationReason String?   @db.Text
 
   // Relations
   kpiDefinition   KpiDefinition @relation(fields: [kpiDefinitionId], references: [id], onDelete: Cascade)
@@ -440,6 +455,10 @@ model KpiLibraryUpload {
   reviewComment   String?   @db.Text
   rejectionReason String?   @db.Text
 
+  // AI Integration
+  aiIndexed       Boolean   @default(false)
+  vectorId        String?   // Reference ID in Vector DB
+
   // Processing
   processedAt     DateTime?
   processedCount  Int       @default(0)
@@ -537,6 +556,10 @@ model KpiResource {
   approvedBy      String?
   approvedAt      DateTime?
   rejectionReason String?   @db.Text
+
+  // AI Integration
+  aiIndexed       Boolean   @default(false)
+  vectorId        String?   // Reference ID in Vector DB
 
   // Versioning & updates
   version         Int       @default(1)
@@ -658,4 +681,15 @@ model AuditLog {
   @@index([createdAt])
   @@index([entityType, entityId])
   @@map("audit_logs")
+}
+
+// ==================== SYSTEM CONFIGURATION ====================
+
+model SystemConfig {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @db.Text // JSON value
+  updatedAt DateTime @updatedAt
+  
+  @@map("system_configs")
 }

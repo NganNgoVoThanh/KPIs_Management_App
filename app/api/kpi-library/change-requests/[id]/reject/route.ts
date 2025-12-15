@@ -1,14 +1,14 @@
 // app/api/kpi-library/change-requests/[id]/reject/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { kpiLibraryService } from '@/lib/kpi-library-service';
-import { authService } from '@/lib/auth-service';
+import { getDatabase } from '@/lib/repositories/DatabaseFactory';
+import { getAuthenticatedUser } from '@/lib/auth-server';
 
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const user = authService.getCurrentUser();
+    const user = await getAuthenticatedUser(request);
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Admin access required' },
@@ -26,7 +26,19 @@ export async function POST(
       );
     }
 
-    kpiLibraryService.rejectChangeRequest(params.id, reason);
+    const db = getDatabase();
+
+    const changeRequest = await db.getChangeRequestById(params.id);
+    if (!changeRequest) {
+      return NextResponse.json({ error: 'Change request not found' }, { status: 404 });
+    }
+
+    await db.updateChangeRequest(params.id, {
+      status: 'REJECTED',
+      reviewedBy: user.id,
+      reviewedAt: new Date(),
+      reviewComment: reason
+    });
 
     return NextResponse.json({
       success: true,

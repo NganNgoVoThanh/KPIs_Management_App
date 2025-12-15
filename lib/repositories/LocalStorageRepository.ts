@@ -458,7 +458,7 @@ export class LocalStorageRepository implements IDatabaseRepository {
     const id = data.id || uuidv4()
     return await this.saveRecord('evidences', id, {
       ...data,
-      uploadedAt: data.uploadedAt || new Date()
+      uploadedAt: data.uploadedAt ? new Date(data.uploadedAt).toISOString() : new Date().toISOString()
     })
   }
 

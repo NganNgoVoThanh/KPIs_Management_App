@@ -49,7 +49,8 @@ import {
   FolderOpen,
   FileImage,
   File,
-  ClipboardCheck
+  ClipboardCheck,
+  BookOpen
 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import type {
@@ -164,7 +165,7 @@ export default function KpiLibraryPage() {
     result.sort((a, b) => {
       switch (templateSortBy) {
         case 'name':
-          return a.kpiName.localeCompare(b.kpiName)
+          return (a.kpiName || '').localeCompare(b.kpiName || '')
         case 'usage':
           return (b.usageCount || 0) - (a.usageCount || 0)
         case 'date':
@@ -193,11 +194,18 @@ export default function KpiLibraryPage() {
         ? `/api/kpi-templates/${editingTemplate.id}`
         : '/api/kpi-templates'
 
-      const res = await fetch(url, {
+      const res = await authenticatedFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...templateForm,
+          name: templateForm.kpiName, // Map kpiName to name
+          description: templateForm.description,
+          category: templateForm.category,
+          department: templateForm.department,
+          kpiType: 'KPI', // Default to KPI as it is required by server
+          formula: templateForm.formula,
+          unit: templateForm.unit,
+          targetValue: templateForm.target, // Map target to targetValue
+          weight: templateForm.weight,
           source: 'MANUAL',
           status: editingTemplate ? editingTemplate.status : 'DRAFT',
           createdBy: 'admin-user-id' // Replace with actual user ID
@@ -367,11 +375,24 @@ export default function KpiLibraryPage() {
         blankrows: false
       })
 
-      setParsedData(data as any[])
-
-      const preview = (data as any[]).slice(6, 16).filter(row =>
-        row[4] && row[4].toString().trim()
+      // Sanitize data to remove Date objects (convert to string)
+      const sanitizedData = data.map((row: any) =>
+        Array.isArray(row) ? row.map(cell =>
+          cell instanceof Date ? cell.toISOString().split('T')[0] : cell
+        ) : row
       )
+
+      setParsedData(sanitizedData as any[])
+
+      // Try to find valid rows by checking common columns (Index 2: KPI Name, or Index 1: Category)
+      // Skip likely header rows (first 3-4 rows usually)
+      const preview = (sanitizedData as any[]).slice(1).filter(row => {
+        const hasName = row[2] && row[2].toString().trim().length > 0;
+        const hasCategory = row[1] && row[1].toString().trim().length > 0;
+        // Basic check: needs at least name or category to be considered potentially valid
+        return hasName || hasCategory;
+      }).slice(0, 5); // Take first 5 valid rows for preview
+
       setPreviewData(preview)
 
       toast({
@@ -451,9 +472,8 @@ export default function KpiLibraryPage() {
         ? `/api/kpi-library/uploads/${selectedUpload.id}/approve`
         : `/api/kpi-library/uploads/${selectedUpload.id}/reject`
 
-      const res = await fetch(endpoint, {
+      const res = await authenticatedFetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           [action === 'approve' ? 'comment' : 'reason']: reviewComment
         })
@@ -622,9 +642,8 @@ export default function KpiLibraryPage() {
         ? `/api/kpi-resources/${selectedResource.id}/approve`
         : `/api/kpi-resources/${selectedResource.id}/reject`
 
-      const res = await fetch(endpoint, {
+      const res = await authenticatedFetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           approvedBy: 'admin-user-id', // Replace with actual user ID
           [action === 'approve' ? 'comment' : 'reason']: reviewComment
@@ -749,7 +768,25 @@ export default function KpiLibraryPage() {
     }
   }
 
-  const getFileIcon = (resource: KpiResource) => {
+  const getFileIcon = (resourceOrType: KpiResource | string) => {
+    // Handle string input (just file type)
+    if (typeof resourceOrType === 'string') {
+      const fileType = resourceOrType.toLowerCase()
+      if (['jpg', 'jpeg', 'png', 'gif', 'bmp'].includes(fileType)) {
+        return <FileImage className="h-5 w-5 text-blue-600" />
+      }
+      if (['pdf'].includes(fileType)) {
+        return <FileText className="h-5 w-5 text-red-600" />
+      }
+      if (['xlsx', 'xls', 'csv'].includes(fileType)) {
+        return <FileSpreadsheet className="h-5 w-5 text-green-600" />
+      }
+      return <File className="h-5 w-5 text-gray-600" />
+    }
+
+    // Handle KpiResource object
+    const resource = resourceOrType
+
     // Check if it's a BI Dashboard
     if (resource.resourceType === 'BI_DASHBOARD') {
       return <TrendingUp className="h-5 w-5 text-purple-600" />
@@ -791,779 +828,466 @@ export default function KpiLibraryPage() {
 
   return (
     <AppLayout>
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">KPI Library Management</h1>
-          <p className="text-gray-600 mt-1">
-            Manage KPI templates and reference documents
-          </p>
-        </div>
-        <div className="flex gap-4">
-          {statistics && (
-            <Card className="w-64">
-              <CardContent className="pt-6">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-600">KPI Templates</p>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Active:</span>
-                    <span className="font-semibold">{statistics.activeEntries}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Pending:</span>
-                    <span className="font-semibold text-orange-600">
-                      {statistics.pendingUploads}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-          {resourceStatistics && (
-            <Card className="w-64">
-              <CardContent className="pt-6">
-                <div className="space-y-2">
-                  <p className="text-sm font-medium text-gray-600">Resources</p>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Active:</span>
-                    <span className="font-semibold">{resourceStatistics.active}</span>
-                  </div>
-                  <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Pending:</span>
-                    <span className="font-semibold text-orange-600">
-                      {resourceStatistics.pending}
-                    </span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      </div>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="manual-templates" className="flex items-center gap-2">
-            <ClipboardCheck className="h-4 w-4" />
-            Templates
-          </TabsTrigger>
-          <TabsTrigger value="bulk-upload" className="flex items-center gap-2">
-            <Upload className="h-4 w-4" />
-            Bulk Upload
-            {statistics?.pendingUploads > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {statistics.pendingUploads}
-              </Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="resources" className="flex items-center gap-2">
-            <FolderOpen className="h-4 w-4" />
-            Resources
-            {resourceStatistics?.pending > 0 && (
-              <Badge variant="destructive" className="ml-2">
-                {resourceStatistics.pending}
-              </Badge>
-            )}
-          </TabsTrigger>
-        </TabsList>
-
-        {/* ==================== MANUAL TEMPLATES TAB ==================== */}
-        <TabsContent value="manual-templates" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>KPI Templates</CardTitle>
-                  <CardDescription>
-                    Create and manage individual KPI templates manually
-                  </CardDescription>
-                </div>
-                <Button onClick={() => {
-                  setEditingTemplate(null)
-                  setShowTemplateDialog(true)
-                }}>
-                  <ClipboardCheck className="mr-2 h-4 w-4" />
-                  Create Template
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Search and Filters */}
-              <div className="flex items-center gap-4">
-                <div className="flex-1 grid grid-cols-4 gap-4">
-                  <div className="col-span-2">
-                    <Input
-                      placeholder="Search templates..."
-                      value={templateSearch}
-                      onChange={(e) => setTemplateSearch(e.target.value)}
-                    />
-                  </div>
-                  <div>
-                    <Select value={templateCategoryFilter} onValueChange={setTemplateCategoryFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All Categories</SelectItem>
-                        <SelectItem value="OPERATIONAL">Operational</SelectItem>
-                        <SelectItem value="FINANCIAL">Financial</SelectItem>
-                        <SelectItem value="CUSTOMER">Customer</SelectItem>
-                        <SelectItem value="LEARNING">Learning & Growth</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div>
-                    <Select value={templateSortBy} onValueChange={setTemplateSortBy}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Sort by" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="name">Name A-Z</SelectItem>
-                        <SelectItem value="usage">Most Used</SelectItem>
-                        <SelectItem value="date">Newest First</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setTemplateSearch('')
-                      setTemplateCategoryFilter('ALL')
-                      setTemplateSortBy('name')
-                    }}
-                  >
-                    Clear
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleExportTemplates}
-                    disabled={filteredTemplates.length === 0}
-                  >
-                    <Download className="mr-2 h-4 w-4" />
-                    Export
-                  </Button>
-                </div>
-              </div>
-
-              {/* Results count */}
-              {templates.length > 0 && (
-                <div className="text-sm text-gray-600">
-                  Showing {filteredTemplates.length} of {templates.length} templates
-                </div>
-              )}
-
-              {filteredTemplates.length === 0 ? (
-                <div className="text-center py-12">
-                  <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No templates created yet</p>
-                  <Button
-                    variant="outline"
-                    className="mt-4"
-                    onClick={() => setShowTemplateDialog(true)}
-                  >
-                    Create First Template
-                  </Button>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredTemplates.map((template) => (
-                    <div
-                      key={template.id}
-                      className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
-                    >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <h4 className="font-medium text-gray-900">
-                              {template.kpiName}
-                            </h4>
-                            <Badge variant="outline">{template.category}</Badge>
-                            <Badge
-                              variant={
-                                template.status === 'APPROVED' ? 'default' :
-                                template.status === 'REJECTED' ? 'destructive' :
-                                'secondary'
-                              }
-                            >
-                              {template.status}
-                            </Badge>
-                          </div>
-                          {template.description && (
-                            <p className="text-sm text-gray-600 mb-2">
-                              {template.description}
-                            </p>
-                          )}
-                          <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
-                            {template.department && (
-                              <div>
-                                <span className="font-medium">Department:</span> {template.department}
-                              </div>
-                            )}
-                            {template.unit && (
-                              <div>
-                                <span className="font-medium">Unit:</span> {template.unit}
-                              </div>
-                            )}
-                            {template.weight && (
-                              <div>
-                                <span className="font-medium">Weight:</span> {template.weight}%
-                              </div>
-                            )}
-                            <div>
-                              <span className="font-medium">Usage:</span> {template.usageCount || 0} times
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setEditingTemplate(template)
-                              setTemplateForm({
-                                kpiName: template.kpiName,
-                                description: template.description || '',
-                                category: template.category,
-                                department: template.department || '',
-                                formula: template.formula || '',
-                                unit: template.unit || '',
-                                target: template.target || '',
-                                weight: template.weight || 5
-                              })
-                              setShowTemplateDialog(true)
-                            }}
-                          >
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setTemplateForm({
-                                kpiName: template.kpiName + ' (Copy)',
-                                description: template.description || '',
-                                category: template.category,
-                                department: template.department || '',
-                                formula: template.formula || '',
-                                unit: template.unit || '',
-                                target: template.target || '',
-                                weight: template.weight || 5
-                              })
-                              setEditingTemplate(null)
-                              setShowTemplateDialog(true)
-                            }}
-                          >
-                            Clone
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => handleDeleteTemplate(template.id)}
-                          >
-                            Delete
-                          </Button>
-                        </div>
-                      </div>
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-gray-900">KPI Library Management</h1>
+            <p className="text-gray-600 mt-1">
+              Manage KPI templates and reference documents
+            </p>
+          </div>
+          <div className="flex gap-4">
+            {statistics && (
+              <Card className="w-64">
+                <CardContent className="pt-6">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-600">KPI Templates</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Active:</span>
+                      <span className="font-semibold">{statistics.activeEntries}</span>
                     </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Pending:</span>
+                      <span className="font-semibold text-orange-600">
+                        {statistics.pendingUploads}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {resourceStatistics && (
+              <Card className="w-64">
+                <CardContent className="pt-6">
+                  <div className="space-y-2">
+                    <p className="text-sm font-medium text-gray-600">Resources</p>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Active:</span>
+                      <span className="font-semibold">{resourceStatistics.active}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-600">Pending:</span>
+                      <span className="font-semibold text-orange-600">
+                        {resourceStatistics.pending}
+                      </span>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        </div>
 
-        {/* ==================== BULK UPLOAD TAB ==================== */}
-        <TabsContent value="bulk-upload" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload KPI Templates</CardTitle>
-              <CardDescription>
-                Upload an Excel file containing KPI templates. The file must follow the standard format.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="file-upload">Excel File</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="file-upload"
-                    type="file"
-                    accept=".xlsx,.xls"
-                    onChange={handleFileChange}
-                    ref={fileInputRef}
-                    className="flex-1"
-                  />
-                  <Button
-                    variant="outline"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                    <FileSpreadsheet className="mr-2 h-4 w-4" />
-                    Browse
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList className="grid w-full grid-cols-3">
+            <TabsTrigger value="manual-templates" className="flex items-center gap-2">
+              <ClipboardCheck className="h-4 w-4" />
+              Standard Templates
+            </TabsTrigger>
+            <TabsTrigger value="bulk-upload" className="flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              Bulk Upload
+              {statistics?.pendingUploads > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {statistics.pendingUploads}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="resources" className="flex items-center gap-2">
+              <BookOpen className="h-4 w-4" />
+              Reference Documents
+              {resourceStatistics?.pending > 0 && (
+                <Badge variant="destructive" className="ml-2">
+                  {resourceStatistics.pending}
+                </Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ==================== MANUAL TEMPLATES TAB ==================== */}
+          <TabsContent value="manual-templates" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Standard KPI Templates</CardTitle>
+                    <CardDescription>
+                      Create and manage standardized KPI templates for employee use
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => {
+                    setEditingTemplate(null)
+                    setShowTemplateDialog(true)
+                  }}>
+                    <ClipboardCheck className="mr-2 h-4 w-4" />
+                    Create Template
                   </Button>
                 </div>
-              </div>
-
-              {file && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <div className="flex items-center gap-3">
-                    <FileSpreadsheet className="h-8 w-8 text-green-600" />
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{file.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {(file.size / 1024).toFixed(2)} KB
-                      </p>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Search and Filters */}
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 grid grid-cols-4 gap-4">
+                    <div className="col-span-2">
+                      <Input
+                        placeholder="Search templates..."
+                        value={templateSearch}
+                        onChange={(e) => setTemplateSearch(e.target.value)}
+                      />
                     </div>
+                    <div>
+                      <Select value={templateCategoryFilter} onValueChange={setTemplateCategoryFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All Categories</SelectItem>
+                          <SelectItem value="OPERATIONAL">Operational</SelectItem>
+                          <SelectItem value="FINANCIAL">Financial</SelectItem>
+                          <SelectItem value="CUSTOMER">Customer</SelectItem>
+                          <SelectItem value="LEARNING">Learning & Growth</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Select value={templateSortBy} onValueChange={setTemplateSortBy}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Sort by" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="name">Name A-Z</SelectItem>
+                          <SelectItem value="usage">Most Used</SelectItem>
+                          <SelectItem value="date">Newest First</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
                     <Button
-                      variant="ghost"
+                      variant="outline"
                       size="sm"
                       onClick={() => {
-                        setFile(null)
-                        setParsedData([])
-                        setPreviewData([])
-                        if (fileInputRef.current) {
-                          fileInputRef.current.value = ''
-                        }
+                        setTemplateSearch('')
+                        setTemplateCategoryFilter('ALL')
+                        setTemplateSortBy('name')
                       }}
                     >
-                      <XCircle className="h-4 w-4" />
+                      Clear
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleExportTemplates}
+                      disabled={filteredTemplates.length === 0}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Export
                     </Button>
                   </div>
                 </div>
-              )}
 
-              {previewData.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Preview (First 10 entries)</Label>
-                  <div className="rounded-lg border overflow-hidden">
-                    <div className="overflow-x-auto max-h-96">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-12">STT</TableHead>
-                            <TableHead>Department</TableHead>
-                            <TableHead>Job Title</TableHead>
-                            <TableHead className="min-w-[300px]">KPI Name</TableHead>
-                            <TableHead>Type</TableHead>
-                            <TableHead>Unit</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {previewData.map((row, idx) => (
-                            <TableRow key={idx}>
-                              <TableCell>{row[0]}</TableCell>
-                              <TableCell>{row[2]}</TableCell>
-                              <TableCell>{row[3]}</TableCell>
-                              <TableCell className="text-sm">{row[4]}</TableCell>
-                              <TableCell>
-                                <Badge variant="outline">{row[5]}</Badge>
-                              </TableCell>
-                              <TableCell>{row[6]}</TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
+                {/* Results count */}
+                {templates.length > 0 && (
+                  <div className="text-sm text-gray-600">
+                    Showing {filteredTemplates.length} of {templates.length} templates
                   </div>
-                  <p className="text-sm text-gray-600">
-                    Total valid entries found: {previewData.length}
-                  </p>
-                </div>
-              )}
+                )}
 
-              <div className="flex gap-2">
-                <Button
-                  onClick={handleUpload}
-                  disabled={!file || previewData.length === 0 || isUploading}
-                  className="flex-1"
-                >
-                  {isUploading ? (
-                    <>
-                      <Clock className="mr-2 h-4 w-4 animate-spin" />
-                      Uploading...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Upload Templates
-                    </>
-                  )}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Upload History */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Upload History</CardTitle>
-              <CardDescription>
-                Review and approve/reject uploaded template files
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {uploads.length === 0 ? (
-                <div className="text-center py-12">
-                  <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No uploads yet</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {uploads.map((upload) => (
-                    <div
-                      key={upload.id}
-                      className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
+                {filteredTemplates.length === 0 ? (
+                  <div className="text-center py-12">
+                    <ClipboardCheck className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No templates created yet</p>
+                    <Button
+                      variant="outline"
+                      className="mt-4"
+                      onClick={() => setShowTemplateDialog(true)}
                     >
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-2">
-                            <FileSpreadsheet className="h-5 w-5 text-gray-600" />
-                            <h4 className="font-medium text-gray-900">
-                              {upload.fileName}
-                            </h4>
-                            <Badge
-                              variant={
-                                upload.status === 'APPROVED' ? 'default' :
-                                upload.status === 'REJECTED' ? 'destructive' :
-                                'secondary'
-                              }
-                            >
-                              {upload.status}
-                            </Badge>
-                          </div>
-                          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
-                            <div>
-                              <span className="font-medium">Date:</span>{' '}
-                              {new Date(upload.uploadedAt).toLocaleDateString()}
+                      Create First Template
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredTemplates.map((template) => (
+                      <div
+                        key={template.id}
+                        className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <h4 className="font-medium text-gray-900">
+                                {template.kpiName}
+                              </h4>
+                              <Badge variant="outline">{template.category}</Badge>
+                              <Badge
+                                variant={
+                                  template.status === 'APPROVED' ? 'default' :
+                                    template.status === 'REJECTED' ? 'destructive' :
+                                      'secondary'
+                                }
+                              >
+                                {template.status}
+                              </Badge>
                             </div>
-                            <div>
-                              <span className="font-medium">Total Entries:</span> {upload.totalEntries}
+                            {template.description && (
+                              <p className="text-sm text-gray-600 mb-2">
+                                {template.description}
+                              </p>
+                            )}
+                            <div className="grid grid-cols-4 gap-4 text-sm text-gray-600">
+                              {template.department && (
+                                <div>
+                                  <span className="font-medium">Department:</span> {template.department}
+                                </div>
+                              )}
+                              {template.unit && (
+                                <div>
+                                  <span className="font-medium">Unit:</span> {template.unit}
+                                </div>
+                              )}
+                              {template.weight && (
+                                <div>
+                                  <span className="font-medium">Weight:</span> {template.weight}%
+                                </div>
+                              )}
+                              <div>
+                                <span className="font-medium">Usage:</span> {template.usageCount || 0} times
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        {upload.status === 'PENDING' && (
                           <div className="flex gap-2">
                             <Button
                               size="sm"
-                              variant="default"
+                              variant="outline"
                               onClick={() => {
-                                setSelectedUpload(upload)
-                                setReviewDialog('approve')
+                                setEditingTemplate(template)
+                                setTemplateForm({
+                                  kpiName: template.kpiName,
+                                  description: template.description || '',
+                                  category: template.category,
+                                  department: template.department || '',
+                                  formula: template.formula || '',
+                                  unit: template.unit || '',
+                                  target: template.target || '',
+                                  weight: template.weight || 5
+                                })
+                                setShowTemplateDialog(true)
                               }}
                             >
-                              <CheckCircle className="mr-2 h-4 w-4" />
-                              Approve
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setTemplateForm({
+                                  kpiName: template.kpiName + ' (Copy)',
+                                  description: template.description || '',
+                                  category: template.category,
+                                  department: template.department || '',
+                                  formula: template.formula || '',
+                                  unit: template.unit || '',
+                                  target: template.target || '',
+                                  weight: template.weight || 5
+                                })
+                                setEditingTemplate(null)
+                                setShowTemplateDialog(true)
+                              }}
+                            >
+                              Clone
                             </Button>
                             <Button
                               size="sm"
                               variant="destructive"
-                              onClick={() => {
-                                setSelectedUpload(upload)
-                                setReviewDialog('reject')
-                              }}
+                              onClick={() => handleDeleteTemplate(template.id)}
                             >
-                              <XCircle className="mr-2 h-4 w-4" />
-                              Reject
+                              Delete
                             </Button>
                           </div>
-                        )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
 
-        {/* ==================== RESOURCE DOCUMENTS TAB ==================== */}
-        <TabsContent value="resources" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle>Upload Resource Document</CardTitle>
-                  <CardDescription>
-                    Upload reference materials (PDF, Excel, Word, Images, etc.)
-                  </CardDescription>
-                </div>
-                <Button onClick={() => setShowBIDashboardDialog(true)} variant="outline">
-                  <TrendingUp className="mr-2 h-4 w-4" />
-                  Add BI Dashboard
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+          {/* ==================== BULK UPLOAD TAB ==================== */}
+          <TabsContent value="bulk-upload" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Import Legacy Data</CardTitle>
+                <CardDescription>
+                  Upload Excel files containing historical KPI data or bulk template definitions.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="space-y-2">
-                  <Label htmlFor="resource-title">Title *</Label>
-                  <Input
-                    id="resource-title"
-                    value={resourceTitle}
-                    onChange={(e) => setResourceTitle(e.target.value)}
-                    placeholder="e.g., KPI Guidelines 2024"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="resource-category">Category *</Label>
-                  <Select value={resourceCategory} onValueChange={(v) => setResourceCategory(v as KpiResourceCategory)}>
-                    <SelectTrigger id="resource-category">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="TEMPLATE">Template</SelectItem>
-                      <SelectItem value="GUIDE">Guide/Tutorial</SelectItem>
-                      <SelectItem value="REPORT">Report</SelectItem>
-                      <SelectItem value="EXAMPLE">Example</SelectItem>
-                      <SelectItem value="OTHER">Other</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="resource-department">Department</Label>
-                  <Input
-                    id="resource-department"
-                    value={resourceDepartment}
-                    onChange={(e) => setResourceDepartment(e.target.value)}
-                    placeholder="e.g., HR, Finance"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="resource-tags">Tags (comma separated)</Label>
-                  <Input
-                    id="resource-tags"
-                    value={resourceTags}
-                    onChange={(e) => setResourceTags(e.target.value)}
-                    placeholder="e.g., guide, 2024, important"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="resource-description">Description</Label>
-                <Textarea
-                  id="resource-description"
-                  value={resourceDescription}
-                  onChange={(e) => setResourceDescription(e.target.value)}
-                  placeholder="Describe the purpose and content of this resource..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="resource-file">File * (PDF, Excel, Word, Images - Max 50MB)</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="resource-file"
-                    type="file"
-                    accept=".pdf,.xlsx,.xls,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif"
-                    onChange={handleResourceFileChange}
-                    ref={resourceFileInputRef}
-                    className="flex-1"
-                  />
-                </div>
-              </div>
-
-              {resourceFile && (
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-                  <div className="flex items-center gap-3">
-                    {getFileIcon(resourceFile.name.split('.').pop() || '')}
-                    <div className="flex-1">
-                      <p className="font-medium text-gray-900">{resourceFile.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {(resourceFile.size / 1024 / 1024).toFixed(2)} MB
-                      </p>
-                    </div>
+                  <Label htmlFor="file-upload">Excel File</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="file-upload"
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleFileChange}
+                      ref={fileInputRef}
+                      className="flex-1"
+                    />
                     <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        setResourceFile(null)
-                        if (resourceFileInputRef.current) {
-                          resourceFileInputRef.current.value = ''
-                        }
-                      }}
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
                     >
-                      <XCircle className="h-4 w-4" />
+                      <FileSpreadsheet className="mr-2 h-4 w-4" />
+                      Browse
                     </Button>
                   </div>
                 </div>
-              )}
 
-              <Button
-                onClick={handleResourceUpload}
-                disabled={!resourceFile || !resourceTitle || !resourceCategory || isUploadingResource}
-                className="w-full"
-              >
-                {isUploadingResource ? (
-                  <>
-                    <Clock className="mr-2 h-4 w-4 animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="mr-2 h-4 w-4" />
-                    Upload Resource
-                  </>
+                {file && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center gap-3">
+                      <FileSpreadsheet className="h-8 w-8 text-green-600" />
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{file.name}</p>
+                        <p className="text-sm text-gray-600">
+                          {(file.size / 1024).toFixed(2)} KB
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setFile(null)
+                          setParsedData([])
+                          setPreviewData([])
+                          if (fileInputRef.current) {
+                            fileInputRef.current.value = ''
+                          }
+                        }}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
                 )}
-              </Button>
-            </CardContent>
-          </Card>
 
-          {/* Resources List */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Uploaded Resources</CardTitle>
-              <CardDescription>
-                Manage and review uploaded resource documents
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {/* Search and Filters */}
-              <div className="flex items-center gap-4">
-                <div className="flex-1 grid grid-cols-3 gap-4">
-                  <div className="col-span-2">
-                    <Input
-                      placeholder="Search resources..."
-                      value={resourceSearch}
-                      onChange={(e) => setResourceSearch(e.target.value)}
-                    />
+                {previewData.length > 0 && (
+                  <div className="space-y-2">
+                    <Label>Preview (First 10 entries)</Label>
+                    <div className="rounded-lg border overflow-hidden">
+                      <div className="overflow-x-auto max-h-96">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-12">STT</TableHead>
+                              <TableHead>Department</TableHead>
+                              <TableHead>Job Title</TableHead>
+                              <TableHead className="min-w-[300px]">KPI Name</TableHead>
+                              <TableHead>Type</TableHead>
+                              <TableHead>Unit</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {previewData.map((row, idx) => (
+                              <TableRow key={idx}>
+                                <TableCell>{row[0]}</TableCell>
+                                <TableCell>{row[2]}</TableCell>
+                                <TableCell>{row[3]}</TableCell>
+                                <TableCell className="text-sm">{row[4]}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{row[5]}</Badge>
+                                </TableCell>
+                                <TableCell>{row[6]}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Total valid entries found: {previewData.length}
+                    </p>
                   </div>
-                  <div>
-                    <Select value={resourceCategoryFilter} onValueChange={setResourceCategoryFilter}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Category" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ALL">All Categories</SelectItem>
-                        <SelectItem value="TEMPLATE">Template</SelectItem>
-                        <SelectItem value="GUIDE">Guide/Tutorial</SelectItem>
-                        <SelectItem value="REPORT">Report</SelectItem>
-                        <SelectItem value="EXAMPLE">Example</SelectItem>
-                        <SelectItem value="OTHER">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
+                )}
+
+                <div className="flex gap-2">
+                  <Button
+                    onClick={handleUpload}
+                    disabled={!file || previewData.length === 0 || isUploading}
+                    className="flex-1"
+                  >
+                    {isUploading ? (
+                      <>
+                        <Clock className="mr-2 h-4 w-4 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="mr-2 h-4 w-4" />
+                        Upload Templates
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Upload History */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Upload History</CardTitle>
+                <CardDescription>
+                  Review and approve/reject uploaded template files
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {uploads.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No uploads yet</p>
                   </div>
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setResourceSearch('')
-                    setResourceCategoryFilter('ALL')
-                  }}
-                >
-                  Clear
-                </Button>
-              </div>
-
-              {/* Results count */}
-              {resources.length > 0 && (
-                <div className="text-sm text-gray-600">
-                  Showing {filteredResources.length} of {resources.length} resources
-                </div>
-              )}
-
-              {filteredResources.length === 0 ? (
-                <div className="text-center py-12">
-                  <FolderOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No resources uploaded yet</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {filteredResources.map((resource) => (
-                    <div
-                      key={resource.id}
-                      className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
-                    >
-                      <div className="flex items-start gap-4">
-                        {getFileIcon(resource)}
-                        <div className="flex-1">
-                          <div className="flex items-start justify-between mb-2">
-                            <div>
-                              <h4 className="font-medium text-gray-900">{resource.title}</h4>
-                              {resource.description && (
-                                <p className="text-sm text-gray-600 mt-1">{resource.description}</p>
-                              )}
-                            </div>
-                            <div className="flex gap-2">
-                              <Badge className={getCategoryBadgeColor(resource.category)}>
-                                {resource.category}
-                              </Badge>
+                ) : (
+                  <div className="space-y-4">
+                    {uploads.map((upload) => (
+                      <div
+                        key={upload.id}
+                        className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <FileSpreadsheet className="h-5 w-5 text-gray-600" />
+                              <h4 className="font-medium text-gray-900">
+                                {upload.fileName}
+                              </h4>
                               <Badge
                                 variant={
-                                  resource.approvalStatus === 'APPROVED' ? 'default' :
-                                  resource.approvalStatus === 'REJECTED' ? 'destructive' :
-                                  'secondary'
+                                  upload.status === 'APPROVED' ? 'default' :
+                                    upload.status === 'REJECTED' ? 'destructive' :
+                                      'secondary'
                                 }
                               >
-                                {resource.approvalStatus}
+                                {upload.status}
                               </Badge>
                             </div>
+                            <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
+                              <div>
+                                <span className="font-medium">Date:</span>{' '}
+                                {new Date(upload.uploadedAt).toLocaleDateString()}
+                              </div>
+                              <div>
+                                <span className="font-medium">Total Entries:</span> {upload.totalEntries}
+                              </div>
+                            </div>
                           </div>
-
-                          {resource.resourceType === 'BI_DASHBOARD' ? (
-                            <div className="grid grid-cols-3 gap-4 text-sm text-gray-600 mb-3">
-                              <div>
-                                <span className="font-medium">Type:</span> {resource.dashboardType}
-                              </div>
-                              <div>
-                                <span className="font-medium">Views:</span> {resource.viewCount || 0}
-                              </div>
-                              <div>
-                                <a
-                                  href={resource.dashboardUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="text-blue-600 hover:underline"
-                                >
-                                  Open Dashboard →
-                                </a>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="grid grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
-                              <div>
-                                <span className="font-medium">File:</span> {resource.fileName}
-                              </div>
-                              <div>
-                                <span className="font-medium">Size:</span>{' '}
-                                {((resource.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
-                              </div>
-                              <div>
-                                <span className="font-medium">Downloads:</span> {resource.downloadCount || 0}
-                              </div>
-                              <div>
-                                <span className="font-medium">Views:</span> {resource.viewCount || 0}
-                              </div>
-                            </div>
-                          )}
-
-                          {resource.tags && resource.tags.length > 0 && (
-                            <div className="flex gap-2 flex-wrap">
-                              {resource.tags.map((tag, idx) => (
-                                <Badge key={idx} variant="outline" className="text-xs">
-                                  {tag}
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="flex flex-col gap-2">
-                          {resource.approvalStatus === 'PENDING' && (
-                            <>
+                          {upload.status === 'PENDING' && (
+                            <div className="flex gap-2">
                               <Button
                                 size="sm"
                                 variant="default"
                                 onClick={() => {
-                                  setSelectedResource(resource)
+                                  setSelectedUpload(upload)
                                   setReviewDialog('approve')
                                 }}
                               >
@@ -1574,408 +1298,721 @@ export default function KpiLibraryPage() {
                                 size="sm"
                                 variant="destructive"
                                 onClick={() => {
-                                  setSelectedResource(resource)
+                                  setSelectedUpload(upload)
                                   setReviewDialog('reject')
                                 }}
                               >
                                 <XCircle className="mr-2 h-4 w-4" />
                                 Reject
                               </Button>
-                            </>
-                          )}
-                          {resource.approvalStatus === 'APPROVED' && (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleDownloadResource(resource)}
-                            >
-                              <Download className="mr-2 h-4 w-4" />
-                              Download
-                            </Button>
+                            </div>
                           )}
                         </div>
                       </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ==================== RESOURCE DOCUMENTS TAB ==================== */}
+          <TabsContent value="resources" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <CardTitle>Reference Documents (AI Knowledge Base)</CardTitle>
+                    <CardDescription>
+                      Upload policy documents, guides, and reports. These will be indexed by AI for Smart Suggestions.
+                    </CardDescription>
+                  </div>
+                  <Button onClick={() => setShowBIDashboardDialog(true)} variant="outline">
+                    <TrendingUp className="mr-2 h-4 w-4" />
+                    Add BI Dashboard
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="resource-title">Title *</Label>
+                    <Input
+                      id="resource-title"
+                      value={resourceTitle}
+                      onChange={(e) => setResourceTitle(e.target.value)}
+                      placeholder="e.g., KPI Guidelines 2024"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="resource-category">Category *</Label>
+                    <Select value={resourceCategory} onValueChange={(v) => setResourceCategory(v as KpiResourceCategory)}>
+                      <SelectTrigger id="resource-category">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="TEMPLATE">Template</SelectItem>
+                        <SelectItem value="GUIDE">Guide/Tutorial</SelectItem>
+                        <SelectItem value="REPORT">Report</SelectItem>
+                        <SelectItem value="EXAMPLE">Example</SelectItem>
+                        <SelectItem value="OTHER">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="resource-department">Department</Label>
+                    <Input
+                      id="resource-department"
+                      value={resourceDepartment}
+                      onChange={(e) => setResourceDepartment(e.target.value)}
+                      placeholder="e.g., HR, Finance"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="resource-tags">Tags (comma separated)</Label>
+                    <Input
+                      id="resource-tags"
+                      value={resourceTags}
+                      onChange={(e) => setResourceTags(e.target.value)}
+                      placeholder="e.g., guide, 2024, important"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="resource-description">Description</Label>
+                  <Textarea
+                    id="resource-description"
+                    value={resourceDescription}
+                    onChange={(e) => setResourceDescription(e.target.value)}
+                    placeholder="Describe the purpose and content of this resource..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="resource-file">File * (PDF, Excel, Word, Images - Max 50MB)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="resource-file"
+                      type="file"
+                      accept=".pdf,.xlsx,.xls,.doc,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.gif"
+                      onChange={handleResourceFileChange}
+                      ref={resourceFileInputRef}
+                      className="flex-1"
+                    />
+                  </div>
+                </div>
+
+                {resourceFile && (
+                  <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
+                    <div className="flex items-center gap-3">
+                      {getFileIcon(resourceFile.name.split('.').pop() || '')}
+                      <div className="flex-1">
+                        <p className="font-medium text-gray-900">{resourceFile.name}</p>
+                        <p className="text-sm text-gray-600">
+                          {(resourceFile.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setResourceFile(null)
+                          if (resourceFileInputRef.current) {
+                            resourceFileInputRef.current.value = ''
+                          }
+                        }}
+                      >
+                        <XCircle className="h-4 w-4" />
+                      </Button>
                     </div>
-                  ))}
+                  </div>
+                )}
+
+                <Button
+                  onClick={handleResourceUpload}
+                  disabled={!resourceFile || !resourceTitle || !resourceCategory || isUploadingResource}
+                  className="w-full"
+                >
+                  {isUploadingResource ? (
+                    <>
+                      <Clock className="mr-2 h-4 w-4 animate-spin" />
+                      Uploading...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="mr-2 h-4 w-4" />
+                      Upload Resource
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+
+            {/* Resources List */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Document Library</CardTitle>
+                <CardDescription>
+                  Manage and review uploaded reference documents
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* Search and Filters */}
+                <div className="flex items-center gap-4">
+                  <div className="flex-1 grid grid-cols-3 gap-4">
+                    <div className="col-span-2">
+                      <Input
+                        placeholder="Search resources..."
+                        value={resourceSearch}
+                        onChange={(e) => setResourceSearch(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <Select value={resourceCategoryFilter} onValueChange={setResourceCategoryFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Category" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All Categories</SelectItem>
+                          <SelectItem value="TEMPLATE">Template</SelectItem>
+                          <SelectItem value="GUIDE">Guide/Tutorial</SelectItem>
+                          <SelectItem value="REPORT">Report</SelectItem>
+                          <SelectItem value="EXAMPLE">Example</SelectItem>
+                          <SelectItem value="OTHER">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setResourceSearch('')
+                      setResourceCategoryFilter('ALL')
+                    }}
+                  >
+                    Clear
+                  </Button>
+                </div>
+
+                {/* Results count */}
+                {resources.length > 0 && (
+                  <div className="text-sm text-gray-600">
+                    Showing {filteredResources.length} of {resources.length} resources
+                  </div>
+                )}
+
+                {filteredResources.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FolderOpen className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No resources uploaded yet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {filteredResources.map((resource) => (
+                      <div
+                        key={resource.id}
+                        className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
+                      >
+                        <div className="flex items-start gap-4">
+                          {getFileIcon(resource)}
+                          <div className="flex-1">
+                            <div className="flex items-start justify-between mb-2">
+                              <div>
+                                <h4 className="font-medium text-gray-900">{resource.title}</h4>
+                                {resource.description && (
+                                  <p className="text-sm text-gray-600 mt-1">{resource.description}</p>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Badge className={getCategoryBadgeColor(resource.category)}>
+                                  {resource.category}
+                                </Badge>
+                                <Badge
+                                  variant={
+                                    resource.approvalStatus === 'APPROVED' ? 'default' :
+                                      resource.approvalStatus === 'REJECTED' ? 'destructive' :
+                                        'secondary'
+                                  }
+                                >
+                                  {resource.approvalStatus}
+                                </Badge>
+                              </div>
+                            </div>
+
+                            {resource.resourceType === 'BI_DASHBOARD' ? (
+                              <div className="grid grid-cols-3 gap-4 text-sm text-gray-600 mb-3">
+                                <div>
+                                  <span className="font-medium">Type:</span> {resource.dashboardType}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Views:</span> {resource.viewCount || 0}
+                                </div>
+                                <div>
+                                  <a
+                                    href={resource.dashboardUrl}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-blue-600 hover:underline"
+                                  >
+                                    Open Dashboard →
+                                  </a>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-4 gap-4 text-sm text-gray-600 mb-3">
+                                <div>
+                                  <span className="font-medium">File:</span> {resource.fileName}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Size:</span>{' '}
+                                  {((resource.fileSize || 0) / 1024 / 1024).toFixed(2)} MB
+                                </div>
+                                <div>
+                                  <span className="font-medium">Downloads:</span> {resource.downloadCount || 0}
+                                </div>
+                                <div>
+                                  <span className="font-medium">Views:</span> {resource.viewCount || 0}
+                                </div>
+                              </div>
+                            )}
+
+                            {resource.tags && resource.tags.length > 0 && (
+                              <div className="flex gap-2 flex-wrap">
+                                {resource.tags.map((tag, idx) => (
+                                  <Badge key={idx} variant="outline" className="text-xs">
+                                    {tag}
+                                  </Badge>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex flex-col gap-2">
+                            {resource.approvalStatus === 'PENDING' && (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  onClick={() => {
+                                    setSelectedResource(resource)
+                                    setReviewDialog('approve')
+                                  }}
+                                >
+                                  <CheckCircle className="mr-2 h-4 w-4" />
+                                  Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="destructive"
+                                  onClick={() => {
+                                    setSelectedResource(resource)
+                                    setReviewDialog('reject')
+                                  }}
+                                >
+                                  <XCircle className="mr-2 h-4 w-4" />
+                                  Reject
+                                </Button>
+                              </>
+                            )}
+                            {resource.approvalStatus === 'APPROVED' && (
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => handleDownloadResource(resource)}
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </TabsContent>
+        </Tabs>
+
+        {/* Template Creation/Edit Dialog */}
+        <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>{editingTemplate ? 'Edit KPI Template' : 'Create KPI Template'}</DialogTitle>
+              <DialogDescription>
+                {editingTemplate
+                  ? 'Update the KPI template details below'
+                  : 'Create a new KPI template that can be reused across the organization'
+                }
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="template-kpiName">KPI Name *</Label>
+                  <Input
+                    id="template-kpiName"
+                    value={templateForm.kpiName}
+                    onChange={(e) => setTemplateForm({ ...templateForm, kpiName: e.target.value })}
+                    placeholder="e.g., Customer Satisfaction Rate"
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="template-description">Description</Label>
+                  <Textarea
+                    id="template-description"
+                    value={templateForm.description}
+                    onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
+                    placeholder="Describe what this KPI measures..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template-category">Category *</Label>
+                  <Select value={templateForm.category} onValueChange={(v) => setTemplateForm({ ...templateForm, category: v })}>
+                    <SelectTrigger id="template-category">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="OPERATIONAL">Operational</SelectItem>
+                      <SelectItem value="FINANCIAL">Financial</SelectItem>
+                      <SelectItem value="CUSTOMER">Customer</SelectItem>
+                      <SelectItem value="LEARNING">Learning & Growth</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template-department">Department</Label>
+                  <Input
+                    id="template-department"
+                    value={templateForm.department}
+                    onChange={(e) => setTemplateForm({ ...templateForm, department: e.target.value })}
+                    placeholder="e.g., HR, Sales, IT"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template-unit">Unit</Label>
+                  <Input
+                    id="template-unit"
+                    value={templateForm.unit}
+                    onChange={(e) => setTemplateForm({ ...templateForm, unit: e.target.value })}
+                    placeholder="e.g., %, Count, VND"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="template-weight">Weight (%)</Label>
+                  <Input
+                    id="template-weight"
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={templateForm.weight}
+                    onChange={(e) => setTemplateForm({ ...templateForm, weight: parseInt(e.target.value) || 5 })}
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="template-formula">Formula/Calculation</Label>
+                  <Textarea
+                    id="template-formula"
+                    value={templateForm.formula}
+                    onChange={(e) => setTemplateForm({ ...templateForm, formula: e.target.value })}
+                    placeholder="e.g., (Satisfied Customers / Total Customers) * 100"
+                    rows={2}
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="template-target">Target Value</Label>
+                  <Input
+                    id="template-target"
+                    value={templateForm.target}
+                    onChange={(e) => setTemplateForm({ ...templateForm, target: e.target.value })}
+                    placeholder="e.g., >= 90%"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowTemplateDialog(false)
+                  setTemplateForm({
+                    kpiName: '',
+                    description: '',
+                    category: 'OPERATIONAL',
+                    department: '',
+                    formula: '',
+                    unit: '',
+                    target: '',
+                    weight: 5
+                  })
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleCreateTemplate}>
+                <ClipboardCheck className="mr-2 h-4 w-4" />
+                {editingTemplate ? 'Update Template' : 'Create Template'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* BI Dashboard Dialog */}
+        <Dialog open={showBIDashboardDialog} onOpenChange={setShowBIDashboardDialog}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Add BI Dashboard</DialogTitle>
+              <DialogDescription>
+                Add a link to a Business Intelligence dashboard (Power BI, Fabric, Tableau, etc.)
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="bi-title">Dashboard Title *</Label>
+                  <Input
+                    id="bi-title"
+                    value={biDashboardForm.title}
+                    onChange={(e) => setBiDashboardForm({ ...biDashboardForm, title: e.target.value })}
+                    placeholder="e.g., Sales Performance Dashboard Q4 2024"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bi-type">Dashboard Type *</Label>
+                  <Select value={biDashboardForm.dashboardType} onValueChange={(v) => setBiDashboardForm({ ...biDashboardForm, dashboardType: v })}>
+                    <SelectTrigger id="bi-type">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="POWER_BI">Power BI</SelectItem>
+                      <SelectItem value="FABRIC">Microsoft Fabric</SelectItem>
+                      <SelectItem value="TABLEAU">Tableau</SelectItem>
+                      <SelectItem value="LOOKER">Looker</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bi-department">Department</Label>
+                  <Input
+                    id="bi-department"
+                    value={biDashboardForm.department}
+                    onChange={(e) => setBiDashboardForm({ ...biDashboardForm, department: e.target.value })}
+                    placeholder="e.g., Sales, Finance"
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="bi-url">Dashboard URL *</Label>
+                  <Input
+                    id="bi-url"
+                    value={biDashboardForm.dashboardUrl}
+                    onChange={(e) => setBiDashboardForm({ ...biDashboardForm, dashboardUrl: e.target.value })}
+                    placeholder="https://app.powerbi.com/..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bi-workspace">Workspace ID (Optional)</Label>
+                  <Input
+                    id="bi-workspace"
+                    value={biDashboardForm.workspaceId}
+                    onChange={(e) => setBiDashboardForm({ ...biDashboardForm, workspaceId: e.target.value })}
+                    placeholder="For Power BI/Fabric"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="bi-report">Report ID (Optional)</Label>
+                  <Input
+                    id="bi-report"
+                    value={biDashboardForm.reportId}
+                    onChange={(e) => setBiDashboardForm({ ...biDashboardForm, reportId: e.target.value })}
+                    placeholder="For Power BI/Fabric"
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="bi-description">Description</Label>
+                  <Textarea
+                    id="bi-description"
+                    value={biDashboardForm.description}
+                    onChange={(e) => setBiDashboardForm({ ...biDashboardForm, description: e.target.value })}
+                    placeholder="Describe what this dashboard shows..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="col-span-2 space-y-2">
+                  <Label htmlFor="bi-tags">Tags (comma separated)</Label>
+                  <Input
+                    id="bi-tags"
+                    value={biDashboardForm.tags}
+                    onChange={(e) => setBiDashboardForm({ ...biDashboardForm, tags: e.target.value })}
+                    placeholder="e.g., sales, q4, 2024"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowBIDashboardDialog(false)
+                  setBiDashboardForm({
+                    title: '',
+                    description: '',
+                    dashboardType: 'POWER_BI',
+                    dashboardUrl: '',
+                    workspaceId: '',
+                    reportId: '',
+                    department: '',
+                    tags: ''
+                  })
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleBIDashboardSubmit}>
+                <TrendingUp className="mr-2 h-4 w-4" />
+                Add Dashboard
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Review Dialog */}
+        <Dialog
+          open={reviewDialog !== null}
+          onOpenChange={(open) => {
+            if (!open) {
+              setReviewDialog(null)
+              setSelectedUpload(null)
+              setSelectedResource(null)
+              setReviewComment('')
+            }
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>
+                {reviewDialog === 'approve' ? 'Approve' : 'Reject'}{' '}
+                {selectedUpload ? 'Template Upload' : 'Resource'}
+              </DialogTitle>
+              <DialogDescription>
+                {reviewDialog === 'approve'
+                  ? 'Provide an optional comment for approval'
+                  : 'Please provide a reason for rejection'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4 py-4">
+              {selectedUpload && (
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-sm font-medium text-gray-700">File:</p>
+                  <p className="text-sm text-gray-900">{selectedUpload.fileName}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    {selectedUpload.totalEntries} entries
+                  </p>
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-      </Tabs>
 
-      {/* Template Creation/Edit Dialog */}
-      <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>{editingTemplate ? 'Edit KPI Template' : 'Create KPI Template'}</DialogTitle>
-            <DialogDescription>
-              {editingTemplate
-                ? 'Update the KPI template details below'
-                : 'Create a new KPI template that can be reused across the organization'
-              }
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="template-kpiName">KPI Name *</Label>
-                <Input
-                  id="template-kpiName"
-                  value={templateForm.kpiName}
-                  onChange={(e) => setTemplateForm({...templateForm, kpiName: e.target.value})}
-                  placeholder="e.g., Customer Satisfaction Rate"
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="template-description">Description</Label>
-                <Textarea
-                  id="template-description"
-                  value={templateForm.description}
-                  onChange={(e) => setTemplateForm({...templateForm, description: e.target.value})}
-                  placeholder="Describe what this KPI measures..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="template-category">Category *</Label>
-                <Select value={templateForm.category} onValueChange={(v) => setTemplateForm({...templateForm, category: v})}>
-                  <SelectTrigger id="template-category">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="OPERATIONAL">Operational</SelectItem>
-                    <SelectItem value="FINANCIAL">Financial</SelectItem>
-                    <SelectItem value="CUSTOMER">Customer</SelectItem>
-                    <SelectItem value="LEARNING">Learning & Growth</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="template-department">Department</Label>
-                <Input
-                  id="template-department"
-                  value={templateForm.department}
-                  onChange={(e) => setTemplateForm({...templateForm, department: e.target.value})}
-                  placeholder="e.g., HR, Sales, IT"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="template-unit">Unit</Label>
-                <Input
-                  id="template-unit"
-                  value={templateForm.unit}
-                  onChange={(e) => setTemplateForm({...templateForm, unit: e.target.value})}
-                  placeholder="e.g., %, Count, VND"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="template-weight">Weight (%)</Label>
-                <Input
-                  id="template-weight"
-                  type="number"
-                  min="1"
-                  max="100"
-                  value={templateForm.weight}
-                  onChange={(e) => setTemplateForm({...templateForm, weight: parseInt(e.target.value) || 5})}
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="template-formula">Formula/Calculation</Label>
-                <Textarea
-                  id="template-formula"
-                  value={templateForm.formula}
-                  onChange={(e) => setTemplateForm({...templateForm, formula: e.target.value})}
-                  placeholder="e.g., (Satisfied Customers / Total Customers) * 100"
-                  rows={2}
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="template-target">Target Value</Label>
-                <Input
-                  id="template-target"
-                  value={templateForm.target}
-                  onChange={(e) => setTemplateForm({...templateForm, target: e.target.value})}
-                  placeholder="e.g., >= 90%"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowTemplateDialog(false)
-                setTemplateForm({
-                  kpiName: '',
-                  description: '',
-                  category: 'OPERATIONAL',
-                  department: '',
-                  formula: '',
-                  unit: '',
-                  target: '',
-                  weight: 5
-                })
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleCreateTemplate}>
-              <ClipboardCheck className="mr-2 h-4 w-4" />
-              {editingTemplate ? 'Update Template' : 'Create Template'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* BI Dashboard Dialog */}
-      <Dialog open={showBIDashboardDialog} onOpenChange={setShowBIDashboardDialog}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Add BI Dashboard</DialogTitle>
-            <DialogDescription>
-              Add a link to a Business Intelligence dashboard (Power BI, Fabric, Tableau, etc.)
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="bi-title">Dashboard Title *</Label>
-                <Input
-                  id="bi-title"
-                  value={biDashboardForm.title}
-                  onChange={(e) => setBiDashboardForm({...biDashboardForm, title: e.target.value})}
-                  placeholder="e.g., Sales Performance Dashboard Q4 2024"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bi-type">Dashboard Type *</Label>
-                <Select value={biDashboardForm.dashboardType} onValueChange={(v) => setBiDashboardForm({...biDashboardForm, dashboardType: v})}>
-                  <SelectTrigger id="bi-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="POWER_BI">Power BI</SelectItem>
-                    <SelectItem value="FABRIC">Microsoft Fabric</SelectItem>
-                    <SelectItem value="TABLEAU">Tableau</SelectItem>
-                    <SelectItem value="LOOKER">Looker</SelectItem>
-                    <SelectItem value="OTHER">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bi-department">Department</Label>
-                <Input
-                  id="bi-department"
-                  value={biDashboardForm.department}
-                  onChange={(e) => setBiDashboardForm({...biDashboardForm, department: e.target.value})}
-                  placeholder="e.g., Sales, Finance"
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="bi-url">Dashboard URL *</Label>
-                <Input
-                  id="bi-url"
-                  value={biDashboardForm.dashboardUrl}
-                  onChange={(e) => setBiDashboardForm({...biDashboardForm, dashboardUrl: e.target.value})}
-                  placeholder="https://app.powerbi.com/..."
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bi-workspace">Workspace ID (Optional)</Label>
-                <Input
-                  id="bi-workspace"
-                  value={biDashboardForm.workspaceId}
-                  onChange={(e) => setBiDashboardForm({...biDashboardForm, workspaceId: e.target.value})}
-                  placeholder="For Power BI/Fabric"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="bi-report">Report ID (Optional)</Label>
-                <Input
-                  id="bi-report"
-                  value={biDashboardForm.reportId}
-                  onChange={(e) => setBiDashboardForm({...biDashboardForm, reportId: e.target.value})}
-                  placeholder="For Power BI/Fabric"
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="bi-description">Description</Label>
-                <Textarea
-                  id="bi-description"
-                  value={biDashboardForm.description}
-                  onChange={(e) => setBiDashboardForm({...biDashboardForm, description: e.target.value})}
-                  placeholder="Describe what this dashboard shows..."
-                  rows={3}
-                />
-              </div>
-
-              <div className="col-span-2 space-y-2">
-                <Label htmlFor="bi-tags">Tags (comma separated)</Label>
-                <Input
-                  id="bi-tags"
-                  value={biDashboardForm.tags}
-                  onChange={(e) => setBiDashboardForm({...biDashboardForm, tags: e.target.value})}
-                  placeholder="e.g., sales, q4, 2024"
-                />
-              </div>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setShowBIDashboardDialog(false)
-                setBiDashboardForm({
-                  title: '',
-                  description: '',
-                  dashboardType: 'POWER_BI',
-                  dashboardUrl: '',
-                  workspaceId: '',
-                  reportId: '',
-                  department: '',
-                  tags: ''
-                })
-              }}
-            >
-              Cancel
-            </Button>
-            <Button onClick={handleBIDashboardSubmit}>
-              <TrendingUp className="mr-2 h-4 w-4" />
-              Add Dashboard
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Review Dialog */}
-      <Dialog
-        open={reviewDialog !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setReviewDialog(null)
-            setSelectedUpload(null)
-            setSelectedResource(null)
-            setReviewComment('')
-          }
-        }}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {reviewDialog === 'approve' ? 'Approve' : 'Reject'}{' '}
-              {selectedUpload ? 'Template Upload' : 'Resource'}
-            </DialogTitle>
-            <DialogDescription>
-              {reviewDialog === 'approve'
-                ? 'Provide an optional comment for approval'
-                : 'Please provide a reason for rejection'}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            {selectedUpload && (
-              <div className="rounded-lg bg-gray-50 p-3">
-                <p className="text-sm font-medium text-gray-700">File:</p>
-                <p className="text-sm text-gray-900">{selectedUpload.fileName}</p>
-                <p className="text-sm text-gray-600 mt-1">
-                  {selectedUpload.totalEntries} entries
-                </p>
-              </div>
-            )}
-
-            {selectedResource && (
-              <div className="rounded-lg bg-gray-50 p-3">
-                <p className="text-sm font-medium text-gray-700">Resource:</p>
-                <p className="text-sm text-gray-900">{selectedResource.title}</p>
-                <p className="text-sm text-gray-600 mt-1">
-                  Category: {selectedResource.category}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="review-comment">
-                {reviewDialog === 'approve' ? 'Comment (Optional)' : 'Reason (Required)'}
-              </Label>
-              <Textarea
-                id="review-comment"
-                value={reviewComment}
-                onChange={(e) => setReviewComment(e.target.value)}
-                placeholder={
-                  reviewDialog === 'approve'
-                    ? 'Add any notes or comments...'
-                    : 'Explain why this is being rejected...'
-                }
-                rows={4}
-              />
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setReviewDialog(null)
-                setSelectedUpload(null)
-                setSelectedResource(null)
-                setReviewComment('')
-              }}
-            >
-              Cancel
-            </Button>
-            <Button
-              variant={reviewDialog === 'approve' ? 'default' : 'destructive'}
-              onClick={() => {
-                if (reviewDialog === 'reject' && !reviewComment.trim()) {
-                  toast({
-                    title: 'Reason required',
-                    description: 'Please provide a reason for rejection',
-                    variant: 'destructive'
-                  })
-                  return
-                }
-
-                if (selectedUpload) {
-                  handleReviewUpload(reviewDialog)
-                } else if (selectedResource) {
-                  handleReviewResource(reviewDialog)
-                }
-              }}
-            >
-              {reviewDialog === 'approve' ? (
-                <>
-                  <CheckCircle className="mr-2 h-4 w-4" />
-                  Approve
-                </>
-              ) : (
-                <>
-                  <XCircle className="mr-2 h-4 w-4" />
-                  Reject
-                </>
+              {selectedResource && (
+                <div className="rounded-lg bg-gray-50 p-3">
+                  <p className="text-sm font-medium text-gray-700">Resource:</p>
+                  <p className="text-sm text-gray-900">{selectedResource.title}</p>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Category: {selectedResource.category}
+                  </p>
+                </div>
               )}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="review-comment">
+                  {reviewDialog === 'approve' ? 'Comment (Optional)' : 'Reason (Required)'}
+                </Label>
+                <Textarea
+                  id="review-comment"
+                  value={reviewComment}
+                  onChange={(e) => setReviewComment(e.target.value)}
+                  placeholder={
+                    reviewDialog === 'approve'
+                      ? 'Add any notes or comments...'
+                      : 'Explain why this is being rejected...'
+                  }
+                  rows={4}
+                />
+              </div>
+            </div>
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setReviewDialog(null)
+                  setSelectedUpload(null)
+                  setSelectedResource(null)
+                  setReviewComment('')
+                }}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant={reviewDialog === 'approve' ? 'default' : 'destructive'}
+                onClick={() => {
+                  if (reviewDialog === 'reject' && !reviewComment.trim()) {
+                    toast({
+                      title: 'Reason required',
+                      description: 'Please provide a reason for rejection',
+                      variant: 'destructive'
+                    })
+                    return
+                  }
+
+                  if (selectedUpload) {
+                    handleReviewUpload(reviewDialog)
+                  } else if (selectedResource) {
+                    handleReviewResource(reviewDialog)
+                  }
+                }}
+              >
+                {reviewDialog === 'approve' ? (
+                  <>
+                    <CheckCircle className="mr-2 h-4 w-4" />
+                    Approve
+                  </>
+                ) : (
+                  <>
+                    <XCircle className="mr-2 h-4 w-4" />
+                    Reject
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </AppLayout>
   )
 }

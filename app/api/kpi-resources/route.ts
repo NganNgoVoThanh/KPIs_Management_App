@@ -1,17 +1,23 @@
 // app/api/kpi-resources/route.ts
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/repositories/DatabaseFactory';
+import { getAuthenticatedUser } from '@/lib/auth-server';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
 /**
  * GET /api/kpi-resources
- * Get all KPI resources with optional filters
  */
 export async function GET(request: NextRequest) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
+    // ... (rest of GET is fine, just auth added)
 
     const filters = {
       category: searchParams.get('category') || undefined,
@@ -46,6 +52,11 @@ export async function GET(request: NextRequest) {
  */
 export async function POST(request: NextRequest) {
   try {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const formData = await request.formData();
 
     const title = formData.get('title') as string;
@@ -54,10 +65,12 @@ export async function POST(request: NextRequest) {
     const department = formData.get('department') as string | null;
     const tagsStr = formData.get('tags') as string | null;
     const isPublic = formData.get('isPublic') === 'true';
-    const uploadedBy = formData.get('uploadedBy') as string;
+
+    // Ignore client-sent uploadedBy, use authenticated user
+    const uploadedBy = user.id;
     const file = formData.get('file') as File;
 
-    if (!title || !category || !uploadedBy || !file) {
+    if (!title || !category || !file) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -106,13 +119,29 @@ export async function POST(request: NextRequest) {
       storageProvider: 'LOCAL',
       storageUrl,
       uploadedBy,
-      isPublic
+      isPublic,
+      aiIndexed: false // Default to false, will be processed by AI background job
     });
+
+    // Trigger AI Indexing (RAG)
+    try {
+      const { knowledgeBaseService } = await import('@/lib/ai/knowledge-base-service');
+      // We don't await this to keep UI responsive, but for demo purposes if we want immediate result we could.
+      // Let's fire and forget, but log errors.
+      knowledgeBaseService.indexDocument(resource.id, storageUrl, {
+        mimeType,
+        fileName,
+        department: department || undefined,
+        type: category
+      }).catch(err => console.error('Background Indexing Failed:', err));
+    } catch (importErr) {
+      console.error('Failed to import KB service:', importErr);
+    }
 
     return NextResponse.json({
       success: true,
       data: resource,
-      message: 'Resource uploaded successfully'
+      message: 'Resource uploaded successfully. AI indexing started in background.'
     });
 
   } catch (error: any) {

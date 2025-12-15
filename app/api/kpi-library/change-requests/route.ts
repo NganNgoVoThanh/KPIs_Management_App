@@ -1,11 +1,14 @@
 // app/api/kpi-library/change-requests/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { kpiLibraryService } from '@/lib/kpi-library-service';
-import { authService } from '@/lib/auth-service';
+import { getDatabase } from '@/lib/repositories/DatabaseFactory';
+import { getAuthenticatedUser } from '@/lib/auth-server';
+
+// Force dynamic rendering
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   try {
-    const user = authService.getCurrentUser();
+    const user = await getAuthenticatedUser(request);
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -15,12 +18,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const filters = {
-      status: searchParams.get('status') as any || undefined,
+      status: searchParams.get('status') || undefined,
       department: searchParams.get('department') || undefined,
-      requestType: searchParams.get('requestType') as any || undefined
+      requesterId: searchParams.get('requesterId') || undefined
     };
 
-    const requests = kpiLibraryService.getChangeRequests(filters);
+    const db = getDatabase();
+    const requests = await db.getChangeRequests(filters);
 
     return NextResponse.json({
       success: true,
@@ -38,7 +42,7 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const user = authService.getCurrentUser();
+    const user = await getAuthenticatedUser(request);
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -56,13 +60,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const changeRequest = kpiLibraryService.createChangeRequest({
+    const db = getDatabase();
+
+    // Construct the Change Request object
+    // Note: Adjust fields to match your DB schema for ChangeRequest
+    const changeRequestData = {
       requestType,
       department,
-      currentEntry,
-      proposedEntry,
-      reason
-    });
+      kpiDefinitionId: currentEntry?.id || undefined, // Map currentEntry to ID if editing
+      proposedData: proposedEntry, // JSON field in DB
+      reason,
+      requesterId: user.id,
+      status: 'PENDING',
+      requestedAt: new Date()
+    };
+
+    const changeRequest = await db.createChangeRequest(changeRequestData);
 
     return NextResponse.json({
       success: true,

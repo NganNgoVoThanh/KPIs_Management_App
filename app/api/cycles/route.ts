@@ -61,7 +61,21 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { name, type, periodStart, periodEnd, targetUsers, settings } = body
+    const {
+      name,
+      type,
+      periodStart,
+      periodEnd,
+      targetUsers,
+      settings,
+      // New Phase Timelines
+      settingStart,
+      settingEnd,
+      trackingStart,
+      trackingEnd,
+      evaluationStart,
+      evaluationEnd
+    } = body
 
     // Validation
     if (!name || !type || !periodStart || !periodEnd) {
@@ -91,6 +105,13 @@ export async function POST(request: NextRequest) {
       createdBy: user.id,
       targetUsers: targetUsers || null,
       settings: settings || null,
+      // Pass phase timelines
+      settingStart: settingStart ? new Date(settingStart) : null,
+      settingEnd: settingEnd ? new Date(settingEnd) : null,
+      trackingStart: trackingStart ? new Date(trackingStart) : null,
+      trackingEnd: trackingEnd ? new Date(trackingEnd) : null,
+      evaluationStart: evaluationStart ? new Date(evaluationStart) : null,
+      evaluationEnd: evaluationEnd ? new Date(evaluationEnd) : null,
     })
 
     return NextResponse.json({

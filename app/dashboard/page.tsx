@@ -67,6 +67,7 @@ const getRoleDisplayName = (role: string) => {
     LINE_MANAGER: "Line Manager",
     HEAD_OF_DEPT: "Head of Department",
     BOD: "Board of Directors",
+    MANAGER: "Manager"
   }
   return roleNames[role] || role
 }
@@ -210,84 +211,92 @@ function DashboardContent() {
 
   return (
     <AppLayout>
-      <div className="min-h-screen bg-gradient-to-br from-gray-50 via-white to-gray-50">
-        {/* Header */}
-        <div className="bg-white border-b border-gray-200 sticky top-0 z-10 shadow-sm">
+      <div className="min-h-screen bg-gradient-to-br from-[#FAFAFA] to-[#FEF2F2]">
+        {/* Header - Z-index fix */}
+        <div className="bg-white/90 backdrop-blur-md border-b border-red-50 sticky top-0 z-40 shadow-sm">
           <div className="max-w-7xl mx-auto px-6 py-4">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">Performance Dashboard</h1>
-                <p className="text-sm text-gray-600 mt-0.5">
-                  Comprehensive overview of your KPI performance and metrics
+                <h1 className="text-2xl font-bold text-gray-900 tracking-tight">Performance Dashboard</h1>
+                <p className="text-sm text-gray-500 font-medium">
+                  {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
                 </p>
               </div>
 
-              {/* Notifications Dropdown - Fixed */}
+              {/* Notifications Dropdown */}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="icon" className="relative">
-                    <Bell className="h-5 w-5" />
+                  <Button variant="ghost" size="icon" className="relative hover:bg-gray-100 rounded-full h-10 w-10">
+                    <Bell className="h-5 w-5 text-gray-600" />
                     {unreadCount > 0 && (
-                      <Badge className="absolute -top-2 -right-2 h-5 w-5 p-0 flex items-center justify-center bg-red-600">
-                        {unreadCount}
-                      </Badge>
+                      <span className="absolute top-2 right-2 h-2.5 w-2.5 bg-red-600 rounded-full border-2 border-white ring-1 ring-red-50"></span>
                     )}
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>
+                <DropdownMenuContent align="end" className="w-80 shadow-2xl border-red-50 rounded-xl p-0 overflow-hidden z-[100] bg-white ring-1 ring-black/5">
+                  <DropdownMenuLabel className="p-4 bg-gradient-to-r from-red-50 to-white border-b border-red-50">
                     <div className="flex items-center justify-between">
-                      <span>Notifications</span>
+                      <span className="font-semibold text-gray-900">Notifications</span>
                       {unreadCount > 0 && (
                         <Button
                           variant="ghost"
                           size="sm"
                           onClick={markAllAsRead}
-                          className="text-xs h-auto p-1"
+                          className="text-xs h-7 px-2 text-red-600 hover:text-red-700 hover:bg-red-50"
                         >
                           Mark all read
                         </Button>
                       )}
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
 
-                  {notifications.length === 0 ? (
-                    <div className="p-8 text-center">
-                      <Bell className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                      <p className="text-sm text-gray-500 font-medium">No notifications</p>
-                      <p className="text-xs text-gray-400 mt-1">You're all caught up!</p>
-                    </div>
-                  ) : (
-                    <>
-                      {notifications.map(notification => (
-                        <DropdownMenuItem
-                          key={notification.id}
-                          onClick={() => handleNotificationClick(notification)}
-                          className="flex flex-col items-start p-3 cursor-pointer"
-                        >
-                          <div className="flex items-center justify-between w-full mb-1">
-                            <span className="font-medium text-sm">{notification.title}</span>
-                            {notification.status === 'UNREAD' && (
-                              <div className="h-2 w-2 bg-red-600 rounded-full" />
-                            )}
-                          </div>
-                          <div className="text-xs text-gray-600 line-clamp-2">
-                            {notification.message}
-                          </div>
-                          <div className="text-xs text-gray-400 mt-1">
-                            {getRelativeTime(new Date(notification.createdAt))}
-                          </div>
-                        </DropdownMenuItem>
-                      ))}
-                      <DropdownMenuSeparator />
+                  <div className="max-h-[400px] overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <div className="p-8 text-center bg-white">
+                        <div className="bg-gray-50 h-12 w-12 rounded-full flex items-center justify-center mx-auto mb-3">
+                          <Bell className="h-6 w-6 text-gray-300" />
+                        </div>
+                        <p className="text-sm text-gray-500 font-medium">No notifications</p>
+                        <p className="text-xs text-gray-400 mt-1">You're all caught up!</p>
+                      </div>
+                    ) : (
+                      <>
+                        {notifications.map(notification => (
+                          <DropdownMenuItem
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification)}
+                            className="flex flex-col items-start p-4 cursor-pointer border-b border-gray-50 hover:bg-gray-50 focus:bg-gray-50"
+                          >
+                            <div className="flex items-center justify-between w-full mb-1.5">
+                              <span className={`font-semibold text-sm ${notification.status === 'UNREAD' ? 'text-gray-900' : 'text-gray-600'}`}>
+                                {notification.title}
+                              </span>
+                              {notification.status === 'UNREAD' && (
+                                <span className="h-1.5 w-1.5 bg-red-600 rounded-full shadow-sm ring-1 ring-red-100" />
+                              )}
+                            </div>
+                            <div className="text-xs text-gray-500 line-clamp-2 leading-relaxed">
+                              {notification.message}
+                            </div>
+                            <div className="text-[10px] text-gray-400 mt-2 font-medium flex items-center gap-1">
+                              <Clock className="h-3 w-3" />
+                              {getRelativeTime(new Date(notification.createdAt))}
+                            </div>
+                          </DropdownMenuItem>
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  {notifications.length > 0 && (
+                    <div className="p-2 bg-gray-50 border-t border-gray-100">
                       <DropdownMenuItem
                         onClick={() => router.push("/notifications")}
-                        className="text-center justify-center text-sm"
+                        className="justify-center text-xs font-medium text-gray-600 hover:text-gray-900 cursor-pointer rounded-lg py-2.5"
                       >
                         View all notifications
                       </DropdownMenuItem>
-                    </>
+                    </div>
                   )}
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -296,199 +305,212 @@ function DashboardContent() {
         </div>
 
         {/* Main Content */}
-        <div className="max-w-7xl mx-auto px-6 py-8 space-y-6">
-          {/* Welcome Banner - Redesigned */}
-          <Card className="border-0 bg-gradient-to-br from-red-600 via-red-700 to-red-800 text-white shadow-xl overflow-hidden relative">
-            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2" />
-            <div className="absolute bottom-0 left-0 w-48 h-48 bg-white/5 rounded-full translate-y-1/2 -translate-x-1/2" />
-            <CardContent className="p-8 relative z-10">
-              <div className="flex items-center justify-between">
-                <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
-                      <Target className="h-7 w-7 text-white" />
-                    </div>
-                    <div>
-                      <h2 className="text-3xl font-bold">Welcome back, {user.name}!</h2>
-                      <p className="text-white/90 text-sm mt-1">
-                        Track your KPI progress and achieve excellence
-                      </p>
-                    </div>
-                  </div>
+        <div className="max-w-7xl mx-auto px-6 py-8 space-y-8">
+          {/* Welcome Banner - Redesigned & Fixed */}
+          <div className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-red-700 to-red-600 shadow-xl shadow-red-900/10">
+            {/* Background Pattern */}
+            <div className="absolute inset-0 opacity-10">
+              <div className="absolute -top-24 -right-24 w-96 h-96 rounded-full bg-white opacity-20 blur-3xl"></div>
+              <div className="absolute -bottom-24 -left-24 w-72 h-72 rounded-full bg-black opacity-20 blur-3xl"></div>
+            </div>
+
+            <div className="relative z-10 p-8 lg:p-10 flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
+              <div className="flex items-start gap-4">
+                <div className="bg-white/15 backdrop-blur-md p-3.5 rounded-2xl shadow-inner border border-white/10 hidden sm:block">
+                  <Target className="h-8 w-8 text-white" />
                 </div>
-                <div className="hidden lg:flex items-center gap-6 bg-white/10 backdrop-blur-sm rounded-2xl px-8 py-4 border border-white/20">
-                  <div className="text-center">
-                    <p className="text-xs text-white/70 mb-1">Role</p>
-                    <p className="font-bold text-lg">{getRoleDisplayName(user.role)}</p>
-                  </div>
-                  <div className="h-12 w-px bg-white/30" />
-                  <div className="text-center">
-                    <p className="text-xs text-white/70 mb-1">Department</p>
-                    <p className="font-bold text-lg">{user.department || 'N/A'}</p>
-                  </div>
+                <div>
+                  <h2 className="text-2xl md:text-3xl font-bold text-white mb-2">Welcome back, {user.name}!</h2>
+                  <p className="text-red-100 text-sm md:text-base leading-relaxed max-w-xl">
+                    Ready to track your performance and achieve new milestones?
+                    You have <span className="font-bold text-white">{stats.pending} pending items</span> requiring your attention.
+                  </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Current Cycle Info */}
-          {currentCycle && (
-            <Card className="border-l-4 border-l-blue-500 shadow-sm">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-4">
-                    <div className="bg-blue-50 p-3 rounded-xl">
-                      <Calendar className="h-6 w-6 text-blue-600" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-gray-500 mb-1">Active Cycle</p>
-                      <h3 className="text-xl font-bold text-gray-900">{currentCycle.name}</h3>
-                      <p className="text-sm text-gray-600 mt-1">
-                        {new Date(currentCycle.periodStart).toLocaleDateString()} - {new Date(currentCycle.periodEnd).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <Badge className="bg-green-100 text-green-800 font-semibold px-4 py-2">
-                    Active
-                  </Badge>
+              <div className="flex flex-wrap gap-3">
+                <div className="px-4 py-2 bg-black/20 backdrop-blur-sm rounded-xl border border-white/10">
+                  <p className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Role</p>
+                  <p className="text-sm font-bold text-white">{getRoleDisplayName(user.role)}</p>
                 </div>
-              </CardContent>
-            </Card>
-          )}
+                <div className="px-4 py-2 bg-white/10 backdrop-blur-sm rounded-xl border border-white/10">
+                  <p className="text-[10px] text-white/60 uppercase tracking-wider font-semibold mb-0.5">Department</p>
+                  <p className="text-sm font-bold text-white">{user.department || 'General'}</p>
+                </div>
+              </div>
+            </div>
+          </div>
 
-          {/* Stats Grid - Redesigned */}
+          {/* Stats Grid - Premium Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-blue-50 to-blue-100">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="bg-blue-500 p-3 rounded-xl shadow-md">
-                    <Target className="h-6 w-6 text-white" />
+            <Card className="border-0 shadow-lg shadow-blue-900/5 bg-white rounded-2xl overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+              <CardContent className="p-0">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="bg-blue-50 p-2.5 rounded-xl group-hover:bg-blue-100 transition-colors">
+                      <Target className="h-6 w-6 text-blue-600" />
+                    </div>
+                    <Badge variant="secondary" className="bg-blue-50/50 text-blue-700 font-medium border-0">Total</Badge>
                   </div>
-                  <Badge variant="outline" className="bg-white">Total</Badge>
+                  <div>
+                    <span className="text-4xl font-bold text-gray-900 tracking-tight">{stats.total}</span>
+                    <p className="text-sm text-gray-500 font-medium mt-1">Total KPIs assigned</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-gray-900">{stats.total}</p>
-                  <p className="text-sm text-gray-600 font-medium">Total KPIs</p>
-                </div>
+                <div className="h-1 bg-gradient-to-r from-blue-500 to-blue-300 w-full" />
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-green-50 to-green-100">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="bg-green-500 p-3 rounded-xl shadow-md">
-                    <CheckCircle className="h-6 w-6 text-white" />
+            <Card className="border-0 shadow-lg shadow-green-900/5 bg-white rounded-2xl overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+              <CardContent className="p-0">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="bg-green-50 p-2.5 rounded-xl group-hover:bg-green-100 transition-colors">
+                      <CheckCircle className="h-6 w-6 text-green-600" />
+                    </div>
+                    <Badge variant="secondary" className="bg-green-50/50 text-green-700 font-medium border-0">Active</Badge>
                   </div>
-                  <Badge variant="outline" className="bg-white">Success</Badge>
+                  <div>
+                    <span className="text-4xl font-bold text-gray-900 tracking-tight">{stats.approved}</span>
+                    <p className="text-sm text-gray-500 font-medium mt-1">Approved & Active</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-gray-900">{stats.approved}</p>
-                  <p className="text-sm text-gray-600 font-medium">Approved KPIs</p>
-                </div>
+                <div className="h-1 bg-gradient-to-r from-green-500 to-green-300 w-full" />
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-yellow-50 to-yellow-100">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="bg-yellow-500 p-3 rounded-xl shadow-md">
-                    <Clock className="h-6 w-6 text-white" />
+            <Card className="border-0 shadow-lg shadow-yellow-900/5 bg-white rounded-2xl overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+              <CardContent className="p-0">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="bg-yellow-50 p-2.5 rounded-xl group-hover:bg-yellow-100 transition-colors">
+                      <Clock className="h-6 w-6 text-yellow-600" />
+                    </div>
+                    <Badge variant="secondary" className="bg-yellow-50/50 text-yellow-700 font-medium border-0">Pending</Badge>
                   </div>
-                  <Badge variant="outline" className="bg-white">Pending</Badge>
+                  <div>
+                    <span className="text-4xl font-bold text-gray-900 tracking-tight">{stats.pending}</span>
+                    <p className="text-sm text-gray-500 font-medium mt-1">Awaiting Review</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-gray-900">{stats.pending}</p>
-                  <p className="text-sm text-gray-600 font-medium">Pending Review</p>
-                </div>
+                <div className="h-1 bg-gradient-to-r from-yellow-500 to-yellow-300 w-full" />
               </CardContent>
             </Card>
 
-            <Card className="border-0 shadow-lg hover:shadow-xl transition-shadow bg-gradient-to-br from-purple-50 to-purple-100">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="bg-purple-500 p-3 rounded-xl shadow-md">
-                    <TrendingUp className="h-6 w-6 text-white" />
+            <Card className="border-0 shadow-lg shadow-purple-900/5 bg-white rounded-2xl overflow-hidden group hover:-translate-y-1 transition-transform duration-300">
+              <CardContent className="p-0">
+                <div className="p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="bg-purple-50 p-2.5 rounded-xl group-hover:bg-purple-100 transition-colors">
+                      <TrendingUp className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <Badge variant="secondary" className="bg-purple-50/50 text-purple-700 font-medium border-0">Progress</Badge>
                   </div>
-                  <Badge variant="outline" className="bg-white">Progress</Badge>
+                  <div>
+                    <span className="text-4xl font-bold text-gray-900 tracking-tight">{stats.avgProgress}%</span>
+                    <p className="text-sm text-gray-500 font-medium mt-1">Completion Rate</p>
+                  </div>
                 </div>
-                <div className="space-y-1">
-                  <p className="text-4xl font-bold text-gray-900">{stats.avgProgress}%</p>
-                  <p className="text-sm text-gray-600 font-medium">Completion Rate</p>
-                </div>
+                <div className="h-1 bg-gradient-to-r from-purple-500 to-purple-300 w-full" />
               </CardContent>
             </Card>
           </div>
 
-          {/* Recent KPIs */}
-          {kpis.length > 0 && (
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="border-b bg-gradient-to-r from-gray-50 to-white">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <CardTitle>Recent KPIs</CardTitle>
-                    <CardDescription>Your latest performance indicators</CardDescription>
-                  </div>
-                  <Button variant="ghost" onClick={() => router.push('/kpis')}>
-                    View All <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="p-6">
-                <div className="space-y-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            {/* Recent KPIs List */}
+            <div className="lg:col-span-2 space-y-6">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-900">Recent KPIs</h3>
+                <Button variant="ghost" className="text-red-600 hover:text-red-700 hover:bg-red-50 text-sm font-medium" onClick={() => router.push('/kpis')}>
+                  View All <ArrowRight className="ml-1.5 h-4 w-4" />
+                </Button>
+              </div>
+
+              {kpis.length > 0 ? (
+                <div className="grid gap-4">
                   {kpis.slice(0, 5).map((kpi) => (
                     <div
                       key={kpi.id}
-                      className="flex items-center justify-between p-4 rounded-lg border border-gray-200 hover:border-red-300 hover:bg-red-50/30 transition-all cursor-pointer"
                       onClick={() => router.push(`/kpis/${kpi.id}`)}
+                      className="group bg-white rounded-xl p-4 border border-gray-100 shadow-sm hover:shadow-md hover:border-red-100 transition-all cursor-pointer flex items-center justify-between"
                     >
-                      <div className="flex-1">
-                        <h4 className="font-semibold text-gray-900">{kpi.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1">
-                          Target: {kpi.target} {kpi.unit}
-                        </p>
+                      <div className="flex items-center gap-4">
+                        <div className="h-10 w-10 rounded-lg bg-gray-50 flex items-center justify-center group-hover:bg-red-50 transition-colors">
+                          <Target className="h-5 w-5 text-gray-400 group-hover:text-red-600" />
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-gray-900 group-hover:text-red-700 transition-colors">{kpi.title}</h4>
+                          <p className="text-xs text-gray-500 font-medium mt-0.5 flex items-center gap-2">
+                            <span>Target: {kpi.target} {kpi.unit}</span>
+                            <span className="h-1 w-1 rounded-full bg-gray-300"></span>
+                            <span>{kpi.weight}% Weight</span>
+                          </p>
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
-                        <Badge
-                          className={
-                            kpi.status === 'APPROVED'
-                              ? 'bg-green-100 text-green-800'
-                              : kpi.status?.includes('PENDING')
-                              ? 'bg-yellow-100 text-yellow-800'
-                              : 'bg-gray-100 text-gray-800'
-                          }
-                        >
-                          {kpi.status}
+                        <Badge className={
+                          kpi.status === 'APPROVED' ? 'bg-green-50 text-green-700 border-green-100' :
+                            kpi.status?.includes('PENDING') ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                              'bg-gray-100 text-gray-600 border-gray-200'
+                        }>
+                          {kpi.status.replace(/_/g, ' ')}
                         </Badge>
-                        <ArrowRight className="h-4 w-4 text-gray-400" />
+                        <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all" />
                       </div>
                     </div>
                   ))}
                 </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {/* Empty State */}
-          {kpis.length === 0 && (
-            <Card className="border-2 border-dashed border-gray-300">
-              <CardContent className="p-12 text-center">
-                <div className="bg-gray-100 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <Target className="h-10 w-10 text-gray-400" />
+              ) : (
+                <div className="bg-white rounded-2xl border border-dashed border-gray-300 p-12 text-center">
+                  <div className="bg-red-50 h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Target className="h-8 w-8 text-red-500" />
+                  </div>
+                  <h3 className="text-lg font-bold text-gray-900">No KPIs Found</h3>
+                  <p className="text-gray-500 text-sm mt-1 max-w-sm mx-auto">It looks like you haven't been assigned any KPIs yet. Start by creating a new KPI.</p>
+                  <Button
+                    onClick={() => router.push('/kpis/create')}
+                    className="mt-6 bg-red-600 hover:bg-red-700 text-white shadow-lg shadow-red-600/20"
+                  >
+                    Create First KPI
+                  </Button>
                 </div>
-                <h3 className="text-xl font-bold text-gray-900 mb-2">No KPIs Yet</h3>
-                <p className="text-gray-600 mb-6">
-                  Get started by creating your first KPI to track your performance
-                </p>
-                <Button
-                  onClick={() => router.push('/kpis/create')}
-                  className="bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800"
-                >
-                  <Target className="mr-2 h-5 w-5" />
-                  Create Your First KPI
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </div>
+
+            {/* Right Column - Cycle Info & Quick Actions */}
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 mb-6">Active Cycle</h3>
+                {currentCycle ? (
+                  <div className="bg-white rounded-2xl p-6 shadow-lg shadow-blue-900/5 border border-blue-100 relative overflow-hidden">
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-blue-50 rounded-full translate-x-1/3 -translate-y-1/3"></div>
+                    <div className="relative z-10">
+                      <div className="flex items-center gap-3 mb-4">
+                        <Calendar className="h-5 w-5 text-blue-600" />
+                        <span className="text-sm font-bold text-blue-900 uppercase tracking-widest">Running</span>
+                      </div>
+                      <h4 className="text-2xl font-bold text-gray-900 mb-1">{currentCycle.name}</h4>
+                      <p className="text-sm text-gray-500 font-medium mb-6">
+                        {new Date(currentCycle.periodStart).toLocaleDateString()} - {new Date(currentCycle.periodEnd).toLocaleDateString()}
+                      </p>
+
+                      <div className="space-y-2">
+                        <div className="flex justify-between text-xs font-semibold text-gray-600">
+                          <span>Cycle Progress</span>
+                          <span>{stats.avgProgress}%</span>
+                        </div>
+                        <Progress value={stats.avgProgress} className="h-2 bg-blue-50" />
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-2xl p-6 text-center border border-gray-200">
+                    <p className="text-gray-500 font-medium">No active cycle</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </AppLayout>
@@ -499,7 +521,7 @@ export default function DashboardPage() {
   return (
     <Suspense fallback={
       <AppLayout>
-        <div className="flex items-center justify-center h-screen">
+        <div className="flex items-center justify-center h-screen bg-gray-50">
           <Loader2 className="h-8 w-8 text-red-600 animate-spin" />
         </div>
       </AppLayout>

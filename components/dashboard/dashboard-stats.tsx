@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import type { User } from "@/lib/types"
 import { storageService } from "@/lib/storage-service"
-import { Target, TrendingUp, Clock, CheckCircle, AlertCircle, Award } from "lucide-react"
+import { Target, TrendingUp, Clock, CheckCircle, Award } from "lucide-react"
 
 interface DashboardStatsProps {
   user: User
@@ -40,7 +40,7 @@ export function DashboardStats({ user }: DashboardStatsProps) {
 
     // Get pending approvals
     const approvals = storageService.getItem<any>('vicc_kpi_approvals')
-    const pending = approvals.filter((a: any) => 
+    const pending = approvals.filter((a: any) =>
       a.approverId === user.id && a.status === 'PENDING'
     ).length
 
@@ -50,7 +50,7 @@ export function DashboardStats({ user }: DashboardStatsProps) {
       const kpi = kpis.find(k => k.id === a.kpiDefinitionId)
       return kpi !== undefined
     })
-    
+
     const avgScore = userActuals.length > 0
       ? userActuals.reduce((sum, a) => sum + a.score, 0) / userActuals.length
       : 0
@@ -59,7 +59,7 @@ export function DashboardStats({ user }: DashboardStatsProps) {
     const now = new Date()
     const start = new Date(currentCycle.periodStart)
     const end = new Date(currentCycle.periodEnd)
-    const progress = Math.min(100, Math.max(0, 
+    const progress = Math.min(100, Math.max(0,
       ((now.getTime() - start.getTime()) / (end.getTime() - start.getTime())) * 100
     ))
 
@@ -81,24 +81,24 @@ export function DashboardStats({ user }: DashboardStatsProps) {
       title: "Total KPIs",
       value: stats.totalKpis,
       icon: Target,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
+      color: "text-blue-600",
+      bgColor: "bg-blue-50",
       description: "Active KPIs this cycle"
     },
     {
       title: "Completed",
       value: `${stats.completedKpis}/${stats.totalKpis}`,
       icon: CheckCircle,
-      color: "text-red-700",
-      bgColor: "bg-red-50",
+      color: "text-green-600",
+      bgColor: "bg-green-50",
       description: "KPIs approved & locked"
     },
     {
       title: "Average Score",
       value: stats.averageScore,
       icon: TrendingUp,
-      color: "text-red-600",
-      bgColor: "bg-red-50",
+      color: "text-purple-600",
+      bgColor: "bg-purple-50",
       description: "Out of 5.0",
       suffix: "/5"
     },
@@ -106,32 +106,32 @@ export function DashboardStats({ user }: DashboardStatsProps) {
       title: "Pending Approvals",
       value: stats.pendingApprovals,
       icon: Clock,
-      color: "text-red-500",
-      bgColor: "bg-red-50",
+      color: "text-yellow-600",
+      bgColor: "bg-yellow-50",
       description: "Awaiting your review"
     }
   ]
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         {statCards.map((stat, index) => (
-          <Card key={index} className="stat-card hover:shadow-md transition-shadow">
+          <Card key={index} className="border-0 shadow-sm hover:shadow-md transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">
                 {stat.title}
               </CardTitle>
-              <div className={`p-2 rounded-lg ${stat.bgColor}`}>
+              <div className={`p-2.5 rounded-xl ${stat.bgColor}`}>
                 <stat.icon className={`h-4 w-4 ${stat.color}`} />
               </div>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">
+              <div className="text-2xl font-bold text-gray-900">
                 {stat.value}
-                {stat.suffix && <span className="text-lg text-muted-foreground">{stat.suffix}</span>}
+                {stat.suffix && <span className="text-lg text-muted-foreground ml-1">{stat.suffix}</span>}
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
+              <p className="text-xs text-muted-foreground mt-1 font-medium">
                 {stat.description}
               </p>
             </CardContent>
@@ -140,7 +140,7 @@ export function DashboardStats({ user }: DashboardStatsProps) {
       </div>
 
       {/* Cycle Progress */}
-      <Card className="border-red-100">
+      <Card className="border-0 shadow-sm card-premium">
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
             <Award className="h-5 w-5 text-red-600" />
@@ -148,12 +148,12 @@ export function DashboardStats({ user }: DashboardStatsProps) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex justify-between text-sm">
-              <span className="text-muted-foreground">Current Cycle Progress</span>
-              <span className="font-medium">{stats.cycleProgress}%</span>
+              <span className="text-muted-foreground font-medium">Current Timeline</span>
+              <span className="font-bold text-gray-900">{stats.cycleProgress}%</span>
             </div>
-            <Progress value={stats.cycleProgress} className="h-2" />
+            <Progress value={stats.cycleProgress} className="h-2.5 bg-gray-100" />
             <p className="text-xs text-muted-foreground">
               {stats.cycleProgress < 25 && "Early stage - Set your KPI goals"}
               {stats.cycleProgress >= 25 && stats.cycleProgress < 50 && "Q1 completed - Review your progress"}

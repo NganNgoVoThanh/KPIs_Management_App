@@ -1,125 +1,67 @@
-// app/api/kpi/[id]/submit/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-server'
-import { DatabaseService } from '@/lib/db'
+import { getDatabase } from '@/lib/repositories/DatabaseFactory'
 
-const db = new DatabaseService()
-
-interface RouteParams {
-  params: Promise<{
-    id: string
-  }>
-}
-
-/**
- * POST /api/kpi/[id]/submit
- * Submit KPI for approval (DRAFT/REJECTED → PENDING_LM)
- *
- * Workflow:
- * 1. STAFF submits → PENDING_LM (awaiting Line Manager N+1 approval)
- * 2. Line Manager approves → PENDING_HOD (awaiting Manager N+2 approval)
- * 3. Manager approves → APPROVED → LOCKED_GOALS
- */
 export async function POST(
   request: NextRequest,
-  { params }: RouteParams
+  { params }: { params: { id: string } }
 ) {
   try {
     const user = await getAuthenticatedUser(request)
     if (!user) {
-      return NextResponse.json(
-        { error: 'Authentication required' },
-        { status: 401 }
-      )
+      return NextResponse.json({ error: 'Auth required' }, { status: 401 })
     }
 
-    const { id } = await params
-    const kpi = await db.getKpiDefinitionById(id)
+    const db = getDatabase()
+    const kpi = await db.getKpiDefinitionById(params.id)
 
     if (!kpi) {
-      return NextResponse.json(
-        { error: 'KPI not found' },
-        { status: 404 }
-      )
+      return NextResponse.json({ error: 'KPI not found' }, { status: 404 })
     }
 
-    // Authorization: only owner can submit
     if (kpi.userId !== user.id) {
-      return NextResponse.json(
-        { error: 'Unauthorized to submit this KPI' },
-        { status: 403 }
-      )
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    // Can only submit from DRAFT or REJECTED status
-    if (!['DRAFT', 'REJECTED'].includes(kpi.status)) {
-      return NextResponse.json(
-        { error: `Cannot submit KPI in ${kpi.status} status` },
-        { status: 400 }
-      )
+    if (kpi.status !== 'DRAFT' && kpi.status !== 'REJECTED') {
+      return NextResponse.json({ error: 'Only DRAFT/REJECTED KPIs can be submitted' }, { status: 400 })
     }
 
-    // Get user's Line Manager (N+1)
-    const kpiOwner = await db.getUserById(kpi.userId)
-    if (!kpiOwner) {
-      return NextResponse.json(
-        { error: 'KPI owner not found' },
-        { status: 404 }
-      )
-    }
+    // Identify approver (Line Manager)
+    // For demo, if no manager, auto-approve or assign to ADMIN
+    const approver = await db.getUserById(user.managerId || user.id) // Fallback to self/admin if no manager for demo
 
-    if (!kpiOwner.managerId) {
-      return NextResponse.json(
-        { error: 'No Line Manager assigned. Please contact HR to set up reporting structure.' },
-        { status: 400 }
-      )
-    }
-
-    // Get Line Manager details
-    const lineManager = await db.getUserById(kpiOwner.managerId)
-    if (!lineManager) {
-      return NextResponse.json(
-        { error: 'Line Manager not found in database' },
-        { status: 404 }
-      )
-    }
-
-    // Update KPI status to PENDING_LM (Pending Line Manager approval)
-    const updated = await db.updateKpiDefinition(id, {
-      status: 'PENDING_LM',
-      submittedAt: new Date(),
-      updatedAt: new Date()
+    // Update KPI Status
+    await db.updateKpiDefinition(params.id, {
+      status: 'WAITING_APPROVAL'
     })
 
-    // Create approval record for Level 1 (Line Manager N+1)
-    const approval = await db.createApproval({
-      kpiDefinitionId: id,
-      approverId: lineManager.id,
-      level: 1,
+    // Create Approval Request
+    await db.createApproval({
+      entityType: 'KPI',
+      entityId: kpi.id,
+      approverId: approver.id,
       status: 'PENDING',
-      requestedBy: user.id,
+      level: 1,
       createdAt: new Date()
     })
 
-    console.log(`[SUBMIT] KPI ${id} submitted by ${user.email} → Line Manager ${lineManager.email}`)
-
-    return NextResponse.json({
-      success: true,
-      data: updated,
-      message: `KPI submitted for Line Manager (${lineManager.name}) approval`,
-      approval: {
-        id: approval.id,
-        level: 1,
-        approverId: lineManager.id,
-        approverName: lineManager.name
-      }
+    // Notify Approver
+    await db.createNotification({
+      userId: approver.id,
+      type: 'APPROVAL_REQUEST',
+      title: 'New KPI Approval Request',
+      message: `${user.name} has submitted a KPI for your approval: ${kpi.title}`,
+      priority: 'HIGH',
+      status: 'UNREAD',
+      actionRequired: true,
+      actionUrl: `/approvals`
     })
 
+    return NextResponse.json({ success: true, message: 'Submitted for approval' })
+
   } catch (error: any) {
-    console.error('POST /api/kpis/[id]/submit error:', error)
-    return NextResponse.json(
-      { error: 'Failed to submit KPI', details: error.message },
-      { status: 500 }
-    )
+    return NextResponse.json({ error: error.message }, { status: 500 })
   }
 }

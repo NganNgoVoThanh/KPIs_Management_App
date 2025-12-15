@@ -249,8 +249,113 @@ async function seedLocalStorage() {
       status: 'ACTIVE',
       version: 1,
       isTemplate: true,
+      version: 1,
     })
     console.log('  ✅ Created library entry: Customer Satisfaction Score')
+
+    // 7. Create Sample KPI Templates (New Unified System)
+    console.log('\n📝 Creating KPI templates...')
+
+    await db.createKpiTemplate({
+      id: 'template-sales-growth',
+      name: 'Revenue Growth',
+      description: 'Increase overall revenue compared to previous period',
+      department: 'Sales',
+      category: 'FINANCIAL',
+      kpiType: 'QUANT_HIGHER_BETTER',
+      unit: '%',
+      targetValue: 15,
+      weight: 30,
+      tags: ['growth', 'revenue', 'sales'],
+      status: 'APPROVED',
+      source: 'MANUAL',
+      createdBy: admin.id,
+      isActive: true
+    })
+    console.log('  ✅ Created template: Revenue Growth')
+
+    await db.createKpiTemplate({
+      id: 'template-hiring',
+      name: 'Time to Hire',
+      description: 'Average time to fill a vacant position',
+      department: 'HR',
+      category: 'OPERATIONAL',
+      kpiType: 'QUANT_LOWER_BETTER',
+      unit: 'days',
+      targetValue: 45,
+      weight: 20,
+      tags: ['recruitment', 'hr', 'efficiency'],
+      status: 'APPROVED',
+      source: 'MANUAL',
+      createdBy: admin.id,
+      isActive: true
+    })
+    console.log('  ✅ Created template: Time to Hire')
+
+    await db.createKpiTemplate({
+      id: 'template-dev-velocity',
+      name: 'Sprint Velocity',
+      description: 'Average story points completed per sprint',
+      department: 'Technology',
+      category: 'OPERATIONAL',
+      kpiType: 'QUANT_HIGHER_BETTER',
+      unit: 'points',
+      targetValue: 40,
+      weight: 25,
+      tags: ['agile', 'scrum', 'productivity'],
+      status: 'APPROVED',
+      source: 'MANUAL',
+      createdBy: admin.id,
+      isActive: true
+    })
+    console.log('  ✅ Created template: Sprint Velocity')
+
+    // 8. Create Sample KPI Resources
+    console.log('\n📂 Creating KPI resources...')
+
+    await db.createKpiResource({
+      id: 'res-guide-1',
+      title: 'KPI Best Practices Guide 2025',
+      description: 'Comprehensive guide on how to set SMART goals',
+      category: 'GUIDE',
+      resourceType: 'FILE',
+      fileName: 'KPI_Best_Practices_2025.pdf',
+      fileType: 'pdf',
+      fileSize: 2500000,
+      mimeType: 'application/pdf',
+      storageProvider: 'LOCAL',
+      // Mock base64 for PDF icon
+      storageUrl: 'data:application/pdf;base64,JVBERi0xL...',
+      department: 'HR',
+      tags: ['guide', 'best-practices', 'smart-goals'],
+      uploadedBy: admin.id,
+      isPublic: true,
+      status: 'ACTIVE',
+      approvalStatus: 'APPROVED',
+      approvedBy: admin.id,
+      downloadCount: 15
+    })
+    console.log('  ✅ Created resource: KPI Best Practices Guide')
+
+    await db.createKpiResource({
+      id: 'res-dashboard-1',
+      title: 'Company Performance Dashboard',
+      description: 'Real-time overview of company-wide KPIs',
+      category: 'DASHBOARD',
+      resourceType: 'BI_DASHBOARD',
+      dashboardType: 'POWER_BI',
+      dashboardUrl: 'https://app.powerbi.com/groups/me/reports/mock-report-id',
+      department: 'Management',
+      tags: ['overview', 'executive', 'real-time'],
+      uploadedBy: admin.id,
+      isPublic: true,
+      status: 'ACTIVE',
+      approvalStatus: 'APPROVED',
+      approvedBy: admin.id,
+      viewCount: 42,
+      isFeatured: true
+    })
+    console.log('  ✅ Created resource: Company Performance Dashboard')
 
     // 7. Create Notifications
     console.log('\n🔔 Creating sample notifications...')
