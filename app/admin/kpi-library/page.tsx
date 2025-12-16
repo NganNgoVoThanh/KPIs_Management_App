@@ -47,6 +47,12 @@ import {
   TrendingUp,
   Library,
   FolderOpen,
+  Search,
+  Filter,
+  MoreVertical,
+  Calendar,
+  Database,
+  Trash2,
   FileImage,
   File,
   ClipboardCheck,
@@ -247,6 +253,40 @@ export default function KpiLibraryPage() {
     }
   }
 
+  const handleToggleTemplateStatus = async (id: string, currentStatus: string) => {
+    try {
+      // Toggle between DRAFT and ACTIVE
+      // If DRAFT -> ACTIVE (Publish)
+      // If ACTIVE -> DRAFT (Deactivate/Unpublish)
+      const newStatus = currentStatus === 'ACTIVE' ? 'DRAFT' : 'ACTIVE'
+
+      const res = await authenticatedFetch(`/api/kpi-templates/${id}`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          status: newStatus
+        })
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        toast({
+          title: newStatus === 'ACTIVE' ? 'Template Published' : 'Template Deactivated',
+          description: `Template has been ${newStatus === 'ACTIVE' ? 'published' : 'deactivated'} successfully`,
+        })
+        fetchTemplates()
+      } else {
+        throw new Error(data.error)
+      }
+    } catch (error: any) {
+      toast({
+        title: 'Failed to update status',
+        description: error.message,
+        variant: 'destructive'
+      })
+    }
+  }
+
   const handleDeleteTemplate = async (id: string) => {
     try {
       const res = await authenticatedFetch(`/api/kpi-templates/${id}`, {
@@ -369,35 +409,222 @@ export default function KpiLibraryPage() {
       const sheetName = workbook.SheetNames[0]
       const worksheet = workbook.Sheets[sheetName]
 
-      const data = XLSX.utils.sheet_to_json(worksheet, {
+      const rawData = XLSX.utils.sheet_to_json(worksheet, {
         header: 1,
         defval: '',
         blankrows: false
-      })
+      }) as any[][]
 
-      // Sanitize data to remove Date objects (convert to string)
-      const sanitizedData = data.map((row: any) =>
+      // Sanitize raw data
+      const sanitizedData = rawData.map(row =>
         Array.isArray(row) ? row.map(cell =>
           cell instanceof Date ? cell.toISOString().split('T')[0] : cell
         ) : row
       )
 
-      setParsedData(sanitizedData as any[])
+      let finalData = sanitizedData
+      let isLegacyForm = false
 
-      // Try to find valid rows by checking common columns (Index 2: KPI Name, or Index 1: Category)
-      // Skip likely header rows (first 3-4 rows usually)
-      const preview = (sanitizedData as any[]).slice(1).filter(row => {
-        const hasName = row[2] && row[2].toString().trim().length > 0;
-        const hasCategory = row[1] && row[1].toString().trim().length > 0;
-        // Basic check: needs at least name or category to be considered potentially valid
-        return hasName || hasCategory;
-      }).slice(0, 5); // Take first 5 valid rows for preview
+      // Check if this is a Legacy KPI Form (Target Setting)
+      // Look for "Target or KPI" header
+      let headerRowIndex = -1
+      let department = ''
+      let jobTitle = ''
+
+      // Attempt to find metadata in first 100 rows
+      for (let i = 0; i < Math.min(100, sanitizedData.length); i++) {
+        const row = sanitizedData[i]
+        if (!Array.isArray(row)) continue
+
+        const rowStr = row.join(' ').toLowerCase()
+
+        // Search for Department
+        if (!department) {
+          const deptIdx = row.findIndex(cell => cell?.toString().toLowerCase().includes('department'))
+          if (deptIdx !== -1 && row[deptIdx + 1]) {
+            department = row[deptIdx + 1].toString().trim()
+          }
+        }
+
+        // Search for Job Title
+        if (!jobTitle) {
+          const jobTitleIdx = row.findIndex(cell => cell?.toString().toLowerCase().includes('job title'))
+          if (jobTitleIdx !== -1 && row[jobTitleIdx + 1]) {
+            jobTitle = row[jobTitleIdx + 1].toString().trim()
+          }
+        }
+
+        // Search for Header
+        // The header row typically contains: "Main KPI", "Weight", "Unit", "Target"
+        const hasWeight = row.some(c => c?.toString().toLowerCase().includes('weight'))
+        const hasUnit = row.some(c => c?.toString().toLowerCase().includes('unit'))
+        const hasTarget = row.some(c => c?.toString().toLowerCase().includes('target'))
+        const hasKPI = row.some(c => c?.toString().toLowerCase().includes('kpi'))
+
+        // Robust check: needs at least 2 strong signals
+        if ((hasWeight && hasUnit) || (hasTarget && hasKPI)) {
+          headerRowIndex = i
+          isLegacyForm = true
+          break
+        }
+      }
+
+      if (isLegacyForm && headerRowIndex !== -1) {
+        console.log('Detected Legacy Token Format. Header at row:', headerRowIndex)
+        // Transform Legacy Data to Standard Format
+        // Standard Format expected by backend (indices):
+        // 2: Department, 4: KPI Name, 5: KPI Type
+        // We will construct: [STT, '', Dept, Job, Name, Type, Unit]
+
+        const transformedData: any[] = []
+        // Add 6 dummy rows for backend slice(6)
+        for (let i = 0; i < 6; i++) transformedData.push([])
+
+        const headerRow = sanitizedData[headerRowIndex] as any[]
+
+        // Find indices dynamically with relaxed matching
+        let nameIdx = headerRow.findIndex(c => {
+          const s = c?.toString().toLowerCase().trim()
+          return s === 'target or kpi' || s === 'main kpi' || (s?.includes('kpi') && !s?.includes('weight') && !s?.includes('type') && !s?.includes('sub'))
+        })
+
+        // Fallback for specific known format
+        if (nameIdx === -1) nameIdx = 2; // Default for this template if not found
+
+        const typeIdx = headerRow.findIndex(c => c?.toString().toLowerCase().includes('kpi type'))
+        const unitIdx = headerRow.findIndex(c => c?.toString().toLowerCase() === 'unit')
+
+        if (nameIdx !== -1) {
+          // Iterate data rows
+          for (let i = headerRowIndex + 1; i < sanitizedData.length; i++) {
+            const row = sanitizedData[i]
+            if (!Array.isArray(row)) continue
+
+            // SKIP SECTION HEADERS
+            const distinctContentCount = row.filter(c => c && c.toString().trim().length > 0).length
+            if (distinctContentCount <= 2) continue
+
+            const kpiName = row[nameIdx]?.toString().trim()
+            if (!kpiName || kpiName.length < 3) continue
+
+            // Filter out section headers (which usually don't have weight or type populated)
+            // Or simple check: Section headers often start with a number but are long text
+
+            const kpiType = typeIdx !== -1 ? row[typeIdx]?.toString().trim() : ''
+            const unit = unitIdx !== -1 ? row[unitIdx]?.toString().trim() : ''
+
+            // Validate KPI Type if present (should be I, II, III, IV)
+            // If missing but row looks valid, we might default or skip. 
+            // For now, include it.
+
+            transformedData.push([
+              transformedData.length - 5, // STT (1-based)
+              '',
+              department,
+              jobTitle,
+              kpiName,
+              kpiType,
+              unit
+            ])
+          }
+          finalData = transformedData
+        }
+      } else {
+        // Standard Format Support (Auto-detect)
+        console.log('Detected Standard Format. Attempting normalization...')
+        const normalizedData: any[] = []
+
+        // Add 6 dummy rows for backend compatibility (backend skips first 6 rows)
+        for (let i = 0; i < 6; i++) normalizedData.push([])
+
+        // Find Header Row (Scan first 20 rows)
+        let headerIdx = -1
+        for (let i = 0; i < Math.min(20, sanitizedData.length); i++) {
+          const row = sanitizedData[i] as any[]
+          if (!Array.isArray(row)) continue
+
+          const rowStr = row.map(c => c?.toString().toLowerCase() || '').join(' ')
+          // Robust header detection
+          if ((rowStr.includes('kpi') && rowStr.includes('name')) ||
+            (rowStr.includes('tên') && rowStr.includes('kpi')) ||
+            rowStr.includes('kpi name') ||
+            (rowStr.includes('department') && rowStr.includes('role'))) {
+            headerIdx = i
+            break
+          }
+        }
+
+        // If no header found, assume standard list starts at row 0 (Header) -> Data at 1
+        if (headerIdx === -1 && sanitizedData.length > 0) {
+          headerIdx = 0
+        }
+
+        if (headerIdx !== -1) {
+          const headerRow = sanitizedData[headerIdx] as any[]
+
+          // Map Columns with flexible matching
+          const findCol = (keywords: string[]) => headerRow.findIndex(c => {
+            const val = c?.toString().toLowerCase().trim() || ''
+            return keywords.some(k => val.includes(k) || val === k)
+          })
+
+          const idxName = findCol(['kpi name', 'tên kpi', 'kpi', 'chỉ số', 'name'])
+          const idxDept = findCol(['department', 'phòng ban', 'bộ phận', 'khối'])
+          const idxJob = findCol(['job', 'position', 'chức danh', 'vị trí'])
+          const idxType = findCol(['type', 'loại', 'phân loại'])
+          const idxUnit = findCol(['unit', 'đơn vị', 'dvt'])
+          const idxSource = findCol(['source', 'nguồn'])
+
+          // Require at least a Name or Department column to proceed with mapping
+          if (idxName !== -1 || idxDept !== -1) {
+            let stt = 1
+            for (let i = headerIdx + 1; i < sanitizedData.length; i++) {
+              const row = sanitizedData[i] as any[]
+              if (!Array.isArray(row)) continue
+
+              // Skip empty rows
+              if (row.every(c => !c || c.toString().trim() === '')) continue
+
+              const name = idxName !== -1 ? row[idxName]?.toString().trim() : ''
+
+              // If there is data but name is empty, we act carefully.
+              // But let's assume valid rows have names.
+              if (!name && idxName !== -1) continue
+
+              normalizedData.push([
+                stt++,                                  // 0: STT
+                '',                                     // 1: OGSM
+                idxDept !== -1 ? row[idxDept] : '',     // 2: Department
+                idxJob !== -1 ? row[idxJob] : '',       // 3: Job Title
+                name || 'Untitled KPI',                 // 4: KPI Name
+                idxType !== -1 ? row[idxType] : 'I',    // 5: KPI Type
+                idxUnit !== -1 ? row[idxUnit] : '',     // 6: Unit
+                idxSource !== -1 ? row[idxSource] : ''  // 7: Source
+              ])
+            }
+            finalData = normalizedData
+            console.log(`Normalized ${finalData.length - 6} entries from standard format.`)
+
+            toast({
+              title: 'Format Detected',
+              description: `Successfully mapped columns and loaded ${finalData.length - 6} entries.`,
+            })
+          }
+        }
+      }
+
+      setParsedData(finalData)
+
+      // Generate Preview
+      // Skip the first 6 rows (dummy or header)
+      const previewSource = finalData.slice(6)
+      const preview = previewSource.slice(0, 10) // Show first 10
 
       setPreviewData(preview)
 
       toast({
-        title: 'File loaded',
-        description: `Parsed ${preview.length} valid KPI entries`,
+        title: isLegacyForm ? 'Legacy Form Detected' : 'File loaded',
+        description: `Parsed ${previewSource.length} valid KPI entries${isLegacyForm ? ' from form format' : ''}`,
       })
 
     } catch (error: any) {
@@ -1103,6 +1330,14 @@ export default function KpiLibraryPage() {
                             >
                               Delete
                             </Button>
+                            <Button
+                              size="sm"
+                              variant={template.status === 'ACTIVE' ? "default" : "secondary"}
+                              className={template.status === 'ACTIVE' ? "bg-green-600 hover:bg-green-700" : ""}
+                              onClick={() => handleToggleTemplateStatus(template.id, template.status)}
+                            >
+                              {template.status === 'ACTIVE' ? 'Active' : 'Publish'}
+                            </Button>
                           </div>
                         </div>
                       </div>
@@ -1286,13 +1521,14 @@ export default function KpiLibraryPage() {
                               <Button
                                 size="sm"
                                 variant="default"
+                                className="bg-green-600 hover:bg-green-700"
                                 onClick={() => {
                                   setSelectedUpload(upload)
                                   setReviewDialog('approve')
                                 }}
                               >
-                                <CheckCircle className="mr-2 h-4 w-4" />
-                                Approve
+                                <Database className="mr-2 h-4 w-4" />
+                                Import to Library
                               </Button>
                               <Button
                                 size="sm"
@@ -1302,8 +1538,8 @@ export default function KpiLibraryPage() {
                                   setReviewDialog('reject')
                                 }}
                               >
-                                <XCircle className="mr-2 h-4 w-4" />
-                                Reject
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Cancel Upload
                               </Button>
                             </div>
                           )}

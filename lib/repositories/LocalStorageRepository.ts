@@ -836,16 +836,59 @@ export class LocalStorageRepository implements IDatabaseRepository {
   }
 
   async approveKpiLibraryUpload(id: string, reviewedBy: string, comment?: string): Promise<any> {
-    const existing = await this.getKpiLibraryUploadById(id)
-    if (!existing) throw new Error(`KPI Library Upload ${id} not found`)
+    const upload = await this.getKpiLibraryUploadById(id)
+    if (!upload) throw new Error(`KPI Library Upload ${id} not found`)
+
+    // Extract valid rows and create templates
+    const rawData = upload.rawData || []
+    const dataRows = rawData.slice(6) // Skip header rows as per upload logic
+    let processedCount = 0
+
+    for (const row of dataRows) {
+      const kpiName = row[4]?.toString().trim()
+      const department = row[2]?.toString().trim()
+
+      // Basic validation matching upload route
+      if (kpiName && department) {
+        await this.createKpiTemplate({
+          name: kpiName,
+          description: `Imported from ${upload.fileName}`,
+          department: department,
+          jobTitle: row[3]?.toString().trim(),
+          category: this.mapKpiTypeToCategory(row[5]?.toString().trim()),
+          kpiType: row[5]?.toString().trim() || 'Custom',
+          unit: row[6]?.toString().trim(),
+          source: 'EXCEL_IMPORT',
+          uploadId: id,
+          status: 'APPROVED',
+          isActive: true,
+          createdBy: upload.uploadedBy, // Attribute to uploader
+          createdAt: new Date().toISOString(),
+          version: 1,
+          usageCount: 0
+        })
+        processedCount++
+      }
+    }
 
     return await this.saveRecord('kpiLibraryUploads', id, {
-      ...existing,
+      ...upload,
       status: 'APPROVED',
       reviewedBy,
       reviewedAt: new Date().toISOString(),
-      reviewComment: comment
+      reviewComment: comment,
+      processedCount
     })
+  }
+
+  private mapKpiTypeToCategory(type: string): string {
+    const map: Record<string, string> = {
+      'I': 'FINANCIAL',
+      'II': 'CUSTOMER',
+      'III': 'OPERATIONAL',
+      'IV': 'LEARNING'
+    }
+    return map[type] || 'OPERATIONAL'
   }
 
   async rejectKpiLibraryUpload(id: string, reviewedBy: string, reason: string): Promise<any> {

@@ -76,7 +76,12 @@ Truy cập: [http://localhost:3000](http://localhost:3000)
 ## 3. Các tính năng mở rộng khác để Test
 *   **KPI Library (Thư viện):** Admin có thể tạo template chuẩn, Nhân viên có thể chọn "Add from Library" thay vì tạo mới.
 *   **Tracking:** Nhân viên nhập kết quả thực tế (Actual) hàng tháng -> Hệ thống tự tính Score.
-*   **Excel Import:** Admin vào KPI Library -> Excel Import để upload hàng loạt KPI từ file Excel cũ.
+*   **Excel Import (Legacy Data):**
+    *   **Quy trình:** Admin vào tab **Import Legacy Data** -> Upload file Excel.
+    *   **Review & Publish:** Hệ thống hiển thị bản xem trước (Preview) để Admin kiểm tra tính đúng đắn của dữ liệu.
+    *   **Import:** Sau khi kiểm tra, Admin nhấn **Import to Library** (hoặc Approve) để chính thức lưu vào hệ thống.
+    *   **Kết quả:** Các dòng trong file Excel được chuyển đổi thành **KPI Template** và sẵn sàng cho nhân viên sử dụng.
+    *   *Lưu ý:* Đây là bước kiểm tra kỹ thuật để đảm bảo file upload không bị lỗi trước khi public cho toàn công ty.
 
 ## 4. Troubleshooting (Gỡ lỗi)
 *   Nếu không thấy dữ liệu: Chạy lệnh `npm run seed` để reset lại dữ liệu mẫu.

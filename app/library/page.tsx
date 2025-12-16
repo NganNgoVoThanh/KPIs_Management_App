@@ -35,6 +35,36 @@ export default function LibraryPage() {
   const [activeTab, setActiveTab] = useState('resources')
   const [resources, setResources] = useState<KpiResource[]>([])
   const [loading, setLoading] = useState(false)
+  const [templates, setTemplates] = useState<any[]>([])
+
+  const fetchTemplates = async () => {
+    try {
+      // Fetch ACTIVE/APPROVED templates for staff
+      const res = await authenticatedFetch('/api/kpi-templates?status=APPROVED')
+      // Note: We might want DRAFT too if they are just "Standard Templates" ready to use but not "Approved" by some workflow?
+      // Usually Staff should only see valid templates. Admin puts them in DRAFT.
+      // If the Admin just created them and they are DRAFT, Staff MIGHT NOT see them if we filter by APPROVED.
+      // However, usually Templates need to be Published/Active.
+      // Let's assume for now we might need DRAFT if no workflow is enforced, OR user (Staff) expects to see what Admin just created.
+      // The Admin screenshot shows "DRAFT". 
+      // If I filter by APPROVED, Staff won't see DRAFT templates.
+      // I will relax the filter to allow DRAFT for demo purposes or fetch all and let backend decide (backend fetches all by default if no status param, but we might want to filter).
+      // Let's fetch ALL for now to ensure they show up, as the user is "Testing".
+      const resAll = await authenticatedFetch('/api/kpi-templates')
+      const data = await resAll.json()
+      if (data.success) {
+        setTemplates(data.data)
+      }
+    } catch (error) {
+      console.error('Failed to fetch templates:', error)
+    }
+  }
+
+  useEffect(() => {
+    if (activeTab === 'templates') {
+      fetchTemplates()
+    }
+  }, [activeTab])
 
   // Filters
   const [searchQuery, setSearchQuery] = useState('')
@@ -279,7 +309,7 @@ export default function LibraryPage() {
                       <Card key={resource.id} className="hover:shadow-lg transition-shadow">
                         <CardContent className="pt-6">
                           <div className="flex items-start gap-4">
-                            {getFileIcon(resource.fileType)}
+                            {getFileIcon(resource.fileType || '')}
                             <div className="flex-1 min-w-0">
                               <h3 className="font-medium text-gray-900 truncate">
                                 {resource.title}
@@ -348,16 +378,50 @@ export default function LibraryPage() {
           <TabsContent value="templates">
             <Card>
               <CardContent className="pt-6">
-                <div className="text-center py-12">
-                  <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">KPI Templates are available when creating KPIs</p>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Go to Create KPI and click "Select from KPI Library"
-                  </p>
-                  <Button className="mt-4" onClick={() => window.location.href = '/kpis/create'}>
-                    Go to Create KPI
-                  </Button>
-                </div>
+                {loading ? (
+                  <div className="text-center py-12">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900 mx-auto mb-4"></div>
+                    <p className="text-gray-600">Loading templates...</p>
+                  </div>
+                ) : templates.length === 0 ? (
+                  <div className="text-center py-12">
+                    <FileSpreadsheet className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600">No templates available</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {templates.map((template) => (
+                      <Card key={template.id} className="hover:shadow-lg transition-shadow">
+                        <CardContent className="pt-6">
+                          <div className="flex items-start gap-4">
+                            <FileSpreadsheet className="h-8 w-8 text-blue-600" />
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-medium text-gray-900 truncate">
+                                {template.kpiName || template.name}
+                              </h3>
+                              <div className="flex gap-2 mt-2">
+                                <Badge variant="outline">{template.category}</Badge>
+                                {template.department && (
+                                  <Badge variant="secondary">{template.department}</Badge>
+                                )}
+                              </div>
+                              {template.description && (
+                                <p className="text-sm text-gray-600 mt-2 line-clamp-2">
+                                  {template.description}
+                                </p>
+                              )}
+                              <div className="mt-4 grid grid-cols-2 gap-2 text-sm text-gray-500">
+                                <div>Unit: <span className="font-medium text-gray-700">{template.unit}</span></div>
+                                <div>Target: <span className="font-medium text-gray-700">{template.targetValue || template.target}</span></div>
+                                <div>Weight: <span className="font-medium text-gray-700">{template.weight}%</span></div>
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                  </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>

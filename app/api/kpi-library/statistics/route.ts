@@ -14,7 +14,28 @@ export async function GET(request: NextRequest) {
     }
 
     const db = getDatabase()
-    const stats = await db.getKpiLibraryUploadStatistics()
+
+    // Get stats from multiple sources
+    // 1. Upload Stats (Legacy)
+    let uploadStats = { activeEntries: 0, pendingUploads: 0 }
+    try {
+      if (typeof db.getKpiLibraryUploadStatistics === 'function') {
+        uploadStats = await db.getKpiLibraryUploadStatistics()
+      }
+    } catch (e) {
+      console.warn('getKpiLibraryUploadStatistics not implemented', e)
+    }
+
+    // 2. Kpi Template Stats
+    const templates = await db.getKpiTemplates({})
+    const activeTemplates = templates.filter((t: any) => t.status === 'ACTIVE' || t.status === 'APPROVED').length
+    const pendingTemplates = templates.filter((t: any) => t.status === 'DRAFT' || t.status === 'PENDING').length
+
+    // Combine or prefer Template stats for the "KPI Templates" card
+    const stats = {
+      activeEntries: activeTemplates, // Use direct template count
+      pendingUploads: pendingTemplates // Use direct template count
+    }
 
     return NextResponse.json({
       success: true,
