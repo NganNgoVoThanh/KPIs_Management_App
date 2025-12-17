@@ -759,7 +759,7 @@ export class MySQLRepository implements IDatabaseRepository {
   // ==================== KPI RESOURCE OPERATIONS ====================
   // TODO: Implement these methods when MySQL support for KPI Resources is needed
 
-  async getKpiResources(_filters?: {
+  async getKpiResources(filters?: {
     category?: string
     department?: string
     status?: string
@@ -767,102 +767,359 @@ export class MySQLRepository implements IDatabaseRepository {
     isPublic?: boolean
     searchQuery?: string
   }): Promise<any[]> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local or implement this method.')
+    return await this.client.kpiResource.findMany({
+      where: {
+        ...(filters?.category && { category: filters.category }),
+        ...(filters?.department && { department: filters.department }),
+        ...(filters?.status && { status: filters.status }),
+        ...(filters?.approvalStatus && { approvalStatus: filters.approvalStatus }),
+        ...(filters?.isPublic !== undefined && { isPublic: filters.isPublic }),
+        ...(filters?.searchQuery && {
+          OR: [
+            { title: { contains: filters.searchQuery } },
+            { description: { contains: filters.searchQuery } }
+          ]
+        })
+      },
+      include: {
+        uploader: true,
+        approver: true
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    })
   }
 
-  async getKpiResourceById(_id: string): Promise<any | null> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local or implement this method.')
+  async getKpiResourceById(id: string): Promise<any | null> {
+    return await this.client.kpiResource.findUnique({
+      where: { id },
+      include: {
+        uploader: true,
+        approver: true
+      }
+    })
   }
 
-  async createKpiResource(_data: any): Promise<any> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local or implement this method.')
+  async createKpiResource(data: any): Promise<any> {
+    return await this.client.kpiResource.create({
+      data,
+      include: {
+        uploader: true
+      }
+    })
   }
 
-  async updateKpiResource(_id: string, _data: any): Promise<any> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local or implement this method.')
+  async updateKpiResource(id: string, data: any): Promise<any> {
+    return await this.client.kpiResource.update({
+      where: { id },
+      data
+    })
   }
 
-  async deleteKpiResource(_id: string): Promise<any> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local or implement this method.')
+  async deleteKpiResource(id: string): Promise<any> {
+    return await this.client.kpiResource.delete({
+      where: { id }
+    })
   }
 
   async getKpiResourceStatistics(): Promise<any> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local or implement this method.')
+    const [total, pending, featured, byCategory] = await Promise.all([
+      this.client.kpiResource.count(),
+      this.client.kpiResource.count({ where: { approvalStatus: 'PENDING' } }),
+      this.client.kpiResource.count({ where: { isFeatured: true } }),
+      this.client.kpiResource.groupBy({
+        by: ['category'],
+        _count: {
+          category: true
+        }
+      })
+    ])
+
+    return {
+      total,
+      pending,
+      featured,
+      byCategory: byCategory.reduce((acc, curr) => ({
+        ...acc,
+        [curr.category]: curr._count.category
+      }), {})
+    }
   }
 
-  async approveKpiResource(_id: string, _approvedBy: string, _comment?: string): Promise<any> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async approveKpiResource(id: string, approvedBy: string, comment?: string): Promise<any> {
+    return await this.client.kpiResource.update({
+      where: { id },
+      data: {
+        approvalStatus: 'APPROVED',
+        status: 'ACTIVE',
+        approvedBy,
+        approvedAt: new Date(),
+        rejectionReason: comment ? null : undefined
+      }
+    })
   }
 
-  async rejectKpiResource(_id: string, _approvedBy: string, _reason: string): Promise<any> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async rejectKpiResource(id: string, approvedBy: string, reason: string): Promise<any> {
+    return await this.client.kpiResource.update({
+      where: { id },
+      data: {
+        approvalStatus: 'REJECTED',
+        status: 'INACTIVE',
+        approvedBy,
+        approvedAt: new Date(),
+        rejectionReason: reason
+      }
+    })
   }
 
-  async incrementDownloadCount(_id: string): Promise<void> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async incrementDownloadCount(id: string): Promise<void> {
+    await this.client.kpiResource.update({
+      where: { id },
+      data: {
+        downloadCount: {
+          increment: 1
+        }
+      }
+    })
   }
 
-  async incrementViewCount(_id: string): Promise<void> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async incrementViewCount(id: string): Promise<void> {
+    await this.client.kpiResource.update({
+      where: { id },
+      data: {
+        viewCount: {
+          increment: 1
+        }
+      }
+    })
   }
 
-  async getBIDashboards(_filters?: { dashboardType?: string; department?: string }): Promise<any[]> {
-    throw new Error('KPI Resources not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async getBIDashboards(filters?: { dashboardType?: string; department?: string }): Promise<any[]> {
+    return await this.client.kpiResource.findMany({
+      where: {
+        resourceType: 'BI_DASHBOARD',
+        ...(filters?.dashboardType && { dashboardType: filters.dashboardType }),
+        ...(filters?.department && { department: filters.department }),
+        status: 'ACTIVE'
+      },
+      orderBy: {
+        title: 'asc'
+      }
+    })
   }
 
   // ==================== KPI LIBRARY UPLOAD OPERATIONS ====================
 
-  async getKpiLibraryUploads(_filters?: { status?: string }): Promise<any[]> {
-    throw new Error('KPI Library Uploads not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async getKpiLibraryUploads(filters?: { status?: string }): Promise<any[]> {
+    return await this.client.kpiLibraryUpload.findMany({
+      where: {
+        ...(filters?.status && { status: filters.status })
+      },
+      include: {
+        uploader: true
+      },
+      orderBy: {
+        uploadedAt: 'desc'
+      }
+    })
   }
 
-  async getKpiLibraryUploadById(_id: string): Promise<any | null> {
-    throw new Error('KPI Library Uploads not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async getKpiLibraryUploadById(id: string): Promise<any | null> {
+    return await this.client.kpiLibraryUpload.findUnique({
+      where: { id },
+      include: {
+        uploader: true
+      }
+    })
   }
 
-  async createKpiLibraryUpload(_data: any): Promise<any> {
-    throw new Error('KPI Library Uploads not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async createKpiLibraryUpload(data: any): Promise<any> {
+    return await this.client.kpiLibraryUpload.create({
+      data,
+      include: {
+        uploader: true
+      }
+    })
   }
 
-  async approveKpiLibraryUpload(_id: string, _reviewedBy: string, _comment?: string): Promise<any> {
-    throw new Error('KPI Library Uploads not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async approveKpiLibraryUpload(id: string, reviewedBy: string, comment?: string): Promise<any> {
+    return await this.client.$transaction(async (tx) => {
+      const upload = await tx.kpiLibraryUpload.findUnique({ where: { id } })
+
+      if (!upload) {
+        throw new Error(`Upload not found: ${id}`)
+      }
+
+      if (upload.status !== 'PENDING') {
+        throw new Error(`Upload is not pending: ${upload.status}`)
+      }
+
+      const rawData = upload.rawData as any[]
+      if (!Array.isArray(rawData)) {
+        throw new Error('Invalid rawData format')
+      }
+
+      const dataRows = rawData.slice(6)
+      const entriesToCreate: any[] = []
+      let validCount = 0
+
+      for (const row of dataRows) {
+        const dept = row[2]?.toString().trim()
+        const kpiName = row[4]?.toString().trim()
+
+        if (dept && kpiName) {
+          entriesToCreate.push({
+            stt: parseInt(row[0]?.toString() || '0') || 0,
+            ogsmTarget: row[1]?.toString() || '',
+            department: dept,
+            jobTitle: row[3]?.toString() || '',
+            kpiName: kpiName,
+            kpiType: row[5]?.toString() || '',
+            unit: row[6]?.toString() || '',
+            dataSource: row[7]?.toString() || '',
+            yearlyTarget: row[8]?.toString() || null,
+            quarterlyTarget: row[9]?.toString() || null,
+            uploadedBy: upload.uploadedBy,
+            uploadId: upload.id,
+            status: 'ACTIVE',
+            version: 1,
+            isTemplate: true
+          })
+          validCount++
+        }
+      }
+
+      if (entriesToCreate.length > 0) {
+        await tx.kpiLibraryEntry.createMany({
+          data: entriesToCreate
+        })
+      }
+
+      return await tx.kpiLibraryUpload.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          reviewedBy,
+          reviewedAt: new Date(),
+          reviewComment: comment,
+          processedCount: validCount,
+          processedAt: new Date()
+        }
+      })
+    })
   }
 
-  async rejectKpiLibraryUpload(_id: string, _reviewedBy: string, _reason: string): Promise<any> {
-    throw new Error('KPI Library Uploads not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async rejectKpiLibraryUpload(id: string, reviewedBy: string, reason: string): Promise<any> {
+    return await this.client.kpiLibraryUpload.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        reviewedBy,
+        reviewedAt: new Date(),
+        rejectionReason: reason
+      }
+    })
   }
 
   async getKpiLibraryUploadStatistics(): Promise<any> {
-    throw new Error('KPI Library Uploads not implemented for MySQL repository. Please use DB_TYPE=local.')
+    const [total, pending] = await Promise.all([
+      this.client.kpiLibraryUpload.count(),
+      this.client.kpiLibraryUpload.count({ where: { status: 'PENDING' } })
+    ])
+
+    return { total, pending }
   }
 
   // ==================== ENHANCED KPI TEMPLATE OPERATIONS ====================
 
-  async submitForReview(_id: string, _submittedBy: string): Promise<any> {
-    throw new Error('Enhanced KPI Templates not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async submitForReview(id: string, submittedBy: string): Promise<any> {
+    return await this.client.kpiTemplate.update({
+      where: { id },
+      data: {
+        status: 'PENDING',
+        submittedBy,
+        submittedAt: new Date()
+      }
+    })
   }
 
-  async approveTemplate(_id: string, _reviewedBy: string, _comment?: string): Promise<any> {
-    throw new Error('Enhanced KPI Templates not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async approveTemplate(id: string, reviewedBy: string, comment?: string): Promise<any> {
+    return await this.client.kpiTemplate.update({
+      where: { id },
+      data: {
+        status: 'APPROVED',
+        reviewedBy,
+        reviewedAt: new Date(),
+        reviewComment: comment
+      }
+    })
   }
 
-  async rejectTemplate(_id: string, _reviewedBy: string, _reason: string): Promise<any> {
-    throw new Error('Enhanced KPI Templates not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async rejectTemplate(id: string, reviewedBy: string, reason: string): Promise<any> {
+    return await this.client.kpiTemplate.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        reviewedBy,
+        reviewedAt: new Date(),
+        rejectionReason: reason
+      }
+    })
   }
 
-  async cloneTemplate(_id: string, _createdBy: string, _overrides?: any): Promise<any> {
-    throw new Error('Enhanced KPI Templates not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async cloneTemplate(id: string, createdBy: string, overrides?: any): Promise<any> {
+    // 1. Get original template
+    const template = await this.client.kpiTemplate.findUnique({ where: { id } })
+    if (!template) throw new Error(`Template not found: ${id}`)
+
+    // 2. Create new template based on original
+    const { id: _id, createdAt, updatedAt, creator, ...dataToClone } = template as any // Exclude system fields
+
+    return await this.client.kpiTemplate.create({
+      data: {
+        ...dataToClone,
+        ...overrides,
+        name: overrides?.name || `${template.name} (Copy)`,
+        source: 'CLONED',
+        clonedFromId: id,
+        createdBy,
+        usageCount: 0,
+        status: 'DRAFT',
+        version: 1
+      }
+    })
   }
 
-  async incrementUsage(_id: string): Promise<void> {
-    throw new Error('Enhanced KPI Templates not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async incrementUsage(id: string): Promise<void> {
+    await this.client.kpiTemplate.update({
+      where: { id },
+      data: {
+        usageCount: {
+          increment: 1
+        },
+        lastUsedAt: new Date()
+      }
+    })
   }
 
-  async archiveTemplate(_id: string): Promise<any> {
-    throw new Error('Enhanced KPI Templates not implemented for MySQL repository. Please use DB_TYPE=local.')
+  async archiveTemplate(id: string): Promise<any> {
+    return await this.client.kpiTemplate.update({
+      where: { id },
+      data: {
+        status: 'ARCHIVED'
+      }
+    })
   }
 
   async getTemplateStatistics(): Promise<any> {
-    throw new Error('Enhanced KPI Templates not implemented for MySQL repository. Please use DB_TYPE=local.')
+    const [total, approved, pending, drafts] = await Promise.all([
+      this.client.kpiTemplate.count(),
+      this.client.kpiTemplate.count({ where: { status: 'APPROVED' } }),
+      this.client.kpiTemplate.count({ where: { status: 'PENDING' } }),
+      this.client.kpiTemplate.count({ where: { status: 'DRAFT' } })
+    ])
+
+    return { total, approved, pending, drafts }
   }
 }
