@@ -53,7 +53,9 @@
       "Bash(dangerouslyDisableSandbox=true)",
       "Bash(test:*)",
       "Bash(nul)",
-      "Bash(node scripts/test-auth-flow.js:*)"
+      "Bash(node scripts/test-auth-flow.js:*)",
+      "Bash(node scripts/analyze-excel.js:*)",
+      "Bash(node scripts/debug-kpi-file.js:*)"
     ],
     "deny": [],
     "ask": []

@@ -16,24 +16,26 @@ function generateUUID(): string {
  */
 export function seedInitialData(): void {
   console.log('🌱 Seeding initial data...')
-  
-  // Check if already seeded
-  const existingTemplates = storageService.getTemplates()
-  if (existingTemplates.length > 0) {
-    console.log('✅ Data already seeded')
-    return
+
+  // Check if organization units already exist
+  const orgUnitsKey = 'vicc_kpi_org_units'
+  const existingOrgUnits = localStorage.getItem(orgUnitsKey)
+
+  if (!existingOrgUnits) {
+    // Seed organization units (always needed for structure)
+    seedOrgUnits()
   }
 
-  // Seed organization units
-  seedOrgUnits()
-  
-  // Seed KPI templates
-  seedKpiTemplates()
-  
-  // Seed initial cycle
-  seedInitialCycle()
-  
-  console.log('✅ Initial data seeded successfully')
+  // Check if cycles already exist
+  const existingCycles = storageService.getCycles()
+  if (existingCycles.length === 0) {
+    // Seed initial cycle
+    seedInitialCycle()
+  }
+
+  // ❌ DO NOT seed mock KPI templates
+  // Templates should only come from real uploaded Excel files via KPI Library
+  console.log('✅ Essential data seeded (OrgUnits, Cycles). KPI Templates will come from uploads.')
 }
 
 /**

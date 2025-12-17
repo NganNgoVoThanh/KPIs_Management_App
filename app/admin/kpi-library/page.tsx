@@ -406,7 +406,49 @@ export default function KpiLibraryPage() {
         cellDates: true
       })
 
-      const sheetName = workbook.SheetNames[0]
+      console.log('📚 All sheets in workbook:', workbook.SheetNames)
+
+      // Try to find KPI-related sheet
+      let sheetName = workbook.SheetNames[0] // Default to first sheet
+
+      // Priority 1: Sheets that look like personal names (likely to contain actual data)
+      // Avoid sheets like "Example", "Template", "ICC_Core Value"
+      const personalSheets = workbook.SheetNames.filter(name => {
+        const nameLower = name.toLowerCase()
+        // Exclude example/template/system sheets
+        if (nameLower.includes('example') ||
+            nameLower.includes('template') ||
+            nameLower.includes('icc_') ||
+            nameLower.includes('core value') ||
+            nameLower.includes('competency')) {
+          return false
+        }
+        // Include sheets with names (usually contain spaces and capitals)
+        return /[A-Z][a-z]+\s+[A-Z]/.test(name) || // "Tram Nguyen" pattern
+               (nameLower.includes('setting') && !nameLower.includes('objectives')) ||
+               (name.length > 3 && name.length < 30 && /^[A-Za-z\s]+$/.test(name))
+      })
+
+      // Priority 2: KPI-related sheets
+      const kpiSheets = workbook.SheetNames.filter(name => {
+        const nameLower = name.toLowerCase()
+        return (nameLower.includes('kpi') ||
+                nameLower.includes('target') ||
+                nameLower.includes('setting')) &&
+               !nameLower.includes('example') &&
+               !nameLower.includes('template')
+      })
+
+      if (personalSheets.length > 0) {
+        sheetName = personalSheets[0]
+        console.log(`🎯 Using personal sheet: "${sheetName}"`)
+      } else if (kpiSheets.length > 0) {
+        sheetName = kpiSheets[0]
+        console.log(`🎯 Using KPI-related sheet: "${sheetName}"`)
+      } else {
+        console.log(`📊 Using first sheet: "${sheetName}"`)
+      }
+
       const worksheet = workbook.Sheets[sheetName]
 
       const rawData = XLSX.utils.sheet_to_json(worksheet, {
@@ -422,209 +464,473 @@ export default function KpiLibraryPage() {
         ) : row
       )
 
-      let finalData = sanitizedData
-      let isLegacyForm = false
+      console.log('📊 Excel Data Preview (first 30 rows):', sanitizedData.slice(0, 30))
 
-      // Check if this is a Legacy KPI Form (Target Setting)
-      // Look for "Target or KPI" header
-      let headerRowIndex = -1
-      let department = ''
-      let jobTitle = ''
-
-      // Attempt to find metadata in first 100 rows
-      for (let i = 0; i < Math.min(100, sanitizedData.length); i++) {
+      // Add detailed row-by-row inspection for first 50 rows
+      console.log('🔍 Detailed Row Inspection:')
+      for (let i = 0; i < Math.min(50, sanitizedData.length); i++) {
         const row = sanitizedData[i]
         if (!Array.isArray(row)) continue
 
-        const rowStr = row.join(' ').toLowerCase()
+        const preview = row.slice(0, 10).map(c => c?.toString().substring(0, 30) || '')
+        console.log(`Row ${i}:`, preview)
+      }
 
-        // Search for Department
+      let finalData: any[] = []
+      let templateType = ''
+      let department = ''
+      let jobTitle = ''
+
+      // ========== TEMPLATE DETECTION ==========
+
+      // Extract metadata from top section (Department, Job Title)
+      for (let i = 0; i < Math.min(15, sanitizedData.length); i++) {
+        const row = sanitizedData[i]
+        if (!Array.isArray(row)) continue
+
+        // Find Department
         if (!department) {
-          const deptIdx = row.findIndex(cell => cell?.toString().toLowerCase().includes('department'))
+          const deptIdx = row.findIndex(cell =>
+            cell?.toString().toLowerCase().trim() === 'department:' ||
+            cell?.toString().toLowerCase().includes('department')
+          )
           if (deptIdx !== -1 && row[deptIdx + 1]) {
             department = row[deptIdx + 1].toString().trim()
           }
         }
 
-        // Search for Job Title
+        // Find Job Title
         if (!jobTitle) {
-          const jobTitleIdx = row.findIndex(cell => cell?.toString().toLowerCase().includes('job title'))
-          if (jobTitleIdx !== -1 && row[jobTitleIdx + 1]) {
-            jobTitle = row[jobTitleIdx + 1].toString().trim()
+          const jobIdx = row.findIndex(cell =>
+            cell?.toString().toLowerCase().trim() === 'job title:' ||
+            cell?.toString().toLowerCase().includes('job title')
+          )
+          if (jobIdx !== -1 && row[jobIdx + 1]) {
+            jobTitle = row[jobIdx + 1].toString().trim()
           }
         }
+      }
 
-        // Search for Header
-        // The header row typically contains: "Main KPI", "Weight", "Unit", "Target"
-        const hasWeight = row.some(c => c?.toString().toLowerCase().includes('weight'))
-        const hasUnit = row.some(c => c?.toString().toLowerCase().includes('unit'))
-        const hasTarget = row.some(c => c?.toString().toLowerCase().includes('target'))
-        const hasKPI = row.some(c => c?.toString().toLowerCase().includes('kpi'))
+      console.log('📋 Extracted Metadata:', { department, jobTitle })
 
-        // Robust check: needs at least 2 strong signals
-        if ((hasWeight && hasUnit) || (hasTarget && hasKPI)) {
-          headerRowIndex = i
-          isLegacyForm = true
+      // ========== TEMPLATE 1: "Target Setting and Review" (Legacy/Complex) ==========
+      // Look for distinctive markers: "2025 TARGETS SETTING" or "Main KPI" + "Sub-KPI" columns
+      let legacyHeaderIdx = -1
+      for (let i = 0; i < Math.min(50, sanitizedData.length); i++) {
+        const row = sanitizedData[i]
+        if (!Array.isArray(row)) continue
+
+        const rowText = row.map(c => c?.toString().toLowerCase().trim() || '').join('|')
+
+        // Check for "2025 TARGETS SETTING" or similar text
+        // The actual header is usually the NEXT row after this text
+        if (rowText.includes('targets setting') || rowText.includes('target setting')) {
+          // Check if next row has the actual headers
+          const nextRow = sanitizedData[i + 1]
+          if (nextRow && Array.isArray(nextRow)) {
+            const nextRowHasHeaders = nextRow.some(c => {
+              const s = c?.toString().toLowerCase() || ''
+              return s.includes('main kpi') || s.includes('sub-kpi') || s.includes('target or kpi')
+            })
+
+            if (nextRowHasHeaders) {
+              legacyHeaderIdx = i + 1 // Use next row as header
+              console.log(`🎯 Found "TARGETS SETTING" text at row ${i}, header at row ${i + 1}`)
+            } else {
+              legacyHeaderIdx = i // Use current row as header
+              console.log(`🎯 Found "TARGETS SETTING" at row ${i}`)
+            }
+          } else {
+            legacyHeaderIdx = i
+            console.log(`🎯 Found "TARGETS SETTING" at row ${i}`)
+          }
+          templateType = 'Legacy Target Setting'
+          break
+        }
+
+        // Check for header row with specific columns: "Main KPI", "Target or KPI", "Weight", "KPI Type"
+        const hasMainKPI = row.some(c => c?.toString().toLowerCase().includes('main kpi'))
+        const hasTargetOrKPI = row.some(c => c?.toString().toLowerCase().includes('target or kpi'))
+        const hasSubKPI = row.some(c => c?.toString().toLowerCase().includes('sub-kpi') || c?.toString().toLowerCase().includes('sub kpi'))
+        const hasWeight = row.some(c => {
+          const s = c?.toString().toLowerCase().trim()
+          return s === 'weight (a)' || s === 'weight' || s?.includes('weight (') || s === 'weight(a)'
+        })
+        const hasKPIType = row.some(c => {
+          const s = c?.toString().toLowerCase().trim()
+          return s === 'kpi type' || s?.includes('kpi type')
+        })
+        const hasUnit = row.some(c => {
+          const s = c?.toString().toLowerCase().trim()
+          return s === 'unit'
+        })
+        const hasTarget = row.some(c => {
+          const s = c?.toString().toLowerCase().trim()
+          return s === 'target'
+        })
+
+        // More flexible detection: If row has at least 3 of these markers
+        const markers = [hasMainKPI, hasTargetOrKPI, hasSubKPI, hasWeight, hasKPIType, hasUnit, hasTarget]
+        const markerCount = markers.filter(Boolean).length
+
+        console.log(`Row ${i} markers:`, {
+          hasMainKPI, hasTargetOrKPI, hasSubKPI, hasWeight, hasKPIType, hasUnit, hasTarget, markerCount
+        })
+
+        if (markerCount >= 3) {
+          legacyHeaderIdx = i
+          templateType = 'Legacy Target Setting'
+          console.log(`🎯 Found Legacy header at row ${i} with ${markerCount} markers`)
           break
         }
       }
 
-      if (isLegacyForm && headerRowIndex !== -1) {
-        console.log('Detected Legacy Token Format. Header at row:', headerRowIndex)
-        // Transform Legacy Data to Standard Format
-        // Standard Format expected by backend (indices):
-        // 2: Department, 4: KPI Name, 5: KPI Type
-        // We will construct: [STT, '', Dept, Job, Name, Type, Unit]
+      if (legacyHeaderIdx !== -1) {
+        console.log(`✅ Detected: ${templateType} at row ${legacyHeaderIdx}`)
 
         const transformedData: any[] = []
-        // Add 6 dummy rows for backend slice(6)
-        for (let i = 0; i < 6; i++) transformedData.push([])
+        for (let i = 0; i < 6; i++) transformedData.push([]) // Add 6 dummy rows
 
-        const headerRow = sanitizedData[headerRowIndex] as any[]
+        const headerRow = sanitizedData[legacyHeaderIdx]
 
-        // Find indices dynamically with relaxed matching
-        let nameIdx = headerRow.findIndex(c => {
-          const s = c?.toString().toLowerCase().trim()
-          return s === 'target or kpi' || s === 'main kpi' || (s?.includes('kpi') && !s?.includes('weight') && !s?.includes('type') && !s?.includes('sub'))
+        // Find column indices
+        const findColIdx = (keywords: string[]) => {
+          return headerRow.findIndex(c => {
+            const s = c?.toString().toLowerCase().trim() || ''
+            return keywords.some(k => s.includes(k))
+          })
+        }
+
+        const mainKPIIdx = findColIdx(['main kpi'])
+        const subKPIIdx = findColIdx(['sub-kpi', 'sub kpi'])
+        const targetOrKPIIdx = findColIdx(['target or kpi', 'target/kpi'])
+        const targetIdx = findColIdx(['target'])
+        const unitIdx = findColIdx(['unit'])
+        const kpiTypeIdx = findColIdx(['kpi type'])
+
+        console.log('📍 Column Indices:', {
+          mainKPIIdx,
+          subKPIIdx,
+          targetOrKPIIdx,
+          targetIdx,
+          unitIdx,
+          kpiTypeIdx
         })
 
-        // Fallback for specific known format
-        if (nameIdx === -1) nameIdx = 2; // Default for this template if not found
-
-        const typeIdx = headerRow.findIndex(c => c?.toString().toLowerCase().includes('kpi type'))
-        const unitIdx = headerRow.findIndex(c => c?.toString().toLowerCase() === 'unit')
-
-        if (nameIdx !== -1) {
-          // Iterate data rows
-          for (let i = headerRowIndex + 1; i < sanitizedData.length; i++) {
-            const row = sanitizedData[i]
-            if (!Array.isArray(row)) continue
-
-            // SKIP SECTION HEADERS
-            const distinctContentCount = row.filter(c => c && c.toString().trim().length > 0).length
-            if (distinctContentCount <= 2) continue
-
-            const kpiName = row[nameIdx]?.toString().trim()
-            if (!kpiName || kpiName.length < 3) continue
-
-            // Filter out section headers (which usually don't have weight or type populated)
-            // Or simple check: Section headers often start with a number but are long text
-
-            const kpiType = typeIdx !== -1 ? row[typeIdx]?.toString().trim() : ''
-            const unit = unitIdx !== -1 ? row[unitIdx]?.toString().trim() : ''
-
-            // Validate KPI Type if present (should be I, II, III, IV)
-            // If missing but row looks valid, we might default or skip. 
-            // For now, include it.
-
-            transformedData.push([
-              transformedData.length - 5, // STT (1-based)
-              '',
-              department,
-              jobTitle,
-              kpiName,
-              kpiType,
-              unit
-            ])
-          }
-          finalData = transformedData
-        }
-      } else {
-        // Standard Format Support (Auto-detect)
-        console.log('Detected Standard Format. Attempting normalization...')
-        const normalizedData: any[] = []
-
-        // Add 6 dummy rows for backend compatibility (backend skips first 6 rows)
-        for (let i = 0; i < 6; i++) normalizedData.push([])
-
-        // Find Header Row (Scan first 20 rows)
-        let headerIdx = -1
-        for (let i = 0; i < Math.min(20, sanitizedData.length); i++) {
-          const row = sanitizedData[i] as any[]
+        // Process data rows after header
+        let currentMainKPI = ''
+        for (let i = legacyHeaderIdx + 1; i < sanitizedData.length; i++) {
+          const row = sanitizedData[i]
           if (!Array.isArray(row)) continue
 
-          const rowStr = row.map(c => c?.toString().toLowerCase() || '').join(' ')
-          // Robust header detection
-          if ((rowStr.includes('kpi') && rowStr.includes('name')) ||
-            (rowStr.includes('tên') && rowStr.includes('kpi')) ||
-            rowStr.includes('kpi name') ||
-            (rowStr.includes('department') && rowStr.includes('role'))) {
-            headerIdx = i
+          // Skip completely empty rows
+          if (row.every(c => !c || c.toString().trim() === '')) continue
+
+          // Extract Main KPI if present
+          if (mainKPIIdx !== -1 && row[mainKPIIdx]?.toString().trim()) {
+            currentMainKPI = row[mainKPIIdx].toString().trim()
+          }
+
+          // Get KPI Name from either "Target or KPI" or "Sub-KPI" column
+          let kpiName = ''
+          if (targetOrKPIIdx !== -1) {
+            kpiName = row[targetOrKPIIdx]?.toString().trim() || ''
+          } else if (subKPIIdx !== -1) {
+            kpiName = row[subKPIIdx]?.toString().trim() || ''
+          }
+
+          // Skip if no valid KPI name
+          if (!kpiName || kpiName.length < 2) continue
+
+          // Skip section headers (rows with only 1-2 filled cells)
+          const filledCells = row.filter(c => c && c.toString().trim().length > 0).length
+          if (filledCells <= 2) continue
+
+          const kpiType = kpiTypeIdx !== -1 ? row[kpiTypeIdx]?.toString().trim() : ''
+          const unit = unitIdx !== -1 ? row[unitIdx]?.toString().trim() : ''
+
+          transformedData.push([
+            transformedData.length - 5,  // STT
+            currentMainKPI,              // OGSM/Main KPI
+            department,                  // Department
+            jobTitle,                    // Job Title
+            kpiName,                     // KPI Name
+            kpiType,                     // KPI Type
+            unit                         // Unit
+          ])
+        }
+
+        finalData = transformedData
+        console.log(`✅ Extracted ${finalData.length - 6} KPIs from Legacy format`)
+      }
+
+      // ========== TEMPLATE 2: "Personal KPI Setting" (No | Name of KPI | Measure | KPI Type...) ==========
+      if (finalData.length === 0) {
+        let personalKPIHeaderIdx = -1
+
+        for (let i = 0; i < Math.min(30, sanitizedData.length); i++) {
+          const row = sanitizedData[i]
+          if (!Array.isArray(row)) continue
+
+          // Look for Personal KPI Setting markers: "No", "Name of KPI", "Measure", "KPI Type"
+          const hasNo = row.some(c => {
+            const s = c?.toString().trim().toUpperCase() || ''
+            return s === 'NO' || s === 'NO.'
+          })
+          const hasNameOfKPI = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('name of kpi')
+          })
+          const hasMeasure = row.some(c => {
+            const s = c?.toString().toLowerCase().trim() || ''
+            return s === 'measure'
+          })
+          const hasKPIType = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('kpi type') || s === 'kpi type'
+          })
+          const hasWeight = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('weight') && (s.includes('(a)') || s.includes('(%)'))
+          })
+          const hasEvidence = row.some(c => {
+            const s = c?.toString().toLowerCase().trim() || ''
+            return s === 'evidence'
+          })
+
+          const personalMarkers = [hasNo, hasNameOfKPI, hasMeasure, hasKPIType, hasWeight, hasEvidence]
+          const personalMarkerCount = personalMarkers.filter(Boolean).length
+
+          console.log(`Row ${i} personal KPI markers:`, {
+            hasNo, hasNameOfKPI, hasMeasure, hasKPIType, hasWeight, hasEvidence, personalMarkerCount
+          })
+
+          // If row has at least 4 markers (strict to avoid false positives)
+          if (personalMarkerCount >= 4) {
+            personalKPIHeaderIdx = i
+            templateType = 'Personal KPI Setting'
+            console.log(`🎯 Found Personal KPI header at row ${i} with ${personalMarkerCount} markers`)
             break
           }
         }
 
-        // If no header found, assume standard list starts at row 0 (Header) -> Data at 1
-        if (headerIdx === -1 && sanitizedData.length > 0) {
-          headerIdx = 0
-        }
+        if (personalKPIHeaderIdx !== -1) {
+          console.log(`✅ Detected: ${templateType} at row ${personalKPIHeaderIdx}`)
 
-        if (headerIdx !== -1) {
-          const headerRow = sanitizedData[headerIdx] as any[]
+          const transformedData: any[] = []
+          for (let i = 0; i < 6; i++) transformedData.push([]) // Add 6 dummy rows
 
-          // Map Columns with flexible matching
-          const findCol = (keywords: string[]) => headerRow.findIndex(c => {
-            const val = c?.toString().toLowerCase().trim() || ''
-            return keywords.some(k => val.includes(k) || val === k)
-          })
+          const headerRow = sanitizedData[personalKPIHeaderIdx]
 
-          const idxName = findCol(['kpi name', 'tên kpi', 'kpi', 'chỉ số', 'name'])
-          const idxDept = findCol(['department', 'phòng ban', 'bộ phận', 'khối'])
-          const idxJob = findCol(['job', 'position', 'chức danh', 'vị trí'])
-          const idxType = findCol(['type', 'loại', 'phân loại'])
-          const idxUnit = findCol(['unit', 'đơn vị', 'dvt'])
-          const idxSource = findCol(['source', 'nguồn'])
-
-          // Require at least a Name or Department column to proceed with mapping
-          if (idxName !== -1 || idxDept !== -1) {
-            let stt = 1
-            for (let i = headerIdx + 1; i < sanitizedData.length; i++) {
-              const row = sanitizedData[i] as any[]
-              if (!Array.isArray(row)) continue
-
-              // Skip empty rows
-              if (row.every(c => !c || c.toString().trim() === '')) continue
-
-              const name = idxName !== -1 ? row[idxName]?.toString().trim() : ''
-
-              // If there is data but name is empty, we act carefully.
-              // But let's assume valid rows have names.
-              if (!name && idxName !== -1) continue
-
-              normalizedData.push([
-                stt++,                                  // 0: STT
-                '',                                     // 1: OGSM
-                idxDept !== -1 ? row[idxDept] : '',     // 2: Department
-                idxJob !== -1 ? row[idxJob] : '',       // 3: Job Title
-                name || 'Untitled KPI',                 // 4: KPI Name
-                idxType !== -1 ? row[idxType] : 'I',    // 5: KPI Type
-                idxUnit !== -1 ? row[idxUnit] : '',     // 6: Unit
-                idxSource !== -1 ? row[idxSource] : ''  // 7: Source
-              ])
-            }
-            finalData = normalizedData
-            console.log(`Normalized ${finalData.length - 6} entries from standard format.`)
-
-            toast({
-              title: 'Format Detected',
-              description: `Successfully mapped columns and loaded ${finalData.length - 6} entries.`,
+          // Find column indices
+          const findColIdx = (keywords: string[]) => {
+            return headerRow.findIndex(c => {
+              const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+              return keywords.some(k => s.includes(k))
             })
           }
+
+          const noIdx = findColIdx(['no'])
+          const nameIdx = findColIdx(['name of kpi'])
+          const measureIdx = findColIdx(['measure'])
+          const typeIdx = findColIdx(['kpi type'])
+          const targetIdx = findColIdx(['target'])
+          const unitIdx = findColIdx(['unit'])
+          const weightIdx = findColIdx(['weight'])
+          const evidenceIdx = findColIdx(['evidence'])
+
+          console.log('📍 Personal KPI Column Indices:', {
+            noIdx, nameIdx, measureIdx, typeIdx, targetIdx, unitIdx, weightIdx, evidenceIdx
+          })
+
+          // Process data rows after header
+          for (let i = personalKPIHeaderIdx + 1; i < sanitizedData.length; i++) {
+            const row = sanitizedData[i]
+            if (!Array.isArray(row)) continue
+
+            // Skip empty rows
+            if (row.every(c => !c || c.toString().trim() === '')) continue
+
+            // Get KPI Name
+            const kpiName = nameIdx !== -1 ? row[nameIdx]?.toString().trim() : ''
+
+            // Skip if no KPI name or if it's a section header
+            if (!kpiName) continue
+
+            // Skip section headers like "1. BUSINESS OBJECTIVE", "2. INDIVIDUAL DEVELOPMENT"
+            const kpiNameLower = kpiName.toLowerCase()
+            if (
+              kpiNameLower.includes('business objective') ||
+              kpiNameLower.includes('individual development') ||
+              kpiNameLower.includes('compliance') ||
+              kpiNameLower.includes('core value') ||
+              kpiNameLower.includes('total result') ||
+              kpiName.length < 10 // Too short to be a real KPI
+            ) continue
+
+            // Skip rows with only numbering (like "1.1", "1.2", "2.1")
+            if (/^\d+(\.\d+)?$/.test(kpiName)) continue
+
+            const kpiType = typeIdx !== -1 ? row[typeIdx]?.toString().trim() : ''
+            const unit = unitIdx !== -1 ? row[unitIdx]?.toString().trim() : ''
+
+            // Only include if we have a valid KPI type (I, II, III, IV, 1, 2, 3, 4)
+            if (kpiType && /^(I{1,4}|[1-4])$/i.test(kpiType)) {
+              transformedData.push([
+                transformedData.length - 5,  // STT
+                '',                          // OGSM/Main KPI
+                department,                  // Department
+                jobTitle,                    // Job Title
+                kpiName,                     // KPI Name
+                kpiType,                     // KPI Type
+                unit                         // Unit
+              ])
+            }
+          }
+
+          finalData = transformedData
+          console.log(`✅ Extracted ${finalData.length - 6} KPIs from Personal KPI Setting format`)
         }
+      }
+
+      // ========== TEMPLATE 3: "2025 KPI CATEGORY - DEPARTMENT" (Standard/Simple) ==========
+      if (finalData.length === 0) {
+        let standardHeaderIdx = -1
+
+        for (let i = 0; i < Math.min(20, sanitizedData.length); i++) {
+          const row = sanitizedData[i]
+          if (!Array.isArray(row)) continue
+
+          // Look for standard template header markers
+          const hasSTT = row.some(c => {
+            const s = c?.toString().trim().toUpperCase() || ''
+            return s === 'STT' || s.includes('STT')
+          })
+          const hasTenKPI = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('tên kpi') || s.includes('name of kpi') || s.includes('ten kpi')
+          })
+          const hasDept = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('phòng ban') || s.includes('phong ban') || s.includes('department')
+          })
+          const hasJobTitle = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('vị trí') || s.includes('vi tri') || s.includes('job title')
+          })
+          const hasOGSM = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('ogsm') || s.includes('mục tiêu') || s.includes('muc tieu')
+          })
+          const hasKPIType = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('loại kpi') || s.includes('loai kpi') || s.includes('kpi type')
+          })
+          const hasUnit = row.some(c => {
+            const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
+            return s.includes('đơn vị tính') || s.includes('don vi tinh') || s === 'unit'
+          })
+
+          const standardMarkers = [hasSTT, hasTenKPI, hasDept, hasJobTitle, hasOGSM, hasKPIType, hasUnit]
+          const standardMarkerCount = standardMarkers.filter(Boolean).length
+
+          console.log(`Row ${i} standard markers:`, {
+            hasSTT, hasTenKPI, hasDept, hasJobTitle, hasOGSM, hasKPIType, hasUnit, standardMarkerCount
+          })
+
+          // If row has at least 3 standard markers (more strict to avoid false positives)
+          if (standardMarkerCount >= 3) {
+            standardHeaderIdx = i
+            templateType = 'Standard KPI Template'
+            console.log(`🎯 Found Standard header at row ${i} with ${standardMarkerCount} markers`)
+            break
+          }
+        }
+
+        if (standardHeaderIdx !== -1) {
+          console.log(`✅ Detected: ${templateType} at row ${standardHeaderIdx}`)
+
+          const normalizedData: any[] = []
+          for (let i = 0; i < 6; i++) normalizedData.push([]) // Add 6 dummy rows
+
+          const headerRow = sanitizedData[standardHeaderIdx]
+
+          // Find column indices with bilingual support
+          const findColIdx = (keywords: string[]) => {
+            return headerRow.findIndex(c => {
+              const val = c?.toString().toLowerCase().trim() || ''
+              return keywords.some(k => val.includes(k))
+            })
+          }
+
+          const idxSTT = findColIdx(['stt'])
+          const idxOGSM = findColIdx(['ogsm', 'mục tiêu công ty'])
+          const idxDept = findColIdx(['phòng ban', 'department'])
+          const idxJob = findColIdx(['vị trí', 'job title'])
+          const idxName = findColIdx(['tên kpi', 'name of kpi'])
+          const idxType = findColIdx(['loại kpi', 'kpi type'])
+          const idxUnit = findColIdx(['đơn vị tính', 'unit'])
+          const idxEvidence = findColIdx(['đơn vị cung cấp', 'evidence'])
+
+          console.log('📍 Column Indices:', {
+            idxSTT, idxOGSM, idxDept, idxJob, idxName, idxType, idxUnit, idxEvidence
+          })
+
+          // Process data rows
+          let stt = 1
+          for (let i = standardHeaderIdx + 1; i < sanitizedData.length; i++) {
+            const row = sanitizedData[i]
+            if (!Array.isArray(row)) continue
+
+            // Skip empty rows
+            if (row.every(c => !c || c.toString().trim() === '')) continue
+
+            // Skip footer rows like "TỔNG", "ĐỀ XUẤT", "RÀ SOÁT"
+            const firstCell = row[0]?.toString().trim().toUpperCase()
+            if (firstCell === 'TỔNG' || firstCell === 'ĐỀ XUẤT' || firstCell === 'RÀ SOÁT') break
+
+            const kpiName = idxName !== -1 ? row[idxName]?.toString().trim() : ''
+
+            // Skip if no KPI name
+            if (!kpiName) continue
+
+            normalizedData.push([
+              stt++,                                          // STT
+              idxOGSM !== -1 ? row[idxOGSM]?.toString().trim() : '',  // OGSM
+              idxDept !== -1 ? row[idxDept]?.toString().trim() : '',  // Department
+              idxJob !== -1 ? row[idxJob]?.toString().trim() : '',    // Job Title
+              kpiName,                                        // KPI Name
+              idxType !== -1 ? row[idxType]?.toString().trim() : 'I', // KPI Type
+              idxUnit !== -1 ? row[idxUnit]?.toString().trim() : ''   // Unit
+            ])
+          }
+
+          finalData = normalizedData
+          console.log(`✅ Extracted ${finalData.length - 6} KPIs from Standard format`)
+        }
+      }
+
+      // ========== FALLBACK: No template detected ==========
+      if (finalData.length === 0) {
+        toast({
+          title: 'Unknown template format',
+          description: 'Could not detect template structure. Please use a standard template.',
+          variant: 'destructive'
+        })
+        return
       }
 
       setParsedData(finalData)
 
       // Generate Preview
-      // Skip the first 6 rows (dummy or header)
       const previewSource = finalData.slice(6)
-      const preview = previewSource.slice(0, 10) // Show first 10
+      const preview = previewSource.slice(0, 10)
 
       setPreviewData(preview)
 
       toast({
-        title: isLegacyForm ? 'Legacy Form Detected' : 'File loaded',
-        description: `Parsed ${previewSource.length} valid KPI entries${isLegacyForm ? ' from form format' : ''}`,
+        title: `${templateType} Detected`,
+        description: `Successfully loaded ${previewSource.length} KPI entries`,
       })
 
     } catch (error: any) {
