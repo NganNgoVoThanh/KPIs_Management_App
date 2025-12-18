@@ -60,7 +60,9 @@
       "Bash(node -c:*)",
       "Bash(npx tsc:*)",
       "Bash(node scripts/reimport-templates.js:*)",
-      "Bash(find .local-storage/kpiTemplates -name \"*.json\" -exec sh -c 'echo \"\"=== {} ===\"\" && cat \"\"{}\"\" | grep -E \"\"\\\"\"(name|description|isActive)\\\"\"\"\" | head -3' ;)"
+      "Bash(find .local-storage/kpiTemplates -name \"*.json\" -exec sh -c 'echo \"\"=== {} ===\"\" && cat \"\"{}\"\" | grep -E \"\"\\\"\"(name|description|isActive)\\\"\"\"\" | head -3' ;)",
+      "Bash(grep:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

@@ -35,6 +35,13 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import {
   Upload,
   FileSpreadsheet,
   CheckCircle,
@@ -56,7 +63,10 @@ import {
   FileImage,
   File,
   ClipboardCheck,
-  BookOpen
+  BookOpen,
+  Edit,
+  Copy,
+  Power
 } from 'lucide-react'
 import { useToast } from '@/components/ui/use-toast'
 import type {
@@ -1606,62 +1616,75 @@ export default function KpiLibraryPage() {
                               </div>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setEditingTemplate(template)
-                                setTemplateForm({
-                                  kpiName: template.kpiName,
-                                  description: template.description || '',
-                                  category: template.category,
-                                  department: template.department || '',
-                                  formula: template.formula || '',
-                                  unit: template.unit || '',
-                                  target: template.target || '',
-                                  weight: template.weight || 5
-                                })
-                                setShowTemplateDialog(true)
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setTemplateForm({
-                                  kpiName: template.kpiName + ' (Copy)',
-                                  description: template.description || '',
-                                  category: template.category,
-                                  department: template.department || '',
-                                  formula: template.formula || '',
-                                  unit: template.unit || '',
-                                  target: template.target || '',
-                                  weight: template.weight || 5
-                                })
-                                setEditingTemplate(null)
-                                setShowTemplateDialog(true)
-                              }}
-                            >
-                              Clone
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="destructive"
-                              onClick={() => handleDeleteTemplate(template.id)}
-                            >
-                              Delete
-                            </Button>
-                            <Button
-                              size="sm"
+                          <div className="flex items-center gap-2">
+                            <Badge
                               variant={template.status === 'ACTIVE' ? "default" : "secondary"}
-                              className={template.status === 'ACTIVE' ? "bg-green-600 hover:bg-green-700" : ""}
-                              onClick={() => handleToggleTemplateStatus(template.id, template.status)}
+                              className={template.status === 'ACTIVE' ? "bg-green-600" : "bg-gray-500"}
                             >
-                              {template.status === 'ACTIVE' ? 'Active' : 'Publish'}
-                            </Button>
+                              {template.status === 'ACTIVE' ? 'Active' : 'Draft'}
+                            </Badge>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                  <MoreVertical className="h-4 w-4" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end" className="w-48">
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setEditingTemplate(template)
+                                    setTemplateForm({
+                                      kpiName: template.kpiName,
+                                      description: template.description || '',
+                                      category: template.category,
+                                      department: template.department || '',
+                                      formula: template.formula || '',
+                                      unit: template.unit || '',
+                                      target: template.target || '',
+                                      weight: template.weight || 5
+                                    })
+                                    setShowTemplateDialog(true)
+                                  }}
+                                >
+                                  <Edit className="mr-2 h-4 w-4" />
+                                  Edit
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  onClick={() => {
+                                    setTemplateForm({
+                                      kpiName: template.kpiName + ' (Copy)',
+                                      description: template.description || '',
+                                      category: template.category,
+                                      department: template.department || '',
+                                      formula: template.formula || '',
+                                      unit: template.unit || '',
+                                      target: template.target || '',
+                                      weight: template.weight || 5
+                                    })
+                                    setEditingTemplate(null)
+                                    setShowTemplateDialog(true)
+                                  }}
+                                >
+                                  <Copy className="mr-2 h-4 w-4" />
+                                  Clone
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleToggleTemplateStatus(template.id, template.status)}
+                                >
+                                  <Power className="mr-2 h-4 w-4" />
+                                  {template.status === 'ACTIVE' ? 'Deactivate' : 'Publish'}
+                                </DropdownMenuItem>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuItem
+                                  onClick={() => handleDeleteTemplate(template.id)}
+                                  className="text-red-600 focus:text-red-600"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
                           </div>
                         </div>
                       </div>

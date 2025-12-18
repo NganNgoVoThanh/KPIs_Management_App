@@ -993,13 +993,16 @@ export class LocalStorageRepository implements IDatabaseRepository {
   async getTemplateStatistics(): Promise<any> {
     const templates = await this.getAllRecords<any>('kpiTemplates')
 
+    // Only count templates that haven't been deleted
+    const activeTemplates = templates.filter(t => !t.deletedAt && !t.isDeleted)
+
     return {
-      total: templates.length,
-      active: templates.filter(t => t.isActive).length,
-      pending: templates.filter(t => t.status === 'PENDING_REVIEW').length,
-      approved: templates.filter(t => t.status === 'APPROVED').length,
-      rejected: templates.filter(t => t.status === 'REJECTED').length,
-      totalUsage: templates.reduce((sum, t) => sum + (t.usageCount || 0), 0)
+      total: activeTemplates.length,
+      active: activeTemplates.filter(t => t.isActive).length,
+      pending: activeTemplates.filter(t => t.status === 'PENDING_REVIEW').length,
+      approved: activeTemplates.filter(t => t.status === 'APPROVED').length,
+      rejected: activeTemplates.filter(t => t.status === 'REJECTED').length,
+      totalUsage: activeTemplates.reduce((sum, t) => sum + (t.usageCount || 0), 0)
     }
   }
 }

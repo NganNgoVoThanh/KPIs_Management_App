@@ -1162,11 +1162,14 @@ export class MySQLRepository implements IDatabaseRepository {
   }
 
   async getTemplateStatistics(): Promise<any> {
+    // Only count templates that haven't been deleted
+    const notDeletedFilter = { deletedAt: null }
+
     const [total, approved, pending, drafts] = await Promise.all([
-      this.client.kpiTemplate.count(),
-      this.client.kpiTemplate.count({ where: { status: 'APPROVED' } }),
-      this.client.kpiTemplate.count({ where: { status: 'PENDING' } }),
-      this.client.kpiTemplate.count({ where: { status: 'DRAFT' } })
+      this.client.kpiTemplate.count({ where: notDeletedFilter }),
+      this.client.kpiTemplate.count({ where: { ...notDeletedFilter, status: 'APPROVED' } }),
+      this.client.kpiTemplate.count({ where: { ...notDeletedFilter, status: 'PENDING' } }),
+      this.client.kpiTemplate.count({ where: { ...notDeletedFilter, status: 'DRAFT' } })
     ])
 
     return { total, approved, pending, drafts }
