@@ -1,6 +1,6 @@
 // lib/ai/kpi-suggestion-service.ts
 import { KpiType, User, OrgUnit } from '@/lib/types';
-import { DatabaseService } from '@/lib/database-service-enhanced';
+import { EnhancedDatabaseService } from '@/lib/database-service-enhanced';
 import { enhancedAIServiceManager } from '@/lib/ai/ai-service-manager';
 
 interface OGSMObjective {
@@ -119,11 +119,11 @@ interface SuggestionResult {
 
 export class SmartKpiSuggestionService {
   private aiManager: enhancedAIServiceManager;
-  private dbService: typeof DatabaseService;
+  private dbService: EnhancedDatabaseService;
 
   constructor() {
     this.aiManager = new enhancedAIServiceManager();
-    this.dbService = DatabaseService;
+    this.dbService = new EnhancedDatabaseService();
   }
 
   async generateSmartKpiSuggestions(input: KpiSuggestionInput): Promise<SuggestionResult> {
@@ -436,17 +436,18 @@ export class SmartKpiSuggestionService {
   }
 
   private async analyzeHistoricalPerformance(userId: string, historical?: HistoricalPerformance[]): Promise<any> {
-    if (!historical) {
-      historical = await this.dbService.getHistoricalPerformance(userId);
+    let data = historical;
+    if (!data) {
+      data = await this.dbService.getHistoricalPerformance(userId);
     }
 
     return {
-      averageAchievement: historical.length > 0
-        ? historical.reduce((sum, h) => sum + h.achievementPercent, 0) / historical.length
+      averageAchievement: data.length > 0
+        ? data.reduce((sum, h) => sum + h.achievementPercent, 0) / data.length
         : 100,
-      trends: this.analyzeTrends(historical),
-      strengths: this.identifyStrengths(historical),
-      challenges: this.identifyChallenges(historical)
+      trends: this.analyzeTrends(data),
+      strengths: this.identifyStrengths(data),
+      challenges: this.identifyChallenges(data)
     };
   }
 

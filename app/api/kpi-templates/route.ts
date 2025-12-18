@@ -31,6 +31,9 @@ export async function GET(request: NextRequest) {
     }
     if (searchParams.get('isActive') !== null) {
       filters.isActive = searchParams.get('isActive') === 'true'
+    } else {
+      // Default: only return active templates (not archived)
+      filters.isActive = true
     }
     if (searchParams.get('q')) {
       filters.search = searchParams.get('q')

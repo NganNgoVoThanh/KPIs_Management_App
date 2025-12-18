@@ -55,7 +55,12 @@
       "Bash(nul)",
       "Bash(node scripts/test-auth-flow.js:*)",
       "Bash(node scripts/analyze-excel.js:*)",
-      "Bash(node scripts/debug-kpi-file.js:*)"
+      "Bash(node scripts/debug-kpi-file.js:*)",
+      "Bash(cat:*)",
+      "Bash(node -c:*)",
+      "Bash(npx tsc:*)",
+      "Bash(node scripts/reimport-templates.js:*)",
+      "Bash(find .local-storage/kpiTemplates -name \"*.json\" -exec sh -c 'echo \"\"=== {} ===\"\" && cat \"\"{}\"\" | grep -E \"\"\\\"\"(name|description|isActive)\\\"\"\"\" | head -3' ;)"
     ],
     "deny": [],
     "ask": []

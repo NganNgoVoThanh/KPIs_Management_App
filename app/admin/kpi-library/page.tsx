@@ -240,7 +240,7 @@ export default function KpiLibraryPage() {
           target: '',
           weight: 5
         })
-        fetchTemplates()
+        await Promise.all([fetchTemplates(), fetchStatistics()])
       } else {
         throw new Error(data.error)
       }
@@ -274,7 +274,7 @@ export default function KpiLibraryPage() {
           title: newStatus === 'ACTIVE' ? 'Template Published' : 'Template Deactivated',
           description: `Template has been ${newStatus === 'ACTIVE' ? 'published' : 'deactivated'} successfully`,
         })
-        fetchTemplates()
+        await Promise.all([fetchTemplates(), fetchStatistics()])
       } else {
         throw new Error(data.error)
       }
@@ -300,7 +300,7 @@ export default function KpiLibraryPage() {
           title: 'Template deleted',
           description: 'Template has been deleted successfully',
         })
-        fetchTemplates()
+        await Promise.all([fetchTemplates(), fetchStatistics()])
       } else {
         throw new Error(data.error)
       }

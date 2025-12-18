@@ -15,9 +15,11 @@ interface RouteParams {
  * POST /api/kpi/[id]/approve
  * Approve KPI at current level
  *
- * Workflow:
- * Level 1 (Line Manager N+1): PENDING_LM → PENDING_HOD
- * Level 2 (Manager N+2): PENDING_HOD → APPROVED → LOCKED_GOALS
+ * Workflow (3-4 levels as per flowchart):
+ * DRAFT → Submit → WAITING_LINE_MGR (Level 1)
+ * Level 1 (Line Manager N+1): WAITING_LINE_MGR → WAITING_HOD (Level 2)
+ * Level 2 (Head of Dept): WAITING_HOD → WAITING_ADMIN (Level 3)
+ * Level 3 (Admin Check): WAITING_ADMIN → ACTIVE (Ready for tracking)
  */
 export async function POST(
   request: NextRequest,
@@ -70,21 +72,78 @@ export async function POST(
 
     // Determine workflow based on current level
     if (currentLevel === 1) {
-      // Line Manager (N+1) approval → Move to Manager (N+2)
-      newStatus = 'PENDING_HOD'
+      // Line Manager (N+1) approval → Move to Head of Department (Level 2)
+      newStatus = 'WAITING_HOD'
 
-      // Get Line Manager's manager (N+2)
-      const lineManager = await db.getUserById(kpiOwner.managerId!)
-      if (lineManager && lineManager.managerId) {
-        nextApproverId = lineManager.managerId
-      } else {
-        // No N+2 manager, skip to approved
-        newStatus = 'APPROVED'
+      // Get Head of Department (Look for user with role HEAD_OF_DEPT or MANAGER in same department)
+      // FIXED: Prevent duplicate approver (same person at L1 and L2)
+      const kpiOwnerOrgUnit = await db.getOrgUnitById(kpiOwner.orgUnitId)
+      if (kpiOwnerOrgUnit) {
+        // Find HOD in the department
+        const allUsers = await db.getUsers({
+          department: kpiOwner.department,
+          role: ['MANAGER', 'HEAD_OF_DEPT'],
+          status: 'ACTIVE'
+        })
+
+        // CRITICAL: Exclude current approver to prevent duplicate
+        const hod = allUsers.find(u => u.id !== user.id)
+
+        if (hod) {
+          // Double-check: Ensure HOD is not the same as L1 approver
+          if (hod.id === user.id) {
+            console.warn(`[APPROVE] HOD same as Line Manager (${user.email}), skipping to Admin`)
+            newStatus = 'WAITING_ADMIN'
+          } else {
+            nextApproverId = hod.id
+          }
+        } else {
+          // No eligible HOD found, skip to admin
+          console.warn(`[APPROVE] No eligible HOD in ${kpiOwner.department}, skipping to Admin`)
+          newStatus = 'WAITING_ADMIN'
+        }
       }
 
     } else if (currentLevel === 2) {
-      // Manager (N+2) approval → Fully approved → Lock goals
-      newStatus = 'APPROVED'
+      // Head of Department approval → Move to Admin (Level 3)
+      newStatus = 'WAITING_ADMIN'
+
+      // Get admin users (all active admins)
+      const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+
+      if (!admins || admins.length === 0) {
+        // CRITICAL: No admin available - should NOT auto-approve!
+        console.error(`[APPROVE] No active ADMIN users found. Cannot complete approval.`)
+        return NextResponse.json({
+          error: 'No active admin users found. Cannot complete approval workflow. Please contact system administrator.',
+          code: 'NO_ADMIN_AVAILABLE'
+        }, { status: 500 })
+      }
+
+      // Load balancing: Select admin with least pending approvals
+      const adminLoads = await Promise.all(
+        admins.map(async admin => {
+          const pending = await db.getApprovals({
+            approverId: admin.id,
+            status: 'PENDING'
+          })
+          return {
+            id: admin.id,
+            pendingCount: pending.length
+          }
+        })
+      )
+
+      const selectedAdmin = adminLoads.reduce((prev, current) =>
+        prev.pendingCount < current.pendingCount ? prev : current
+      )
+
+      nextApproverId = selectedAdmin.id
+
+    } else if (currentLevel === 3) {
+      // Admin approval → KPI becomes ACTIVE for tracking
+      newStatus = 'ACTIVE'
+
     } else {
       return NextResponse.json(
         { error: 'Invalid approval level' },
@@ -111,32 +170,30 @@ export async function POST(
     } else if (currentLevel === 2) {
       updateData.approvedByLevel2 = user.id
       updateData.approvedAtLevel2 = new Date()
+    } else if (currentLevel === 3) {
+      // Admin approval = Final approval
       updateData.approvedAt = new Date()
     }
 
     await db.updateKpiDefinition(id, updateData)
 
     // Create next level approval if needed
-    if (nextApproverId && currentLevel === 1) {
-      const manager = await db.getUserById(nextApproverId)
+    if (nextApproverId) {
+      const nextLevel = currentLevel + 1
+      const nextApprover = await db.getUserById(nextApproverId)
 
       await db.createApproval({
         kpiDefinitionId: id,
         approverId: nextApproverId,
-        level: 2,
+        level: nextLevel,
         status: 'PENDING',
         requestedBy: user.id,
         createdAt: new Date()
       })
 
-      console.log(`[APPROVE L1] KPI ${id} approved by ${user.email} → Manager ${manager?.email}`)
-    } else if (currentLevel === 2) {
-      console.log(`[APPROVE L2] KPI ${id} fully approved by ${user.email}`)
-
-      // Auto-lock goals after full approval
-      await db.updateKpiDefinition(id, {
-        status: 'LOCKED_GOALS'
-      })
+      console.log(`[APPROVE L${currentLevel}] KPI ${id} approved by ${user.email} → ${nextApprover?.email} (Level ${nextLevel})`)
+    } else if (currentLevel === 3 || newStatus === 'ACTIVE') {
+      console.log(`[APPROVE L${currentLevel}] KPI ${id} fully approved by ${user.email} → Status: ACTIVE`)
     }
 
     return NextResponse.json({
@@ -144,14 +201,14 @@ export async function POST(
       data: {
         kpiId: id,
         previousStatus: kpi.status,
-        newStatus: newStatus === 'APPROVED' && currentLevel === 2 ? 'LOCKED_GOALS' : newStatus,
+        newStatus: newStatus,
         currentLevel,
-        nextLevel: nextApproverId ? 2 : null,
-        fullyApproved: currentLevel === 2
+        nextLevel: nextApproverId ? currentLevel + 1 : null,
+        fullyApproved: currentLevel === 3 || newStatus === 'ACTIVE'
       },
-      message: currentLevel === 2
-        ? 'KPI fully approved and goals locked'
-        : `Level ${currentLevel} approved, sent to Level 2`
+      message: newStatus === 'ACTIVE'
+        ? 'KPI fully approved and activated for tracking'
+        : `Level ${currentLevel} approved, sent to Level ${currentLevel + 1}`
     })
 
   } catch (error: any) {

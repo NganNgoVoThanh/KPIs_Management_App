@@ -29,16 +29,52 @@ export async function POST(
     }
 
     // Identify approver (Line Manager)
-    // For demo, if no manager, auto-approve or assign to ADMIN
-    const approver = await db.getUserById(user.managerId || user.id) // Fallback to self/admin if no manager for demo
+    let approver = null
 
-    // Update KPI Status
+    // 1. Try to get user's direct manager
+    if (user.managerId) {
+      approver = await db.getUserById(user.managerId)
+      if (approver && approver.status !== 'ACTIVE') {
+        approver = null // Manager inactive
+      }
+    }
+
+    // 2. Fallback: Find any active Line Manager in department
+    if (!approver) {
+      const lineManagers = await db.getUsers({
+        role: 'LINE_MANAGER',
+        status: 'ACTIVE',
+        department: user.department
+      })
+      if (lineManagers && lineManagers.length > 0) {
+        approver = lineManagers[0]
+      }
+    }
+
+    // 3. Last resort: Assign to any ADMIN
+    if (!approver) {
+      const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+      if (admins && admins.length > 0) {
+        approver = admins[0]
+      }
+    }
+
+    // 4. No approver available - error
+    if (!approver) {
+      return NextResponse.json({
+        error: 'No active approver found. Please contact admin.'
+      }, { status: 500 })
+    }
+
+    // Update KPI Status (Level 1: Waiting for Line Manager)
     await db.updateKpiDefinition(params.id, {
-      status: 'WAITING_APPROVAL'
+      status: 'WAITING_LINE_MGR',
+      submittedAt: new Date()
     })
 
-    // Create Approval Request
+    // Create Level 1 Approval Request (Line Manager)
     await db.createApproval({
+      kpiDefinitionId: kpi.id,
       entityType: 'KPI',
       entityId: kpi.id,
       approverId: approver.id,

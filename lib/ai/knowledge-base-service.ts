@@ -128,11 +128,55 @@ export class KnowledgeBaseService {
     }
 
     private async getEmbedding(text: string): Promise<number[]> {
-        const response = await this.openai.embeddings.create({
-            model: "text-embedding-3-small", // Cost-effective model
-            input: text.replace(/\n/g, ' ')
-        });
-        return response.data[0].embedding;
+        const maxRetries = 3;
+        const baseDelay = 1000; // 1 second
+        const maxTokens = 8191; // text-embedding-3-small limit
+
+        // Validate and truncate input
+        let sanitizedText = text.replace(/\n/g, ' ').trim();
+        if (sanitizedText.length === 0) {
+            throw new Error('[RAG] Cannot embed empty text');
+        }
+
+        // Rough token estimate (1 token ≈ 4 chars)
+        if (sanitizedText.length > maxTokens * 4) {
+            console.warn(`[RAG] Text too long, truncating to ${maxTokens * 4} chars`);
+            sanitizedText = sanitizedText.substring(0, maxTokens * 4);
+        }
+
+        for (let attempt = 0; attempt < maxRetries; attempt++) {
+            try {
+                const response = await this.openai.embeddings.create({
+                    model: "text-embedding-3-small", // Cost-effective model
+                    input: sanitizedText
+                });
+
+                if (!response.data || response.data.length === 0) {
+                    throw new Error('[RAG] Empty embedding response from OpenAI');
+                }
+
+                return response.data[0].embedding;
+
+            } catch (error: any) {
+                const isLastAttempt = attempt === maxRetries - 1;
+                const isRateLimitError = error?.status === 429;
+                const isTimeoutError = error?.code === 'ETIMEDOUT' || error?.code === 'ECONNABORTED';
+                const isRetryable = isRateLimitError || isTimeoutError || error?.status >= 500;
+
+                if (!isRetryable || isLastAttempt) {
+                    console.error(`[RAG] Embedding failed (attempt ${attempt + 1}/${maxRetries}):`, error.message);
+                    throw new Error(`Failed to get embedding after ${attempt + 1} attempts: ${error.message}`);
+                }
+
+                // Exponential backoff: 1s, 2s, 4s
+                const delay = baseDelay * Math.pow(2, attempt);
+                console.warn(`[RAG] Embedding attempt ${attempt + 1} failed (${error.message}), retrying in ${delay}ms...`);
+
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
+
+        throw new Error('[RAG] Max retries exceeded');
     }
 
     private chunkText(text: string, chunkSize: number): string[] {

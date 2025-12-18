@@ -13,6 +13,7 @@ export interface VectorDocument {
 export class SimpleVectorStore {
     private storePath: string;
     private documents: VectorDocument[] = [];
+    private writeLock: Promise<void> = Promise.resolve();
 
     constructor() {
         this.storePath = path.join(process.cwd(), '.local-storage', 'vector-store.json');
@@ -23,7 +24,15 @@ export class SimpleVectorStore {
         try {
             if (fs.existsSync(this.storePath)) {
                 const data = fs.readFileSync(this.storePath, 'utf-8');
-                this.documents = JSON.parse(data);
+                const parsed = JSON.parse(data);
+
+                // Validate data structure
+                if (!Array.isArray(parsed)) {
+                    console.warn('[VectorStore] Invalid data format, starting fresh');
+                    this.documents = [];
+                } else {
+                    this.documents = parsed;
+                }
             } else {
                 // Ensure directory exists
                 const dir = path.dirname(this.storePath);
@@ -37,17 +46,44 @@ export class SimpleVectorStore {
         }
     }
 
-    private saveStore() {
+    private async saveStore() {
         try {
-            fs.writeFileSync(this.storePath, JSON.stringify(this.documents, null, 2));
+            await fs.promises.writeFile(
+                this.storePath,
+                JSON.stringify(this.documents, null, 2),
+                'utf-8'
+            );
         } catch (error) {
             console.error('[VectorStore] Failed to save store:', error);
+            throw error;
         }
     }
 
     async addDocuments(docs: VectorDocument[]) {
-        this.documents.push(...docs);
-        this.saveStore();
+        // Wait for any ongoing writes to complete
+        await this.writeLock;
+
+        // Create new lock for this operation
+        this.writeLock = (async () => {
+            try {
+                // Reload from disk to get latest state
+                this.loadStore();
+
+                // Add new documents
+                this.documents.push(...docs);
+
+                // Save to disk
+                await this.saveStore();
+
+                console.log(`[VectorStore] Added ${docs.length} documents. Total: ${this.documents.length}`);
+            } catch (error) {
+                console.error('[VectorStore] Failed to add documents:', error);
+                throw error;
+            }
+        })();
+
+        // Wait for write to complete
+        await this.writeLock;
     }
 
     async search(queryEmbedding: number[], limit: number = 5): Promise<VectorDocument[]> {

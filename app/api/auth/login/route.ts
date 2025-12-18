@@ -8,17 +8,17 @@ const db = new DatabaseService()
 /**
  * Determine role based on email address
  * Rules:
- * - admin@intersnack.com.vn → ADMIN
- * - linemanager@intersnack.com.vn → LINE_MANAGER
- * - manager@intersnack.com.vn → MANAGER
+ * - admin@intersnack.com.vn → ADMIN (L3 Approver - Final approval)
+ * - hod@intersnack.com.vn → MANAGER (L2 Approver - Head of Department)
+ * - line.manager@intersnack.com.vn → LINE_MANAGER (L1 Approver - Direct Manager)
  * - Any other @intersnack.com.vn → STAFF
  */
 function getRoleFromEmail(email: string): UserRole {
   const lowerEmail = email.toLowerCase()
 
   if (lowerEmail === 'admin@intersnack.com.vn') return 'ADMIN'
-  if (lowerEmail === 'linemanager@intersnack.com.vn') return 'LINE_MANAGER'
-  if (lowerEmail === 'manager@intersnack.com.vn') return 'MANAGER'
+  if (lowerEmail === 'hod@intersnack.com.vn') return 'MANAGER'
+  if (lowerEmail === 'line.manager@intersnack.com.vn') return 'LINE_MANAGER'
   if (lowerEmail.endsWith('@intersnack.com.vn')) return 'STAFF'
 
   throw new Error('Invalid email domain. Please use your Intersnack company email.')

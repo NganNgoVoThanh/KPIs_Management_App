@@ -844,20 +844,33 @@ export class LocalStorageRepository implements IDatabaseRepository {
     const dataRows = rawData.slice(6) // Skip header rows as per upload logic
     let processedCount = 0
 
-    for (const row of dataRows) {
+    for (let i = 0; i < dataRows.length; i++) {
+      const row = dataRows[i]
+      const rowNumber = i + 7 // Actual row number in Excel (starts at row 7)
       const kpiName = row[4]?.toString().trim()
       const department = row[2]?.toString().trim()
+      const kpiType = row[5]?.toString().trim()
+      const jobTitle = row[3]?.toString().trim()
 
       // Basic validation matching upload route
       if (kpiName && department) {
+        // Create more descriptive name to differentiate templates
+        const templateDescription = jobTitle
+          ? `${kpiName} - ${jobTitle} (Row ${rowNumber} from ${upload.fileName})`
+          : `${kpiName} - ${department} (Row ${rowNumber} from ${upload.fileName})`
+
         await this.createKpiTemplate({
           name: kpiName,
-          description: `Imported from ${upload.fileName}`,
+          description: templateDescription,
           department: department,
-          jobTitle: row[3]?.toString().trim(),
-          category: this.mapKpiTypeToCategory(row[5]?.toString().trim()),
-          kpiType: row[5]?.toString().trim() || 'Custom',
+          jobTitle: jobTitle,
+          category: this.mapKpiTypeToCategory(kpiType),
+          kpiType: kpiType || 'Custom',
           unit: row[6]?.toString().trim(),
+          formula: row[7]?.toString().trim(),
+          dataSource: row[8]?.toString().trim(),
+          targetValue: row[9] ? parseFloat(row[9].toString()) : undefined,
+          weight: row[10] ? parseFloat(row[10].toString()) : undefined,
           source: 'EXCEL_IMPORT',
           uploadId: id,
           status: 'APPROVED',
