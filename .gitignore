@@ -5,6 +5,7 @@
 node_modules/
 .next/
 .local-storage/
+.env.backup
 # Environment files with secrets
 .env
 .env.local
