@@ -4,7 +4,7 @@ import type { KpiTemplate, Cycle, OrgUnit } from './types'
 
 // Tạo hàm UUID đơn giản thay thế cho v4
 function generateUUID(): string {
-  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0
     const v = c === 'x' ? r : (r & 0x3 | 0x8)
     return v.toString(16)
@@ -67,6 +67,11 @@ function seedKpiTemplates(): void {
     // R&D Template
     {
       id: `template-${generateUUID()}`,
+      kpiType: 'QUANTITATIVE',
+      source: 'MANUAL',
+      usageCount: 0,
+      version: 1,
+      status: 'APPROVED',
       name: 'R&D Department KPI Template 2025',
       department: 'Research & Development',
       description: 'Standard KPIs for R&D team members focusing on innovation and quality',
@@ -122,7 +127,7 @@ function seedKpiTemplates(): void {
         {
           id: 'rnd-5',
           title: 'Innovation & Collaboration',
-          type: 'BEHAVIOR',
+          type: 'QUANT_HIGHER_BETTER',
           unit: 'rating',
           description: 'Innovation mindset and team collaboration',
           dataSource: '360 Feedback',
@@ -141,6 +146,11 @@ function seedKpiTemplates(): void {
     // Sales Template
     {
       id: `template-${generateUUID()}`,
+      kpiType: 'QUANTITATIVE',
+      source: 'MANUAL',
+      usageCount: 0,
+      version: 1,
+      status: 'APPROVED',
       name: 'Sales Department KPI Template 2025',
       department: 'Sales',
       description: 'Performance metrics for sales team members',
@@ -205,6 +215,11 @@ function seedKpiTemplates(): void {
     // Quality Template
     {
       id: `template-${generateUUID()}`,
+      kpiType: 'QUANTITATIVE',
+      source: 'MANUAL',
+      usageCount: 0,
+      version: 1,
+      status: 'APPROVED',
       name: 'Quality Department KPI Template 2025',
       department: 'Quality Assurance',
       description: 'Quality control and compliance KPIs',
@@ -268,6 +283,11 @@ function seedKpiTemplates(): void {
     // Production Template
     {
       id: `template-${generateUUID()}`,
+      kpiType: 'QUANTITATIVE',
+      source: 'MANUAL',
+      usageCount: 0,
+      version: 1,
+      status: 'APPROVED',
       name: 'Production Department KPI Template 2025',
       department: 'Production',
       description: 'Manufacturing efficiency and output KPIs',
@@ -332,6 +352,11 @@ function seedKpiTemplates(): void {
     // Marketing Template
     {
       id: `template-${generateUUID()}`,
+      kpiType: 'QUANTITATIVE',
+      source: 'MANUAL',
+      usageCount: 0,
+      version: 1,
+      status: 'APPROVED',
       name: 'Marketing Department KPI Template 2025',
       department: 'Marketing',
       description: 'Brand awareness and marketing effectiveness KPIs',
@@ -432,7 +457,7 @@ export function createDemoKpis(userId: string, cycleId: string): void {
   if (templates.length === 0) return
 
   const template = templates[0]
-  const kpis = template.kpiFields.slice(0, 4).map((field, index) => ({
+  const kpis = (template.kpiFields || []).slice(0, 4).map((field, index) => ({
     id: `kpi-demo-${generateUUID()}`,
     cycleId,
     userId,
@@ -476,7 +501,7 @@ export function createDemoKpis(userId: string, cycleId: string): void {
  */
 export function resetAllData(): void {
   if (confirm('⚠️ This will delete ALL data. Are you sure?')) {
-    storageService.clearAllData()
+    storageService.clearAll()
     seedInitialData()
     console.log('✅ All data reset to initial state')
   }
@@ -488,7 +513,7 @@ export function resetAllData(): void {
 export function checkAndInitialize(): void {
   const templates = storageService.getTemplates()
   const cycles = storageService.getCycles()
-  
+
   if (templates.length === 0 || cycles.length === 0) {
     seedInitialData()
   }

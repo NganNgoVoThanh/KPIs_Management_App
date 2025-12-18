@@ -30,15 +30,15 @@ export async function POST(
     const body = await request.json()
     const { comment } = body
 
-    const actuals = await db.getKpiActuals({ kpiDefinitionId: id })
-    if (actuals.length === 0) {
+    const actual = await db.getKpiActualById(id)
+
+    if (!actual) {
       return NextResponse.json(
         { error: 'Actual not found' },
         { status: 404 }
       )
     }
 
-    const actual = actuals[0]
     const kpi = await db.getKpiDefinitionById(actual.kpiDefinitionId)
     if (!kpi) {
       return NextResponse.json(
@@ -48,13 +48,11 @@ export async function POST(
     }
 
     // Get pending approval for this user
-    const approvals = await db.getApprovals({ 
-      entityId: actual.id, 
-      entityType: 'ACTUAL' 
-    })
-    
+    // actual.approvals is included in getKpiActualById result from MySQL/Prisma repo
+    const approvals = actual.approvals || []
+
     const pendingApproval = approvals.find(
-      a => a.approverId === user.id && a.status === 'PENDING'
+      (a: any) => a.approverId === user.id && a.status === 'PENDING'
     )
 
     if (!pendingApproval) {
@@ -98,7 +96,7 @@ export async function POST(
     if (newStatus === 'APPROVED') {
       updateData.approvedAt = new Date()
       updateData.approvedBy = user.id
-      
+
       // Also update KPI status to LOCKED_ACTUALS
       await db.updateKpiDefinition(kpi.id, {
         status: 'LOCKED_ACTUALS'
@@ -174,7 +172,7 @@ export async function POST(
         fullyApproved: newStatus === 'APPROVED',
         finalScore: actual.score
       },
-      message: newStatus === 'APPROVED' 
+      message: newStatus === 'APPROVED'
         ? `Actual results fully approved with score ${actual.score}/5`
         : `Actual approved at Level ${currentLevel}, moved to Level ${currentLevel + 1}`
     })

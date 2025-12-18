@@ -7,10 +7,10 @@ import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { storageService } from "@/lib/storage-service"
 import type { KpiTemplate } from "@/lib/types"
-import { 
-  FileText, 
-  Search, 
-  Plus, 
+import {
+  FileText,
+  Search,
+  Plus,
   Target,
   TrendingUp,
   Award,
@@ -29,9 +29,9 @@ interface KpiTemplateSelectorProps {
   onCreateFromScratch: () => void
 }
 
-export function KpiTemplateSelector({ 
-  onSelectTemplate, 
-  onCreateFromScratch 
+export function KpiTemplateSelector({
+  onSelectTemplate,
+  onCreateFromScratch
 }: KpiTemplateSelectorProps) {
   const [templates, setTemplates] = useState<KpiTemplate[]>([])
   const [searchTerm, setSearchTerm] = useState("")
@@ -90,7 +90,7 @@ export function KpiTemplateSelector({
 
   const filteredTemplates = templates.filter(template => {
     const matchesSearch = template.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         template.department.toLowerCase().includes(searchTerm.toLowerCase())
+      template.department.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesDepartment = !selectedDepartment || template.department === selectedDepartment
     return matchesSearch && matchesDepartment
   })
@@ -146,7 +146,7 @@ export function KpiTemplateSelector({
         </div>
 
         {/* Create from Scratch Option */}
-        <Card 
+        <Card
           className="border-4 border-dashed border-red-400 hover:border-red-600 cursor-pointer transition-all hover:shadow-2xl bg-gradient-to-r from-red-50 to-orange-50"
           onClick={onCreateFromScratch}
         >
@@ -157,10 +157,10 @@ export function KpiTemplateSelector({
               </div>
               <h3 className="text-2xl font-bold text-red-900 mb-3">Create from Scratch</h3>
               <p className="text-base text-gray-600 max-w-xl mx-auto mb-4">
-                Build custom KPIs tailored to your specific needs without using a template. 
+                Build custom KPIs tailored to your specific needs without using a template.
                 Perfect for unique roles or special projects.
               </p>
-              <Button 
+              <Button
                 className="bg-red-600 hover:bg-red-700 text-white shadow-lg mt-2"
                 onClick={onCreateFromScratch}
               >
@@ -177,10 +177,10 @@ export function KpiTemplateSelector({
             const Icon = getIconForDepartment(template.department)
             const gradientColor = getColorForDepartment(template.department)
             const badgeColor = getBadgeColorForDepartment(template.department)
-            
+
             return (
-              <Card 
-                key={template.id} 
+              <Card
+                key={template.id}
                 className="hover:shadow-2xl transition-all cursor-pointer border-2 border-red-200 hover:border-red-400 bg-white overflow-hidden group"
                 onClick={() => onSelectTemplate(template)}
               >
@@ -208,11 +208,11 @@ export function KpiTemplateSelector({
                   <div className="space-y-4">
                     <div className="flex items-center justify-between text-sm bg-gray-50 p-3 rounded-lg">
                       <span className="text-gray-600 font-medium">KPI Fields</span>
-                      <span className="font-bold text-red-600 text-lg">{template.kpiFields.length}</span>
+                      <span className="font-bold text-red-600 text-lg">{template.kpiFields?.length || 0}</span>
                     </div>
-                    
+
                     <div className="space-y-2">
-                      {template.kpiFields.slice(0, 3).map(field => (
+                      {(template.kpiFields || []).slice(0, 3).map(field => (
                         <div key={field.id} className="flex items-center gap-2 text-sm bg-white border border-gray-200 p-2 rounded">
                           <CheckCircle className="h-4 w-4 text-green-500 flex-shrink-0" />
                           <span className="truncate flex-1">{field.title}</span>
@@ -221,15 +221,15 @@ export function KpiTemplateSelector({
                           </Badge>
                         </div>
                       ))}
-                      {template.kpiFields.length > 3 && (
+                      {(template.kpiFields?.length || 0) > 3 && (
                         <p className="text-xs text-gray-500 pl-6">
-                          +{template.kpiFields.length - 3} more KPIs
+                          +{(template.kpiFields?.length || 0) - 3} more KPIs
                         </p>
                       )}
                     </div>
                   </div>
-                  
-                  <Button 
+
+                  <Button
                     className="w-full mt-6 bg-red-600 hover:bg-red-700 text-white shadow-md group-hover:shadow-lg transition-all"
                     onClick={() => onSelectTemplate(template)}
                   >
@@ -250,7 +250,7 @@ export function KpiTemplateSelector({
               <p className="text-base text-gray-500 text-center max-w-md mb-6">
                 Try adjusting your search or filters, or create KPIs from scratch
               </p>
-              <Button 
+              <Button
                 onClick={onCreateFromScratch}
                 className="bg-red-600 hover:bg-red-700 text-white"
               >

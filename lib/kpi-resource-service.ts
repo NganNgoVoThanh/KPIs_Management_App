@@ -68,7 +68,7 @@ class KpiResourceService {
         resources = resources.filter(r =>
           r.title.toLowerCase().includes(query) ||
           r.description?.toLowerCase().includes(query) ||
-          r.fileName.toLowerCase().includes(query) ||
+          (r.fileName?.toLowerCase().includes(query) || false) ||
           r.tags?.some(tag => tag.toLowerCase().includes(query))
         );
       }
@@ -112,6 +112,7 @@ class KpiResourceService {
       id: this.generateId(),
       title: data.title,
       description: data.description,
+      resourceType: 'FILE',
       category: data.category,
       department: data.department,
       tags: data.tags,

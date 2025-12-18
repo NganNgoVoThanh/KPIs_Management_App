@@ -86,8 +86,6 @@ export function KpiActualForm({ kpiDefinition, initialActual, onSave, onCancel }
         return "Number of milestones completed"
       case "BOOLEAN":
         return "Yes (1) or No (0)"
-      case "BEHAVIOR":
-        return "Score from 1-5"
       default:
         return ""
     }
@@ -164,9 +162,9 @@ export function KpiActualForm({ kpiDefinition, initialActual, onSave, onCancel }
                   value={actualValue}
                   onChange={(e) => setActualValue(Number.parseFloat(e.target.value) || 0)}
                   placeholder={`Enter actual ${kpiDefinition.unit}`}
-                  step={kpiDefinition.type === "BEHAVIOR" ? "1" : "0.01"}
-                  min={kpiDefinition.type === "BEHAVIOR" ? "1" : "0"}
-                  max={kpiDefinition.type === "BEHAVIOR" ? "5" : undefined}
+                  step={kpiDefinition.unit === "rating" ? "1" : "0.01"}
+                  min={kpiDefinition.unit === "rating" ? "1" : "0"}
+                  max={kpiDefinition.unit === "rating" ? "5" : undefined}
                 />
               </div>
 

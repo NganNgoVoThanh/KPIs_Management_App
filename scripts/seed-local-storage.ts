@@ -249,7 +249,7 @@ async function seedLocalStorage() {
       status: 'ACTIVE',
       version: 1,
       isTemplate: true,
-      version: 1,
+
     })
     console.log('  ✅ Created library entry: Customer Satisfaction Score')
 

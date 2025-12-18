@@ -350,6 +350,118 @@ export class DatabaseService implements IDatabaseRepository {
   async deleteCompanyDocument(id: string) {
     return this.repository.deleteCompanyDocument(id)
   }
+
+  // ==================== KPI RESOURCE OPERATIONS ====================
+
+  async getKpiResources(filters?: {
+    category?: string
+    resourceType?: string
+    department?: string
+    status?: string
+    approvalStatus?: string
+    isPublic?: boolean
+    isFeatured?: boolean
+    dashboardType?: string
+    searchQuery?: string
+  }) {
+    return this.repository.getKpiResources(filters)
+  }
+
+  async getKpiResourceById(id: string) {
+    return this.repository.getKpiResourceById(id)
+  }
+
+  async createKpiResource(data: any) {
+    return this.repository.createKpiResource(data)
+  }
+
+  async updateKpiResource(id: string, data: any) {
+    return this.repository.updateKpiResource(id, data)
+  }
+
+  async deleteKpiResource(id: string) {
+    return this.repository.deleteKpiResource(id)
+  }
+
+  async approveKpiResource(id: string, approvedBy: string, comment?: string) {
+    return this.repository.approveKpiResource(id, approvedBy, comment)
+  }
+
+  async rejectKpiResource(id: string, approvedBy: string, reason: string) {
+    return this.repository.rejectKpiResource(id, approvedBy, reason)
+  }
+
+  async incrementDownloadCount(id: string) {
+    return this.repository.incrementDownloadCount(id)
+  }
+
+  async incrementViewCount(id: string) {
+    return this.repository.incrementViewCount(id)
+  }
+
+  async getKpiResourceStatistics() {
+    return this.repository.getKpiResourceStatistics()
+  }
+
+  async getBIDashboards(filters?: { dashboardType?: string; department?: string }) {
+    return this.repository.getBIDashboards(filters)
+  }
+
+  // ==================== KPI LIBRARY UPLOAD OPERATIONS ====================
+
+  async getKpiLibraryUploads(filters?: { status?: string }) {
+    return this.repository.getKpiLibraryUploads(filters)
+  }
+
+  async getKpiLibraryUploadById(id: string) {
+    return this.repository.getKpiLibraryUploadById(id)
+  }
+
+  async createKpiLibraryUpload(data: any) {
+    return this.repository.createKpiLibraryUpload(data)
+  }
+
+  async approveKpiLibraryUpload(id: string, reviewedBy: string, comment?: string) {
+    return this.repository.approveKpiLibraryUpload(id, reviewedBy, comment)
+  }
+
+  async rejectKpiLibraryUpload(id: string, reviewedBy: string, reason: string) {
+    return this.repository.rejectKpiLibraryUpload(id, reviewedBy, reason)
+  }
+
+  async getKpiLibraryUploadStatistics() {
+    return this.repository.getKpiLibraryUploadStatistics()
+  }
+
+  // ==================== ENHANCED KPI TEMPLATE OPERATIONS ====================
+
+  async submitForReview(id: string, submittedBy: string) {
+    return this.repository.submitForReview(id, submittedBy)
+  }
+
+  async approveTemplate(id: string, reviewedBy: string, comment?: string) {
+    return this.repository.approveTemplate(id, reviewedBy, comment)
+  }
+
+  async rejectTemplate(id: string, reviewedBy: string, reason: string) {
+    return this.repository.rejectTemplate(id, reviewedBy, reason)
+  }
+
+  async cloneTemplate(id: string, createdBy: string, overrides?: any) {
+    return this.repository.cloneTemplate(id, createdBy, overrides)
+  }
+
+  async incrementUsage(id: string) {
+    return this.repository.incrementUsage(id)
+  }
+
+  async archiveTemplate(id: string) {
+    return this.repository.archiveTemplate(id)
+  }
+
+  async getTemplateStatistics() {
+    return this.repository.getTemplateStatistics()
+  }
 }
 
 // Export singleton instance for backward compatibility

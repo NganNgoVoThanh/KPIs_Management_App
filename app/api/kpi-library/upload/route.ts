@@ -73,7 +73,7 @@ function validateExcelData(rawData: any[]) {
       errors.push({ row: rowNumber, error: 'Department required' })
       return
     }
-    if (!['I', 'II', 'III', 'IV'].includes(kpiType?.toString().trim())) {
+    if (!['I', 'II', 'III', 'IV', '1', '2', '3', '4'].includes(kpiType?.toString().trim().toUpperCase())) {
       errors.push({ row: rowNumber, error: 'Invalid KPI Type' })
       return
     }

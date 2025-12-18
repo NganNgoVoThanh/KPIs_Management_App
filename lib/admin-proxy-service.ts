@@ -2,10 +2,10 @@
 import { storageService } from './storage-service';
 import { authService } from './auth-service';
 import { notificationService } from './notification-service';
-import type { 
-  Approval, 
-  KpiDefinition, 
-  KpiActual, 
+import type {
+  Approval,
+  KpiDefinition,
+  KpiActual,
   User,
   ProxyAction
 } from './types';
@@ -31,7 +31,7 @@ class AdminProxyService {
     }
 
     try {
-      const entity = params.entityType === 'KPI' 
+      const entity = params.entityType === 'KPI'
         ? storageService.getKpiDefinitionById(params.entityId)
         : storageService.getKpiActuals({ kpiDefinitionId: params.entityId })[0];
 
@@ -120,7 +120,7 @@ class AdminProxyService {
       }
 
       const approvals = storageService.getApprovals(params.entityId, params.entityType);
-      const approval = approvals.find(a => 
+      const approval = approvals.find(a =>
         a.level === params.level && a.status === 'PENDING'
       );
 
@@ -184,7 +184,7 @@ class AdminProxyService {
       }
 
       const approvals = storageService.getApprovals(params.entityId, params.entityType);
-      const approval = approvals.find(a => 
+      const approval = approvals.find(a =>
         a.level === params.level && a.status === 'PENDING'
       );
 
@@ -264,7 +264,7 @@ class AdminProxyService {
       }
 
       const approvals = storageService.getApprovals(params.entityId, params.entityType);
-      const approval = approvals.find(a => 
+      const approval = approvals.find(a =>
         a.level === params.level && a.status === 'PENDING'
       );
 
@@ -381,14 +381,14 @@ class AdminProxyService {
         entityId: params.entityId,
         reason: params.reason,
         comment: params.suggestions || params.comment,
-        metadata: params.suggestions ? JSON.stringify({ suggestions: params.suggestions }) : undefined
+        metadata: params.suggestions ? { suggestions: params.suggestions } : undefined
       };
       this.saveProxyAction(proxyAction);
 
       // Notify staff
       notificationService.createNotification(
         params.staffUserId,
-        'CHANGE_REQUESTED',
+        'CHANGE_REQUEST',
         `Admin requested changes to your ${params.entityType.toLowerCase()}`,
         {
           entityId: params.entityId,

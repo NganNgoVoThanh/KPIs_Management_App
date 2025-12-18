@@ -417,26 +417,26 @@ export default function KpiLibraryPage() {
         const nameLower = name.toLowerCase()
         // Exclude example/template/system sheets
         if (nameLower.includes('example') ||
-            nameLower.includes('template') ||
-            nameLower.includes('icc_') ||
-            nameLower.includes('core value') ||
-            nameLower.includes('competency')) {
+          nameLower.includes('template') ||
+          nameLower.includes('icc_') ||
+          nameLower.includes('core value') ||
+          nameLower.includes('competency')) {
           return false
         }
         // Include sheets with names (usually contain spaces and capitals)
         return /[A-Z][a-z]+\s+[A-Z]/.test(name) || // "Tram Nguyen" pattern
-               (nameLower.includes('setting') && !nameLower.includes('objectives')) ||
-               (name.length > 3 && name.length < 30 && /^[A-Za-z\s]+$/.test(name))
+          (nameLower.includes('setting') && !nameLower.includes('objectives')) ||
+          (name.length > 3 && name.length < 30 && /^[A-Za-z\s]+$/.test(name))
       })
 
       // Priority 2: KPI-related sheets
       const kpiSheets = workbook.SheetNames.filter(name => {
         const nameLower = name.toLowerCase()
         return (nameLower.includes('kpi') ||
-                nameLower.includes('target') ||
-                nameLower.includes('setting')) &&
-               !nameLower.includes('example') &&
-               !nameLower.includes('template')
+          nameLower.includes('target') ||
+          nameLower.includes('setting')) &&
+          !nameLower.includes('example') &&
+          !nameLower.includes('template')
       })
 
       if (personalSheets.length > 0) {
@@ -607,6 +607,7 @@ export default function KpiLibraryPage() {
         const targetIdx = findColIdx(['target'])
         const unitIdx = findColIdx(['unit'])
         const kpiTypeIdx = findColIdx(['kpi type'])
+        const weightIdx = findColIdx(['weight'])
 
         console.log('📍 Column Indices:', {
           mainKPIIdx,
@@ -614,7 +615,8 @@ export default function KpiLibraryPage() {
           targetOrKPIIdx,
           targetIdx,
           unitIdx,
-          kpiTypeIdx
+          kpiTypeIdx,
+          weightIdx
         })
 
         // Process data rows after header
@@ -656,11 +658,19 @@ export default function KpiLibraryPage() {
             jobTitle,                    // Job Title
             kpiName,                     // KPI Name
             kpiType,                     // KPI Type
-            unit                         // Unit
+            unit,                        // Unit
+            targetIdx !== -1 ? row[targetIdx]?.toString().trim() : '', // Target
+            weightIdx !== -1 ? row[weightIdx]?.toString().trim() : '', // Weight
+            '',                          // Frequency
+            ''                           // DataSource
           ])
         }
 
         finalData = transformedData
+
+        // Fix for Legacy Weight extraction which was missed above
+        // We need to re-scan for weight index or assume it based on header
+        // For now, let's rely on the more robust parsing below
         console.log(`✅ Extracted ${finalData.length - 6} KPIs from Legacy format`)
       }
 
@@ -783,7 +793,11 @@ export default function KpiLibraryPage() {
                 jobTitle,                    // Job Title
                 kpiName,                     // KPI Name
                 kpiType,                     // KPI Type
-                unit                         // Unit
+                unit,                        // Unit
+                row[targetIdx]?.toString().trim() || '', // Target
+                row[weightIdx]?.toString().trim() || '', // Weight
+                '',                          // Frequency
+                row[evidenceIdx]?.toString().trim() || '' // DataSource/Evidence
               ])
             }
           }
@@ -901,7 +915,11 @@ export default function KpiLibraryPage() {
               idxJob !== -1 ? row[idxJob]?.toString().trim() : '',    // Job Title
               kpiName,                                        // KPI Name
               idxType !== -1 ? row[idxType]?.toString().trim() : 'I', // KPI Type
-              idxUnit !== -1 ? row[idxUnit]?.toString().trim() : ''   // Unit
+              idxUnit !== -1 ? row[idxUnit]?.toString().trim() : '',   // Unit
+              '',                                             // Target
+              '',                                             // Weight
+              '',                                             // Frequency
+              idxEvidence !== -1 ? row[idxEvidence]?.toString().trim() : '' // DataSource
             ])
           }
 

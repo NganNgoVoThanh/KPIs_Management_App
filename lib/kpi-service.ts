@@ -1,9 +1,9 @@
 // lib/kpi-service.ts
 import { storageService } from './storage-service'
 import { authService } from './auth-service'
-import type { 
-  KpiDefinition, 
-  KpiActual, 
+import type {
+  KpiDefinition,
+  KpiActual,
   Approval,
   ChangeRequest,
   User,
@@ -13,7 +13,7 @@ import type {
 
 // Táº¡o hÃ m UUID Ä‘Æ¡n giáº£n
 function generateUUID(): string {
-  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0
     const v = c === 'x' ? r : (r & 0x3 | 0x8)
     return v.toString(16)
@@ -67,7 +67,7 @@ class KpiService {
   ): KpiDefinition[] {
     const templates = storageService.getTemplates()
     const template = templates.find(t => t.id === templateId)
-    
+
     if (!template) {
       throw new Error('Template not found')
     }
@@ -77,9 +77,9 @@ class KpiService {
       throw new Error('User not authenticated')
     }
 
-    const kpis: KpiDefinition[] = template.kpiFields.map(field => {
+    const kpis: KpiDefinition[] = (template.kpiFields || []).map(field => {
       const kpiId = `kpi-${generateUUID()}`
-      
+
       const kpi: KpiDefinition = {
         id: kpiId,
         cycleId,
@@ -101,7 +101,7 @@ class KpiService {
         updatedAt: new Date().toISOString(),
         ...customizations
       }
-      
+
       storageService.saveKpiDefinition(kpi)
       return kpi
     })
@@ -126,7 +126,7 @@ class KpiService {
   async submitKpiForApproval(kpiId: string): Promise<KpiSubmissionResult> {
     const kpi = storageService.getKpiDefinitions({ status: 'DRAFT' })
       .find(k => k.id === kpiId)
-    
+
     if (!kpi) {
       return {
         success: false,
@@ -207,7 +207,7 @@ class KpiService {
   ): Promise<ApprovalResult> {
     const kpi = storageService.getKpiDefinitions()
       .find(k => k.id === kpiId)
-    
+
     if (!kpi) {
       return {
         success: false,
@@ -260,11 +260,11 @@ class KpiService {
     comment?: string
   ): ApprovalResult {
     const user = authService.getCurrentUser()!
-    
+
     // Update approval record
     const approvals = storageService.getApprovals(kpi.id, 'KPI')
     const approval = approvals.find(a => a.level === level && a.status === 'PENDING')
-    
+
     if (approval) {
       const updatedApproval: Approval = {
         ...approval,
@@ -333,11 +333,13 @@ class KpiService {
     }
 
     // Update KPI status
-    storageService.updateKpiDefinition(kpi.id, {
+    const updates: any = {
       status: nextStatus,
-      [`approvedByLevel${level}`]: user.id,
-      [`approvedAtLevel${level}`]: new Date().toISOString()
-    })
+    }
+    updates[`approvedByLevel${level}`] = user.id
+    updates[`approvedAtLevel${level}`] = new Date().toISOString()
+
+    storageService.updateKpiDefinition(kpi.id, updates)
 
     return {
       success: true,
@@ -356,11 +358,11 @@ class KpiService {
     reason?: string
   ): ApprovalResult {
     const user = authService.getCurrentUser()!
-    
+
     // Update approval record
     const approvals = storageService.getApprovals(kpi.id, 'KPI')
     const approval = approvals.find(a => a.level === level && a.status === 'PENDING')
-    
+
     if (approval) {
       const updatedApproval: Approval = {
         ...approval,
@@ -386,7 +388,7 @@ class KpiService {
         kpi.userId,
         'KPI_REJECTED',
         `Your KPI has been rejected at level ${level}`,
-        { 
+        {
           kpiId: kpi.id,
           reason,
           rejectedBy: user.name
@@ -413,7 +415,7 @@ class KpiService {
   ): Promise<KpiSubmissionResult> {
     const kpi = storageService.getKpiDefinitions()
       .find(k => k.id === kpiId && k.status === 'LOCKED_GOALS')
-    
+
     if (!kpi) {
       return {
         success: false,
@@ -498,12 +500,12 @@ class KpiService {
     actualValue: number
   ): { percentage: number; score: number } {
     let percentage = 0
-    
+
     switch (kpi.type) {
       case 'QUANT_HIGHER_BETTER':
         percentage = (actualValue / kpi.target) * 100
         break
-      
+
       case 'QUANT_LOWER_BETTER':
         if (actualValue === 0 && kpi.target === 0) {
           percentage = 100
@@ -513,20 +515,22 @@ class KpiService {
           percentage = (kpi.target / actualValue) * 100
         }
         break
-      
+
       case 'MILESTONE':
         // Assuming actualValue is number of completed milestones
         percentage = actualValue * 100
         break
-      
+
       case 'BOOLEAN':
         percentage = actualValue === 1 ? 100 : 0
         break
-      
+
+      /*
       case 'BEHAVIOR':
         // Direct score mapping for behavior (1-5 scale)
         percentage = actualValue * 20 // Convert 1-5 to percentage
         break
+      */
     }
 
     // Apply max cap
@@ -575,11 +579,11 @@ class KpiService {
       userId: kpi.userId,
       cycleId: kpi.cycleId
     })
-    
+
     const totalWeight = userKpis
       .filter(k => k.id !== kpi.id)
       .reduce((sum, k) => sum + (k.weight || 0), 0) + (kpi.weight || 0)
-    
+
     if (totalWeight !== 100) {
       errors.push(`Total weight must equal 100% (current: ${totalWeight}%)`)
     }
@@ -632,15 +636,15 @@ class KpiService {
     // Get all pending approvals for this user
     const allApprovals = storageService.getItem<Approval>('vicc_kpi_approvals')
     const pendingApprovals = allApprovals.filter(
-      a => a.approverId === user.id && 
-           a.status === 'PENDING' &&
-           a.entityType === 'KPI'
+      a => a.approverId === user.id &&
+        a.status === 'PENDING' &&
+        a.entityType === 'KPI'
     )
 
     return pendingApprovals.map(approval => {
       const kpi = storageService.getKpiDefinitions()
         .find(k => k.id === approval.entityId)!
-      
+
       // Mock submitter lookup
       const submitter = {
         id: kpi.userId,

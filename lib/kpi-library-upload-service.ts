@@ -1,6 +1,8 @@
 // lib/kpi-library-upload-service.ts - Excel Upload & Approval Workflow Service
 
 import { db } from './db'
+import { getPrisma } from './repositories/MySQLRepository'
+const prisma = getPrisma()
 import type { KpiLibraryUpload } from './types'
 
 export interface CreateUploadInput {
@@ -28,7 +30,7 @@ class KpiLibraryUploadService {
     // Validate and process Excel data
     const processed = this.validateExcelData(input.rawData)
 
-    const upload = await db.kpiLibraryUpload.create({
+    const upload = await prisma.kpiLibraryUpload.create({
       data: {
         fileName: input.fileName,
         fileSize: input.fileSize,
@@ -52,7 +54,7 @@ class KpiLibraryUploadService {
    * Get upload by ID
    */
   async getUploadById(id: string): Promise<KpiLibraryUpload | null> {
-    const upload = await db.kpiLibraryUpload.findUnique({
+    const upload = await prisma.kpiLibraryUpload.findUnique({
       where: { id },
       include: {
         uploader: {
@@ -75,7 +77,7 @@ class KpiLibraryUploadService {
   async getUploads(status?: string): Promise<KpiLibraryUpload[]> {
     const where = status ? { status } : {}
 
-    const uploads = await db.kpiLibraryUpload.findMany({
+    const uploads = await prisma.kpiLibraryUpload.findMany({
       where,
       include: {
         uploader: {
@@ -118,7 +120,7 @@ class KpiLibraryUploadService {
     )
 
     // Update upload status
-    const updated = await db.kpiLibraryUpload.update({
+    const updated = await prisma.kpiLibraryUpload.update({
       where: { id },
       data: {
         status: 'APPROVED',
@@ -141,7 +143,7 @@ class KpiLibraryUploadService {
     reviewedBy: string,
     rejectionReason: string
   ): Promise<KpiLibraryUpload> {
-    const upload = await db.kpiLibraryUpload.update({
+    const upload = await prisma.kpiLibraryUpload.update({
       where: { id },
       data: {
         status: 'REJECTED',
@@ -240,7 +242,7 @@ class KpiLibraryUploadService {
 
       try {
         // Create KPI Library Entry
-        await db.kpiLibraryEntry.create({
+        await prisma.kpiLibraryEntry.create({
           data: {
             stt: typeof stt === 'number' ? stt : rowNumber,
             ogsmTarget: ogsmTarget.toString(),
@@ -274,10 +276,10 @@ class KpiLibraryUploadService {
    */
   async getStatistics() {
     const [pending, approved, rejected, totalEntries] = await Promise.all([
-      db.kpiLibraryUpload.count({ where: { status: 'PENDING' } }),
-      db.kpiLibraryUpload.count({ where: { status: 'APPROVED' } }),
-      db.kpiLibraryUpload.count({ where: { status: 'REJECTED' } }),
-      db.kpiLibraryEntry.count({ where: { status: 'ACTIVE' } })
+      prisma.kpiLibraryUpload.count({ where: { status: 'PENDING' } }),
+      prisma.kpiLibraryUpload.count({ where: { status: 'APPROVED' } }),
+      prisma.kpiLibraryUpload.count({ where: { status: 'REJECTED' } }),
+      prisma.kpiLibraryEntry.count({ where: { status: 'ACTIVE' } })
     ])
 
     return {

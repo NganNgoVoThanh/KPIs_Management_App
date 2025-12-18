@@ -1,6 +1,8 @@
 // lib/kpi-resource-service-db.ts - Enhanced KPI Resource Service with DB & BI Support
 
 import { db } from './db'
+import { getPrisma } from './repositories/MySQLRepository'
+const prisma = getPrisma()
 import type {
   KpiResource,
   KpiResourceCategory,
@@ -63,7 +65,7 @@ class KpiResourceServiceDb {
    * Create new resource
    */
   async createResource(input: CreateResourceInput): Promise<KpiResource> {
-    const resource = await db.kpiResource.create({
+    const resource = await prisma.kpiResource.create({
       data: {
         title: input.title,
         description: input.description,
@@ -114,7 +116,7 @@ class KpiResourceServiceDb {
    * Get resource by ID
    */
   async getResourceById(id: string): Promise<KpiResource | null> {
-    const resource = await db.kpiResource.findUnique({
+    const resource = await prisma.kpiResource.findUnique({
       where: { id },
       include: {
         uploader: {
@@ -180,7 +182,7 @@ class KpiResourceServiceDb {
       ]
     }
 
-    const resources = await db.kpiResource.findMany({
+    const resources = await prisma.kpiResource.findMany({
       where,
       include: {
         uploader: {
@@ -208,7 +210,7 @@ class KpiResourceServiceDb {
     id: string,
     updates: Partial<CreateResourceInput>
   ): Promise<KpiResource> {
-    const resource = await db.kpiResource.update({
+    const resource = await prisma.kpiResource.update({
       where: { id },
       data: {
         ...updates,
@@ -229,7 +231,7 @@ class KpiResourceServiceDb {
     approvedBy: string,
     comment?: string
   ): Promise<KpiResource> {
-    const resource = await db.kpiResource.update({
+    const resource = await prisma.kpiResource.update({
       where: { id },
       data: {
         approvalStatus: 'APPROVED',
@@ -249,7 +251,7 @@ class KpiResourceServiceDb {
     approvedBy: string,
     rejectionReason: string
   ): Promise<KpiResource> {
-    const resource = await db.kpiResource.update({
+    const resource = await prisma.kpiResource.update({
       where: { id },
       data: {
         approvalStatus: 'REJECTED',
@@ -266,7 +268,7 @@ class KpiResourceServiceDb {
    * Increment download count
    */
   async incrementDownloadCount(id: string): Promise<void> {
-    await db.kpiResource.update({
+    await prisma.kpiResource.update({
       where: { id },
       data: {
         downloadCount: {
@@ -280,7 +282,7 @@ class KpiResourceServiceDb {
    * Increment view count
    */
   async incrementViewCount(id: string): Promise<void> {
-    await db.kpiResource.update({
+    await prisma.kpiResource.update({
       where: { id },
       data: {
         viewCount: {
@@ -294,7 +296,7 @@ class KpiResourceServiceDb {
    * Archive resource
    */
   async archiveResource(id: string): Promise<KpiResource> {
-    const resource = await db.kpiResource.update({
+    const resource = await prisma.kpiResource.update({
       where: { id },
       data: {
         status: 'ARCHIVED'
@@ -308,7 +310,7 @@ class KpiResourceServiceDb {
    * Delete resource (soft delete)
    */
   async deleteResource(id: string): Promise<void> {
-    await db.kpiResource.update({
+    await prisma.kpiResource.update({
       where: { id },
       data: {
         status: 'DELETED'
@@ -334,29 +336,29 @@ class KpiResourceServiceDb {
       totalDownloads,
       totalViews
     ] = await Promise.all([
-      db.kpiResource.count(),
-      db.kpiResource.count({ where: { status: 'ACTIVE' } }),
-      db.kpiResource.count({ where: { status: 'ARCHIVED' } }),
-      db.kpiResource.count({ where: { approvalStatus: 'PENDING' } }),
-      db.kpiResource.count({ where: { approvalStatus: 'APPROVED' } }),
-      db.kpiResource.count({ where: { approvalStatus: 'REJECTED' } }),
+      prisma.kpiResource.count(),
+      prisma.kpiResource.count({ where: { status: 'ACTIVE' } }),
+      prisma.kpiResource.count({ where: { status: 'ARCHIVED' } }),
+      prisma.kpiResource.count({ where: { approvalStatus: 'PENDING' } }),
+      prisma.kpiResource.count({ where: { approvalStatus: 'APPROVED' } }),
+      prisma.kpiResource.count({ where: { approvalStatus: 'REJECTED' } }),
 
       // Group by category
-      db.kpiResource.groupBy({
+      prisma.kpiResource.groupBy({
         by: ['category'],
         _count: true,
         where: { status: 'ACTIVE' }
       }),
 
       // Group by resource type
-      db.kpiResource.groupBy({
+      prisma.kpiResource.groupBy({
         by: ['resourceType'],
         _count: true,
         where: { status: 'ACTIVE' }
       }),
 
       // Group by dashboard type
-      db.kpiResource.groupBy({
+      prisma.kpiResource.groupBy({
         by: ['dashboardType'],
         _count: true,
         where: {
@@ -366,17 +368,17 @@ class KpiResourceServiceDb {
         }
       }),
 
-      db.kpiResource.count({ where: { isFeatured: true, status: 'ACTIVE' } }),
+      prisma.kpiResource.count({ where: { isFeatured: true, status: 'ACTIVE' } }),
 
       // Sum download count
-      db.kpiResource.aggregate({
+      prisma.kpiResource.aggregate({
         _sum: {
           downloadCount: true
         }
       }),
 
       // Sum view count
-      db.kpiResource.aggregate({
+      prisma.kpiResource.aggregate({
         _sum: {
           viewCount: true
         }
@@ -412,7 +414,7 @@ class KpiResourceServiceDb {
    * Get popular resources (most downloaded)
    */
   async getPopularResources(limit: number = 10): Promise<KpiResource[]> {
-    const resources = await db.kpiResource.findMany({
+    const resources = await prisma.kpiResource.findMany({
       where: {
         status: 'ACTIVE',
         approvalStatus: 'APPROVED'
@@ -430,7 +432,7 @@ class KpiResourceServiceDb {
    * Get featured resources
    */
   async getFeaturedResources(): Promise<KpiResource[]> {
-    const resources = await db.kpiResource.findMany({
+    const resources = await prisma.kpiResource.findMany({
       where: {
         status: 'ACTIVE',
         approvalStatus: 'APPROVED',
@@ -464,7 +466,7 @@ class KpiResourceServiceDb {
       where.department = filters.department
     }
 
-    const dashboards = await db.kpiResource.findMany({
+    const dashboards = await prisma.kpiResource.findMany({
       where,
       orderBy: {
         uploadedAt: 'desc'
@@ -478,7 +480,7 @@ class KpiResourceServiceDb {
    * Sync BI Dashboard data (update lastSyncedAt)
    */
   async syncBIDashboard(id: string): Promise<KpiResource> {
-    const resource = await db.kpiResource.update({
+    const resource = await prisma.kpiResource.update({
       where: { id },
       data: {
         lastSyncedAt: new Date()

@@ -30,10 +30,9 @@ export function EvaluationSummary({ evaluation, kpiDefinitions }: EvaluationSumm
     }
   }
 
-  const getInsightVariant = (type: string) => {
+  const getInsightVariant = (type: string): "default" | "destructive" => {
     switch (type) {
       case "success":
-        return "default"
       case "warning":
         return "default"
       case "error":
@@ -42,6 +41,8 @@ export function EvaluationSummary({ evaluation, kpiDefinitions }: EvaluationSumm
         return "default"
     }
   }
+
+  const actuals = evaluation.kpiActuals || []
 
   return (
     <div className="space-y-6">
@@ -71,9 +72,9 @@ export function EvaluationSummary({ evaluation, kpiDefinitions }: EvaluationSumm
             </div>
 
             <div className="text-center space-y-2">
-              <div className="text-3xl font-bold">{evaluation.kpiActuals.length}</div>
+              <div className="text-3xl font-bold">{actuals.length}</div>
               <p className="text-sm text-muted-foreground">KPIs Completed</p>
-              <p className="text-xs text-muted-foreground">Total Weight: {evaluation.totalWeight}%</p>
+              <p className="text-xs text-muted-foreground">Total Weight: {evaluation.totalWeight || 0}%</p>
             </div>
           </div>
         </CardContent>
@@ -103,7 +104,7 @@ export function EvaluationSummary({ evaluation, kpiDefinitions }: EvaluationSumm
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            {evaluation.kpiActuals.map((actual) => {
+            {actuals.map((actual) => {
               const kpiDef = kpiDefinitions.find((k) => k.id === actual.kpiDefinitionId)
               if (!kpiDef) return null
 
@@ -176,8 +177,8 @@ export function EvaluationSummary({ evaluation, kpiDefinitions }: EvaluationSumm
         <CardContent>
           <div className="space-y-4">
             {[5, 4, 3, 2, 1].map((score) => {
-              const count = evaluation.kpiActuals.filter((a) => a.score === score).length
-              const percentage = evaluation.kpiActuals.length > 0 ? (count / evaluation.kpiActuals.length) * 100 : 0
+              const count = actuals.filter((a) => a.score === score).length
+              const percentage = actuals.length > 0 ? (count / actuals.length) * 100 : 0
               const band = getScoreBand(
                 score === 5 ? 120 : score === 4 ? 110 : score === 3 ? 90 : score === 2 ? 70 : 50,
               )

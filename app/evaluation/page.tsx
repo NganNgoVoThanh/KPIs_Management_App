@@ -15,11 +15,11 @@ import { authService } from "@/lib/auth-service"
 import { storageService } from "@/lib/storage-service"
 import { kpiService } from "@/lib/kpi-service"
 import type { User, KpiDefinition, KpiActual } from "@/lib/types"
-import { 
-  TrendingUp, 
-  Target, 
-  Upload, 
-  FileText, 
+import {
+  TrendingUp,
+  Target,
+  Upload,
+  FileText,
   CheckCircle,
   AlertCircle,
   Send,
@@ -71,7 +71,7 @@ export default function EvaluationPage() {
 
   const calculateScore = (kpi: KpiDefinition, value: number) => {
     let percentage = 0
-    
+
     switch (kpi.type) {
       case 'QUANT_HIGHER_BETTER':
         percentage = (value / kpi.target) * 100
@@ -91,9 +91,11 @@ export default function EvaluationPage() {
       case 'BOOLEAN':
         percentage = value === 1 ? 100 : 0
         break
+      /*
       case 'BEHAVIOR':
         percentage = value * 20
         break
+      */
     }
 
     percentage = Math.min(150, percentage)
@@ -127,7 +129,7 @@ export default function EvaluationPage() {
 
         // Reload data
         if (user) loadKpis(user)
-        
+
         // Reset form
         setSelectedKpi(null)
         setActualValue("")
@@ -187,13 +189,12 @@ export default function EvaluationPage() {
               {kpis.map(kpi => {
                 const actual = actuals[kpi.id]
                 const hasActual = !!actual
-                
+
                 return (
-                  <Card 
+                  <Card
                     key={kpi.id}
-                    className={`cursor-pointer hover:shadow-md transition-shadow ${
-                      selectedKpi?.id === kpi.id ? 'border-red-500' : ''
-                    }`}
+                    className={`cursor-pointer hover:shadow-md transition-shadow ${selectedKpi?.id === kpi.id ? 'border-red-500' : ''
+                      }`}
                     onClick={() => !hasActual && setSelectedKpi(kpi)}
                   >
                     <CardHeader>

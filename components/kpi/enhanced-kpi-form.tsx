@@ -13,9 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Progress } from '@/components/ui/progress';
-import { 
+import {
   Sparkles, Target, CheckCircle, AlertCircle, FileText, Calculator,
-  Save, Eye, Trash2, Plus, BarChart3, Clock, User, Building, XCircle, 
+  Save, Eye, Trash2, Plus, BarChart3, Clock, User, Building, XCircle,
   Copy, Calendar, BookOpen, Shield, TrendingUp, X
 } from 'lucide-react';
 import { TypeIVScaleEditor } from './type-iv-scale-editor';
@@ -198,7 +198,7 @@ export function KpiForm({
         title: `${originalKpi.title} (Copy)`,
         weight: 0
       };
-      
+
       const newKpis = [...kpis];
       newKpis.splice(index + 1, 0, duplicatedKpi);
       setKpis(newKpis);
@@ -214,9 +214,9 @@ export function KpiForm({
   const handleSubmit = () => {
     setIsSubmitting(true);
     try {
-      const validKpis = kpis.filter(kpi => 
-        kpi.title.trim() && 
-        kpi.target > 0 && 
+      const validKpis = kpis.filter(kpi =>
+        kpi.title.trim() &&
+        kpi.target > 0 &&
         kpi.weight > 0 &&
         kpi.unit.trim()
       );
@@ -272,10 +272,9 @@ export function KpiForm({
 
             <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-3 shadow-lg border-2 border-white/50">
               <div className="text-center">
-                <div className={`text-4xl font-bold mb-1 ${
-                  Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' : 
-                  totalWeight > 100 ? 'text-red-600' : 'text-orange-600'
-                }`}>
+                <div className={`text-4xl font-bold mb-1 ${Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' :
+                    totalWeight > 100 ? 'text-red-600' : 'text-orange-600'
+                  }`}>
                   {totalWeight.toFixed(1)}%
                 </div>
                 <div className="text-xs text-gray-600 font-semibold uppercase tracking-wider">
@@ -289,10 +288,10 @@ export function KpiForm({
 
       {/* MAIN CONTENT */}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-5">
-        
+
         {/* Quick Actions */}
         <div className="grid grid-cols-2 gap-4">
-          <Button 
+          <Button
             onClick={() => setShowLibrarySelector(true)}
             size="lg"
             className="h-12 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-md font-semibold text-base"
@@ -300,7 +299,7 @@ export function KpiForm({
             <BookOpen className="mr-2 h-5 w-5" />
             Select from KPI Library
           </Button>
-          <Button 
+          <Button
             variant="outline"
             size="lg"
             onClick={() => setActiveTab('ai-suggestions')}
@@ -313,60 +312,52 @@ export function KpiForm({
 
         {/* Validation Cards */}
         <div className="grid grid-cols-3 gap-4">
-          <Card className={`border-2 shadow-md ${
-            Math.abs(totalWeight - 100) <= 0.01 
-              ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50' 
+          <Card className={`border-2 shadow-md ${Math.abs(totalWeight - 100) <= 0.01
+              ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
               : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
-          }`}>
+            }`}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${
-                    Math.abs(totalWeight - 100) <= 0.01 ? 'bg-green-100' : 'bg-red-100'
-                  }`}>
-                    <Calculator className={`h-5 w-5 ${
-                      Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' : 'text-red-600'
-                    }`} />
+                  <div className={`p-2.5 rounded-xl ${Math.abs(totalWeight - 100) <= 0.01 ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                    <Calculator className={`h-5 w-5 ${Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' : 'text-red-600'
+                      }`} />
                   </div>
                   <div>
                     <div className="text-sm font-bold text-gray-700 mb-0.5">Total Weight</div>
-                    <div className={`text-3xl font-bold ${
-                      Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' : 
-                      totalWeight > 100 ? 'text-red-600' : 'text-orange-600'
-                    }`}>
+                    <div className={`text-3xl font-bold ${Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' :
+                        totalWeight > 100 ? 'text-red-600' : 'text-orange-600'
+                      }`}>
                       {totalWeight.toFixed(1)}%
                     </div>
                   </div>
                 </div>
               </div>
               <div className="text-xs text-gray-600 font-medium">
-                {Math.abs(totalWeight - 100) <= 0.01 
-                  ? '✓ Perfect balance achieved' 
+                {Math.abs(totalWeight - 100) <= 0.01
+                  ? '✓ Perfect balance achieved'
                   : `${totalWeight > 100 ? 'Reduce by' : 'Add'} ${Math.abs(100 - totalWeight).toFixed(1)}%`}
               </div>
             </CardContent>
           </Card>
 
-          <Card className={`border-2 shadow-md ${
-            validKpiCount >= minKpis && validKpiCount <= maxKpis
+          <Card className={`border-2 shadow-md ${validKpiCount >= minKpis && validKpiCount <= maxKpis
               ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
               : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
-          }`}>
+            }`}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${
-                    validKpiCount >= minKpis && validKpiCount <= maxKpis ? 'bg-green-100' : 'bg-red-100'
-                  }`}>
-                    <Target className={`h-5 w-5 ${
-                      validKpiCount >= minKpis && validKpiCount <= maxKpis ? 'text-green-600' : 'text-red-600'
-                    }`} />
+                  <div className={`p-2.5 rounded-xl ${validKpiCount >= minKpis && validKpiCount <= maxKpis ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                    <Target className={`h-5 w-5 ${validKpiCount >= minKpis && validKpiCount <= maxKpis ? 'text-green-600' : 'text-red-600'
+                      }`} />
                   </div>
                   <div>
                     <div className="text-sm font-bold text-gray-700 mb-0.5">KPI Count</div>
-                    <div className={`text-3xl font-bold ${
-                      validKpiCount >= minKpis && validKpiCount <= maxKpis ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <div className={`text-3xl font-bold ${validKpiCount >= minKpis && validKpiCount <= maxKpis ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       {validKpiCount}
                     </div>
                   </div>
@@ -374,7 +365,7 @@ export function KpiForm({
               </div>
               <div className="text-xs text-gray-600 font-medium">
                 {validKpiCount < minKpis ? `Need ${minKpis - validKpiCount} more KPI(s)` :
-                 validKpiCount > maxKpis ? `Remove ${validKpiCount - maxKpis} KPI(s)` : `✓ Valid range (${minKpis}-${maxKpis})`}
+                  validKpiCount > maxKpis ? `Remove ${validKpiCount - maxKpis} KPI(s)` : `✓ Valid range (${minKpis}-${maxKpis})`}
               </div>
               {currentCycle && (
                 <div className="text-xs text-blue-700 font-semibold mt-2">
@@ -384,34 +375,30 @@ export function KpiForm({
             </CardContent>
           </Card>
 
-          <Card className={`border-2 shadow-md ${
-            invalidWeightCount === 0 
-              ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50' 
+          <Card className={`border-2 shadow-md ${invalidWeightCount === 0
+              ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
               : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
-          }`}>
+            }`}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                  <div className={`p-2.5 rounded-xl ${
-                    invalidWeightCount === 0 ? 'bg-green-100' : 'bg-red-100'
-                  }`}>
-                    <BarChart3 className={`h-5 w-5 ${
-                      invalidWeightCount === 0 ? 'text-green-600' : 'text-red-600'
-                    }`} />
+                  <div className={`p-2.5 rounded-xl ${invalidWeightCount === 0 ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                    <BarChart3 className={`h-5 w-5 ${invalidWeightCount === 0 ? 'text-green-600' : 'text-red-600'
+                      }`} />
                   </div>
                   <div>
                     <div className="text-sm font-bold text-gray-700 mb-0.5">Weight Range</div>
-                    <div className={`text-3xl font-bold ${
-                      invalidWeightCount === 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
+                    <div className={`text-3xl font-bold ${invalidWeightCount === 0 ? 'text-green-600' : 'text-red-600'
+                      }`}>
                       {invalidWeightCount}
                     </div>
                   </div>
                 </div>
               </div>
               <div className="text-xs text-gray-600 font-medium">
-                {invalidWeightCount === 0 
-                  ? '✓ All weights valid (5-40%)' 
+                {invalidWeightCount === 0
+                  ? '✓ All weights valid (5-40%)'
                   : `${invalidWeightCount} invalid weight(s)`}
               </div>
             </CardContent>
@@ -421,21 +408,21 @@ export function KpiForm({
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="grid w-full grid-cols-3 h-12 bg-white border-2 border-gray-200 p-1 rounded-xl shadow-sm">
-            <TabsTrigger 
-              value="ai-suggestions" 
+            <TabsTrigger
+              value="ai-suggestions"
               className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg font-semibold"
             >
               <Sparkles className="mr-2 h-4 w-4" />
               AI Suggestions
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="manual"
               className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg font-semibold"
             >
               <FileText className="mr-2 h-4 w-4" />
               Manual Entry
             </TabsTrigger>
-            <TabsTrigger 
+            <TabsTrigger
               value="preview"
               className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg font-semibold"
             >
@@ -515,7 +502,7 @@ export function KpiForm({
                                   description: suggestion.description || '',
                                   type: (suggestion.type as KpiFormData['type']) || 'QUANT_HIGHER_BETTER',
                                   unit: suggestion.unit || '',
-                                  target: suggestion.target || 0,
+                                  target: suggestion.suggestedTarget || 0,
                                   weight: 0,
                                   dataSource: suggestion.dataSource || '',
                                   category: 'Business Objective',
@@ -538,7 +525,7 @@ export function KpiForm({
                           <div className="grid grid-cols-4 gap-3 text-sm mt-3">
                             <div>
                               <span className="text-gray-500 font-medium">Target:</span>
-                              <div className="font-bold text-gray-900">{suggestion.target} {suggestion.unit}</div>
+                              <div className="font-bold text-gray-900">{suggestion.suggestedTarget} {suggestion.unit}</div>
                             </div>
                             <div>
                               <span className="text-gray-500 font-medium">Type:</span>
@@ -546,7 +533,7 @@ export function KpiForm({
                             </div>
                             <div>
                               <span className="text-gray-500 font-medium">Confidence:</span>
-                              <div className="font-bold text-gray-900">{(suggestion.confidence * 100).toFixed(0)}%</div>
+                              <div className="font-bold text-gray-900">{(suggestion.confidenceScore * 100).toFixed(0)}%</div>
                             </div>
                             <div>
                               <span className="text-gray-500 font-medium">Rationale:</span>
@@ -584,20 +571,19 @@ export function KpiForm({
                         </Badge>
                       )}
                       {kpi.weight > 0 && (
-                        <Badge className={`font-bold ${
-                          kpi.weight >= 5 && kpi.weight <= 40 
-                            ? 'bg-green-100 text-green-800 border-2 border-green-300' 
+                        <Badge className={`font-bold ${kpi.weight >= 5 && kpi.weight <= 40
+                            ? 'bg-green-100 text-green-800 border-2 border-green-300'
                             : 'bg-red-100 text-red-800 border-2 border-red-300'
-                        }`}>
+                          }`}>
                           {kpi.weight}%
                         </Badge>
                       )}
                     </div>
                     <div className="flex gap-2">
                       {kpis.length < maxKpis && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => duplicateKpi(index)}
                           className="h-8 w-8 p-0 hover:bg-red-50"
                         >
@@ -605,9 +591,9 @@ export function KpiForm({
                         </Button>
                       )}
                       {kpis.length > 1 && (
-                        <Button 
-                          variant="ghost" 
-                          size="sm" 
+                        <Button
+                          variant="ghost"
+                          size="sm"
                           onClick={() => removeKpi(index)}
                           className="h-8 w-8 p-0 hover:bg-red-50"
                         >
@@ -790,7 +776,7 @@ export function KpiForm({
             ))}
 
             {kpis.length < maxKpis && (
-              <Button 
+              <Button
                 onClick={addKpi}
                 variant="outline"
                 size="lg"
@@ -823,7 +809,7 @@ export function KpiForm({
                         <Badge variant="outline" className="border-red-300 text-red-700">{kpi.category.split(' ')[0]}</Badge>
                       </div>
                     </div>
-                    
+
                     <div className="grid grid-cols-5 gap-3 text-sm mt-3">
                       <div>
                         <span className="text-gray-500 font-medium">Target:</span>
@@ -876,7 +862,7 @@ export function KpiForm({
               <Eye className="mr-2 h-5 w-5" />
               Preview
             </Button>
-            
+
             <Button
               size="lg"
               onClick={handleSubmit}
@@ -901,7 +887,7 @@ export function KpiForm({
 
       {/* KPI Library Selector Modal */}
       {showLibrarySelector && (
-        <KpiLibrarySelectorModal 
+        <KpiLibrarySelectorModal
           onClose={() => setShowLibrarySelector(false)}
           onSelect={handleLibrarySelect}
           userDepartment={userProfile.department}
@@ -913,16 +899,16 @@ export function KpiForm({
 }
 
 // KPI Library Selector Modal Component
-function KpiLibrarySelectorModal({ 
-  onClose, 
-  onSelect, 
-  userDepartment, 
-  userJobTitle 
-}: { 
-  onClose: () => void; 
-  onSelect: (entry: any) => void; 
-  userDepartment: string; 
-  userJobTitle: string; 
+function KpiLibrarySelectorModal({
+  onClose,
+  onSelect,
+  userDepartment,
+  userJobTitle
+}: {
+  onClose: () => void;
+  onSelect: (entry: any) => void;
+  userDepartment: string;
+  userJobTitle: string;
 }) {
   const [entries, setEntries] = useState<any[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<any[]>([]);
@@ -1142,11 +1128,10 @@ function KpiLibrarySelectorModal({
                   <div
                     key={entry.id}
                     onClick={() => setSelectedEntry(entry)}
-                    className={`p-4 cursor-pointer transition-all ${
-                      selectedEntry?.id === entry.id
+                    className={`p-4 cursor-pointer transition-all ${selectedEntry?.id === entry.id
                         ? 'bg-red-50 border-l-4 border-l-red-600'
                         : 'hover:bg-gray-50'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
@@ -1156,7 +1141,7 @@ function KpiLibrarySelectorModal({
                             Type {entry.kpiType}
                           </Badge>
                         </div>
-                        
+
                         <div className="grid grid-cols-4 gap-4 text-sm mt-2">
                           <div>
                             <span className="text-gray-500 font-medium">Department:</span>
@@ -1226,16 +1211,16 @@ function KpiLibrarySelectorModal({
 
         {/* Footer Actions */}
         <div className="border-t-2 bg-gray-50 px-6 py-4 flex items-center justify-between">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             onClick={onClose}
             size="lg"
             className="h-11 px-6 font-semibold border-2"
           >
             Cancel
           </Button>
-          <Button 
-            onClick={handleSelect} 
+          <Button
+            onClick={handleSelect}
             disabled={!selectedEntry}
             size="lg"
             className="h-11 px-8 font-bold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"

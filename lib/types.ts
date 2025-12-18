@@ -204,6 +204,7 @@ export type ActualStatus =
   | "REJECTED"
   | "LOCKED_ACTUALS"
   | "ARCHIVED"
+  | "CHANGE_REQUESTED"
 
 export interface KpiActual {
   id: string
@@ -299,7 +300,7 @@ export interface Evidence {
 }
 
 // Notification Types
-export type NotificationType = 
+export type NotificationType =
   | "KPI_CREATED"
   | "KPI_SUBMITTED"
   | "KPI_APPROVED"
@@ -469,8 +470,12 @@ export interface ReportFilter {
   userId?: string
   orgUnitId?: string
   dateRange?: {
-    start: string
-    end: string
+    start: string | Date
+    end: string | Date
+  }
+  scoreRange?: {
+    min: number
+    max: number
   }
   status?: KpiStatus
   dateFrom?: string
@@ -484,13 +489,22 @@ export interface ReportData {
     completedKpis: number
     averageScore: number
     participationRate: number
+    totalEmployees: number
+    completionRate: number
+    onTimeSubmission: number
   }
   departmentBreakdown: {
+    department: string
     name: string
     totalKpis: number
     completedKpis: number
     avgScore: number
+    averageScore: number
+    completionRate: number
     participationRate: number
+    employeeCount: number
+    topPerformers: number | string
+    needsImprovement: number | string
   }[]
   topPerformers: {
     userId: string
@@ -505,6 +519,28 @@ export interface ReportData {
     targetScore: number
     gap: number
     priority: "HIGH" | "MEDIUM" | "LOW"
+  }[]
+  individualPerformance: {
+    userId: string
+    userName: string
+    department: string
+    role: string
+    kpiCount: number
+    averageScore: number
+    completionRate: number
+    status: string
+  }[]
+  kpiAnalysis: {
+    kpiTitle: string
+    averageAchievement: number
+    participantCount: number
+    topPerformer: string
+  }[]
+  trends: {
+    month: string
+    averageScore: number
+    completionRate: number
+    submissionRate: number
   }[]
 }
 
@@ -853,11 +889,12 @@ export interface KpiResourceUploadRequest {
 }
 
 // Admin Proxy Types
-export type ProxyActionType = 
-  | 'RETURN_TO_STAFF' 
-  | 'APPROVE_AS_MANAGER' 
-  | 'REJECT_AS_MANAGER' 
+export type ProxyActionType =
+  | 'RETURN_TO_STAFF'
+  | 'APPROVE_AS_MANAGER'
+  | 'REJECT_AS_MANAGER'
   | 'REASSIGN_APPROVER'
+  | 'ISSUE_CHANGE_REQUEST'
 
 export interface ProxyAction {
   id: string

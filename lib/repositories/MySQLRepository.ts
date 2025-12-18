@@ -786,7 +786,7 @@ export class MySQLRepository implements IDatabaseRepository {
         approver: true
       },
       orderBy: {
-        createdAt: 'desc'
+        uploadedAt: 'desc'
       }
     })
   }
@@ -962,6 +962,7 @@ export class MySQLRepository implements IDatabaseRepository {
 
       const dataRows = rawData.slice(6)
       const entriesToCreate: any[] = []
+      const templatesToCreate: any[] = []
       let validCount = 0
 
       for (const row of dataRows) {
@@ -969,23 +970,64 @@ export class MySQLRepository implements IDatabaseRepository {
         const kpiName = row[4]?.toString().trim()
 
         if (dept && kpiName) {
+          const typeStr = row[5]?.toString().trim().toUpperCase()
+          // Normalize KPI Type
+          let normalizedType = 'I'
+          if (typeStr === '1') normalizedType = 'I'
+          else if (typeStr === '2') normalizedType = 'II'
+          else if (typeStr === '3') normalizedType = 'III'
+          else if (typeStr === '4') normalizedType = 'IV'
+          else if (['I', 'II', 'III', 'IV'].includes(typeStr)) normalizedType = typeStr
+
+          // Parse numeric values
+          const targetVal = parseFloat(row[7]?.toString().trim() || '0')
+          const weightVal = parseFloat(row[8]?.toString().trim() || '0')
+
+          // 1. Create Library Entry (Legacy/Raw Record)
           entriesToCreate.push({
             stt: parseInt(row[0]?.toString() || '0') || 0,
             ogsmTarget: row[1]?.toString() || '',
             department: dept,
             jobTitle: row[3]?.toString() || '',
             kpiName: kpiName,
-            kpiType: row[5]?.toString() || '',
+            kpiType: normalizedType,
             unit: row[6]?.toString() || '',
-            dataSource: row[7]?.toString() || '',
-            yearlyTarget: row[8]?.toString() || null,
-            quarterlyTarget: row[9]?.toString() || null,
+            dataSource: row[10]?.toString() || '', // Now mapped from row[10]
+            yearlyTarget: row[7]?.toString() || '', // Target as string
+            quarterlyTarget: null,
             uploadedBy: upload.uploadedBy,
             uploadId: upload.id,
             status: 'ACTIVE',
             version: 1,
             isTemplate: true
           })
+
+          // 2. Create Actual KpiTemplate (For usage)
+          templatesToCreate.push({
+            name: kpiName,
+            description: `Imported from ${upload.fileName}`,
+            department: dept,
+            jobTitle: row[3]?.toString() || '',
+            category: 'OPERATIONAL', // Default
+            kpiType: normalizedType,
+            unit: row[6]?.toString() || '',
+            formula: '',
+            dataSource: row[10]?.toString() || '',
+            targetValue: isNaN(targetVal) ? null : targetVal,
+            weight: isNaN(weightVal) ? null : weightVal,
+            frequency: row[9]?.toString() || 'MONTHLY',
+            source: 'EXCEL_UPLOAD',
+            uploadId: upload.id,
+            status: 'APPROVED', // Auto-approve
+            version: 1,
+            usageCount: 0,
+            isActive: true,
+            createdBy: upload.uploadedBy,
+            reviewedBy,
+            reviewedAt: new Date(),
+            reviewComment: comment
+          })
+
           validCount++
         }
       }
@@ -993,6 +1035,13 @@ export class MySQLRepository implements IDatabaseRepository {
       if (entriesToCreate.length > 0) {
         await tx.kpiLibraryEntry.createMany({
           data: entriesToCreate
+        })
+      }
+
+      // Bulk create templates
+      if (templatesToCreate.length > 0) {
+        await tx.kpiTemplate.createMany({
+          data: templatesToCreate
         })
       }
 

@@ -80,8 +80,10 @@ const calculatePercentage = (type: KpiType, actual: number, target: number): num
     case "BOOLEAN":
       return actual > 0 ? 100 : 0
 
-    case "BEHAVIOR":
-      return (actual / 5) * 100
+    /*
+  case "BEHAVIOR":
+    return (actual / 5) * 100
+    */
 
     default:
       return 0
@@ -142,8 +144,9 @@ export const getPerformanceInsights = (evaluation: PerformanceEvaluation) => {
   }
 
   // Analyze individual KPI performance
-  const highPerformers = evaluation.kpiActuals.filter((a) => a.percentage >= 120)
-  const lowPerformers = evaluation.kpiActuals.filter((a) => a.percentage < 80)
+  const actuals = evaluation.kpiActuals || []
+  const highPerformers = actuals.filter((a) => a.percentage >= 120)
+  const lowPerformers = actuals.filter((a) => a.percentage < 80)
 
   if (highPerformers.length > 0) {
     insights.push({

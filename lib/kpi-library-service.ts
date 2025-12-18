@@ -1,9 +1,9 @@
 // lib/kpi-library-service.ts
-import type { 
-  KpiLibraryEntry, 
-  KpiLibraryUpload, 
+import type {
+  KpiLibraryEntry,
+  KpiLibraryUpload,
   KpiLibraryChangeRequest,
-  User 
+  User
 } from './types';
 import { authService } from './auth-service';
 
@@ -56,12 +56,12 @@ class KpiLibraryService {
 
     if (filters) {
       if (filters.department) {
-        entries = entries.filter(e => 
+        entries = entries.filter(e =>
           e.department.toLowerCase().includes(filters.department!.toLowerCase())
         );
       }
       if (filters.jobTitle) {
-        entries = entries.filter(e => 
+        entries = entries.filter(e =>
           e.jobTitle.toLowerCase().includes(filters.jobTitle!.toLowerCase())
         );
       }
@@ -136,7 +136,7 @@ class KpiLibraryService {
 
     const entries = this.getEntries();
     const index = entries.findIndex(e => e.id === id);
-    
+
     if (index === -1) {
       throw new Error('Entry not found');
     }
@@ -198,6 +198,12 @@ class KpiLibraryService {
     const upload: KpiLibraryUpload = {
       id: this.generateId(),
       fileName: data.fileName,
+      fileSize: 0,
+      mimeType: 'application/octet-stream',
+      rawData: [],
+      validEntries: data.entries.length,
+      invalidEntries: 0,
+      processedCount: 0,
       uploadedBy: user.id,
       uploadedAt: new Date().toISOString(),
       totalEntries: data.entries.length,
@@ -238,22 +244,22 @@ class KpiLibraryService {
 
     const uploads = this.getUploads();
     const upload = uploads.find(u => u.id === uploadId);
-    
+
     if (!upload) {
       throw new Error('Upload not found');
     }
 
     upload.status = 'APPROVED';
-    upload.approvedBy = user.id;
-    upload.approvedAt = new Date().toISOString();
+    upload.reviewedBy = user.id;
+    upload.reviewedAt = new Date().toISOString();
 
     this.setToStorage(this.STORAGE_KEY_UPLOADS, JSON.stringify(uploads));
 
     // Activate all pending entries from this upload
     const entries = this.getEntries({ status: 'PENDING_APPROVAL' });
     entries.forEach(entry => {
-      if (entry.uploadedBy === upload.uploadedBy && 
-          entry.createdAt === upload.uploadedAt) {
+      if (entry.uploadedBy === upload.uploadedBy &&
+        entry.createdAt === upload.uploadedAt) {
         this.updateEntry(entry.id, { status: 'ACTIVE' });
       }
     });
@@ -270,14 +276,14 @@ class KpiLibraryService {
 
     const uploads = this.getUploads();
     const upload = uploads.find(u => u.id === uploadId);
-    
+
     if (!upload) {
       throw new Error('Upload not found');
     }
 
     upload.status = 'REJECTED';
-    upload.approvedBy = user.id;
-    upload.approvedAt = new Date().toISOString();
+    upload.reviewedBy = user.id;
+    upload.reviewedAt = new Date().toISOString();
     upload.rejectionReason = reason;
 
     this.setToStorage(this.STORAGE_KEY_UPLOADS, JSON.stringify(uploads));
@@ -285,8 +291,8 @@ class KpiLibraryService {
     // Delete all pending entries from this upload
     const entries = this.getEntries({ status: 'PENDING_APPROVAL' });
     entries.forEach(entry => {
-      if (entry.uploadedBy === upload.uploadedBy && 
-          entry.createdAt === upload.uploadedAt) {
+      if (entry.uploadedBy === upload.uploadedBy &&
+        entry.createdAt === upload.uploadedAt) {
         this.deleteEntry(entry.id);
       }
     });
@@ -349,7 +355,7 @@ class KpiLibraryService {
         requests = requests.filter(r => r.status === filters.status);
       }
       if (filters.department) {
-        requests = requests.filter(r => 
+        requests = requests.filter(r =>
           r.department.toLowerCase().includes(filters.department!.toLowerCase())
         );
       }
@@ -358,7 +364,7 @@ class KpiLibraryService {
       }
     }
 
-    return requests.sort((a, b) => 
+    return requests.sort((a, b) =>
       new Date(b.requestedAt).getTime() - new Date(a.requestedAt).getTime()
     );
   }
@@ -374,7 +380,7 @@ class KpiLibraryService {
 
     const requests = this.getChangeRequests();
     const request = requests.find(r => r.id === requestId);
-    
+
     if (!request) {
       throw new Error('Change request not found');
     }
@@ -429,7 +435,7 @@ class KpiLibraryService {
 
     const requests = this.getChangeRequests();
     const request = requests.find(r => r.id === requestId);
-    
+
     if (!request) {
       throw new Error('Change request not found');
     }
@@ -484,7 +490,7 @@ class KpiLibraryService {
     // Skip header rows (first 6 rows)
     for (let i = 6; i < data.length; i++) {
       const row = data[i];
-      
+
       // Skip empty rows
       if (!row[4] || !row[4].toString().trim()) {
         continue;
@@ -527,12 +533,12 @@ class KpiLibraryService {
     if (value === null || value === undefined || value === '') {
       return '';
     }
-    
+
     const num = Number(value);
     if (!isNaN(num)) {
       return num;
     }
-    
+
     return value.toString();
   }
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import type { ReportFilter } from "@/lib/reporting-utils"
-import { mockOrgUnits, mockCycles } from "@/lib/mockdata"
+import { storageService } from "@/lib/storage-service"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -21,11 +21,15 @@ interface ReportFiltersProps {
 }
 
 export function ReportFilters({ filters, onFiltersChange, onApplyFilters, onResetFilters }: ReportFiltersProps) {
-  const [startDate, setStartDate] = useState<Date | undefined>(filters.dateRange?.start)
-  const [endDate, setEndDate] = useState<Date | undefined>(filters.dateRange?.end)
+  const [startDate, setStartDate] = useState<Date | undefined>(
+    filters.dateRange?.start ? new Date(filters.dateRange.start) : undefined
+  )
+  const [endDate, setEndDate] = useState<Date | undefined>(
+    filters.dateRange?.end ? new Date(filters.dateRange.end) : undefined
+  )
 
-  const departments = mockOrgUnits.filter((ou) => ou.type === "DEPARTMENT")
-  const cycles = mockCycles
+  const departments = storageService.getOrgUnits().filter((ou) => ou.type === "DEPARTMENT")
+  const cycles = storageService.getCycles()
 
   const handleFilterChange = (key: keyof ReportFilter, value: any) => {
     onFiltersChange({

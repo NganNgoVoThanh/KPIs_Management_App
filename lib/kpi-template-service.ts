@@ -1,6 +1,8 @@
 // lib/kpi-template-service.ts - Unified KPI Template Service
 
 import { db } from './db'
+import { getPrisma } from './repositories/MySQLRepository'
+const prisma = getPrisma()
 import type {
   KpiTemplate,
   TemplateSource,
@@ -49,7 +51,7 @@ class KpiTemplateService {
    * Create a new KPI template
    */
   async createTemplate(input: CreateTemplateInput): Promise<KpiTemplate> {
-    const template = await db.kpiTemplate.create({
+    const template = await prisma.kpiTemplate.create({
       data: {
         name: input.name,
         description: input.description,
@@ -84,7 +86,7 @@ class KpiTemplateService {
    * Get template by ID
    */
   async getTemplateById(id: string): Promise<KpiTemplate | null> {
-    const template = await db.kpiTemplate.findUnique({
+    const template = await prisma.kpiTemplate.findUnique({
       where: { id },
       include: {
         creator: {
@@ -133,7 +135,7 @@ class KpiTemplateService {
       ]
     }
 
-    const templates = await db.kpiTemplate.findMany({
+    const templates = await prisma.kpiTemplate.findMany({
       where,
       include: {
         creator: {
@@ -160,7 +162,7 @@ class KpiTemplateService {
   async updateTemplate(input: UpdateTemplateInput): Promise<KpiTemplate> {
     const { id, ...data } = input
 
-    const template = await db.kpiTemplate.update({
+    const template = await prisma.kpiTemplate.update({
       where: { id },
       data: {
         ...data,
@@ -175,7 +177,7 @@ class KpiTemplateService {
    * Submit template for review
    */
   async submitForReview(id: string, submittedBy: string): Promise<KpiTemplate> {
-    const template = await db.kpiTemplate.update({
+    const template = await prisma.kpiTemplate.update({
       where: { id },
       data: {
         status: 'PENDING',
@@ -195,7 +197,7 @@ class KpiTemplateService {
     reviewedBy: string,
     reviewComment?: string
   ): Promise<KpiTemplate> {
-    const template = await db.kpiTemplate.update({
+    const template = await prisma.kpiTemplate.update({
       where: { id },
       data: {
         status: 'APPROVED',
@@ -217,7 +219,7 @@ class KpiTemplateService {
     reviewedBy: string,
     rejectionReason: string
   ): Promise<KpiTemplate> {
-    const template = await db.kpiTemplate.update({
+    const template = await prisma.kpiTemplate.update({
       where: { id },
       data: {
         status: 'REJECTED',
@@ -259,7 +261,7 @@ class KpiTemplateService {
    * Increment usage count when template is used
    */
   async incrementUsage(id: string): Promise<void> {
-    await db.kpiTemplate.update({
+    await prisma.kpiTemplate.update({
       where: { id },
       data: {
         usageCount: {
@@ -274,7 +276,7 @@ class KpiTemplateService {
    * Archive template
    */
   async archiveTemplate(id: string): Promise<KpiTemplate> {
-    const template = await db.kpiTemplate.update({
+    const template = await prisma.kpiTemplate.update({
       where: { id },
       data: {
         status: 'ARCHIVED',
@@ -306,28 +308,28 @@ class KpiTemplateService {
       byCategory,
       mostUsed
     ] = await Promise.all([
-      db.kpiTemplate.count(),
-      db.kpiTemplate.count({ where: { status: 'DRAFT' } }),
-      db.kpiTemplate.count({ where: { status: 'PENDING' } }),
-      db.kpiTemplate.count({ where: { status: 'APPROVED', isActive: true } }),
-      db.kpiTemplate.count({ where: { status: 'REJECTED' } }),
+      prisma.kpiTemplate.count(),
+      prisma.kpiTemplate.count({ where: { status: 'DRAFT' } }),
+      prisma.kpiTemplate.count({ where: { status: 'PENDING' } }),
+      prisma.kpiTemplate.count({ where: { status: 'APPROVED', isActive: true } }),
+      prisma.kpiTemplate.count({ where: { status: 'REJECTED' } }),
 
       // Group by department
-      db.kpiTemplate.groupBy({
+      prisma.kpiTemplate.groupBy({
         by: ['department'],
         _count: true,
         where: { isActive: true }
       }),
 
       // Group by category
-      db.kpiTemplate.groupBy({
+      prisma.kpiTemplate.groupBy({
         by: ['category'],
         _count: true,
         where: { isActive: true, category: { not: null } }
       }),
 
       // Most used templates
-      db.kpiTemplate.findMany({
+      prisma.kpiTemplate.findMany({
         where: { isActive: true, status: 'APPROVED' },
         orderBy: { usageCount: 'desc' },
         take: 10,

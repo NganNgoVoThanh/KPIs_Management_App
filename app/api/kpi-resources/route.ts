@@ -57,18 +57,79 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const contentType = request.headers.get('content-type') || '';
+
+    let title, description, category, department, tagsStr, isPublic, file, dashboardType, dashboardUrl, workspaceId, reportId;
+    let tags: string[] = [];
+    const uploadedBy = user.id;
+
+    if (contentType.includes('application/json')) {
+      const body = await request.json();
+      title = body.title;
+      description = body.description;
+      category = body.category;
+      department = body.department;
+      tags = body.tags || [];
+      isPublic = body.isPublic;
+      // BI Dashboard fields
+      dashboardType = body.dashboardType;
+      dashboardUrl = body.dashboardUrl;
+      workspaceId = body.workspaceId;
+      reportId = body.reportId;
+
+      if (!title || !category || (!dashboardUrl && body.resourceType === 'BI_DASHBOARD')) {
+        return NextResponse.json(
+          { success: false, error: 'Missing required fields' },
+          { status: 400 }
+        );
+      }
+
+      // Generate unique ID
+      const id = `kpi-res-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      const isAdmin = user.role === 'ADMIN';
+
+      const db = getDatabase();
+      const resource = await db.createKpiResource({
+        id,
+        title,
+        description,
+        category,
+        department,
+        tags,
+        resourceType: 'BI_DASHBOARD',
+        dashboardType,
+        dashboardUrl,
+        workspaceId,
+        reportId,
+        uploadedBy,
+        isPublic: isPublic !== undefined ? isPublic : true,
+        aiIndexed: false,
+        approvalStatus: isAdmin ? 'APPROVED' : 'PENDING',
+        status: isAdmin ? 'ACTIVE' : 'PENDING',
+        approvedBy: isAdmin ? user.id : undefined,
+        approvedAt: isAdmin ? new Date() : undefined
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: resource,
+        message: isAdmin
+          ? 'Dashboard added and published successfully'
+          : 'Dashboard added. Waiting for approval.'
+      });
+
+    }
+
+    // Fallback: Handle FormData (Standard File Upload)
     const formData = await request.formData();
 
-    const title = formData.get('title') as string;
-    const description = formData.get('description') as string | null;
-    const category = formData.get('category') as string;
-    const department = formData.get('department') as string | null;
-    const tagsStr = formData.get('tags') as string | null;
-    const isPublic = formData.get('isPublic') === 'true';
-
-    // Ignore client-sent uploadedBy, use authenticated user
-    const uploadedBy = user.id;
-    const file = formData.get('file') as File;
+    title = formData.get('title') as string;
+    description = formData.get('description') as string | null;
+    category = formData.get('category') as string;
+    department = formData.get('department') as string | null;
+    tagsStr = formData.get('tags') as string | null;
+    isPublic = formData.get('isPublic') === 'true';
+    file = formData.get('file') as File;
 
     if (!title || !category || !file) {
       return NextResponse.json(
@@ -78,7 +139,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Parse tags
-    const tags = tagsStr ? JSON.parse(tagsStr) : [];
+    tags = tagsStr ? JSON.parse(tagsStr) : [];
 
     // Get file info
     const fileName = file.name;
@@ -102,6 +163,7 @@ export async function POST(request: NextRequest) {
 
     // Generate unique ID
     const id = `kpi-res-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const isAdmin = user.role === 'ADMIN';
 
     // Save metadata to database
     const db = getDatabase();
@@ -120,14 +182,16 @@ export async function POST(request: NextRequest) {
       storageUrl,
       uploadedBy,
       isPublic,
-      aiIndexed: false // Default to false, will be processed by AI background job
+      aiIndexed: false,
+      approvalStatus: isAdmin ? 'APPROVED' : 'PENDING',
+      status: isAdmin ? 'ACTIVE' : 'PENDING',
+      approvedBy: isAdmin ? user.id : undefined,
+      approvedAt: isAdmin ? new Date() : undefined
     });
 
     // Trigger AI Indexing (RAG)
     try {
       const { knowledgeBaseService } = await import('@/lib/ai/knowledge-base-service');
-      // We don't await this to keep UI responsive, but for demo purposes if we want immediate result we could.
-      // Let's fire and forget, but log errors.
       knowledgeBaseService.indexDocument(resource.id, storageUrl, {
         mimeType,
         fileName,
@@ -141,7 +205,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       success: true,
       data: resource,
-      message: 'Resource uploaded successfully. AI indexing started in background.'
+      message: isAdmin
+        ? 'Resource uploaded and published successfully (Auto-approved for Admin)'
+        : 'Resource uploaded successfully. Waiting for approval.'
     });
 
   } catch (error: any) {
@@ -151,4 +217,12 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Handle JSON body for BI Dashboards
+ */
+export async function PUT(request: NextRequest) {
+  // We use POST with JSON body for BI Dashboards, mapping to this handler or modify POST above
+  // Actually the frontend uses POST for both. We should handle JSON vs FormData in POST.
 }
