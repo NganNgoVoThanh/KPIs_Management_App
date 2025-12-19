@@ -63,7 +63,13 @@
       "Bash(find .local-storage/kpiTemplates -name \"*.json\" -exec sh -c 'echo \"\"=== {} ===\"\" && cat \"\"{}\"\" | grep -E \"\"\\\"\"(name|description|isActive)\\\"\"\"\" | head -3' ;)",
       "Bash(grep:*)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(timeout:*)",
+      "Bash(node scripts/test-template-detection.js:*)",
+      "Bash(node scripts/test-full-parsing.js:*)",
+      "Bash(find .local-storage/kpiTemplates -name \"*.json\" -exec sh -c 'echo \"\"=== {} ===\"\" && cat \"\"{}\"\" | grep -E \"\"\\\\\"\"\\(name|description|isActive|status\\)\\\\\"\"\"\" | head -4' ;)",
+      "Bash(find .local-storage/kpiTemplates -name \"*.json\" -exec sh -c '\n  file=\"\"{}\"\"\n  if grep -q \"\"\\\\\"\"status\\\\\"\": \\\\\"\"APPROVED\\\\\"\"\"\" \"\"$file\"\"; then\n    echo \"\"Updating $file\"\"\n    sed -i \"\"s/\\\\\"\"status\\\\\"\": \\\\\"\"APPROVED\\\\\"\"/\\\\\"\"status\\\\\"\": \\\\\"\"ACTIVE\\\\\"\"/g\"\" \"\"$file\"\"\n  fi\n' ;)",
+      "Bash(find .local-storage/kpiTemplates -name \"*.json\" -exec sh -c '\n  file=\"\"{}\"\"\n  if grep -q \"\"\\\\\"\"isActive\\\\\"\": false\"\" \"\"$file\"\" && grep -q \"\"\\\\\"\"status\\\\\"\": \\\\\"\"ACTIVE\\\\\"\"\"\" \"\"$file\"\"; then\n    echo \"\"Activating $file\"\"\n    sed -i \"\"s/\\\\\"\"isActive\\\\\"\": false/\\\\\"\"isActive\\\\\"\": true/g\"\" \"\"$file\"\"\n  fi\n' ;)"
     ],
     "deny": [],
     "ask": []

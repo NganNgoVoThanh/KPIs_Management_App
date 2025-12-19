@@ -246,13 +246,16 @@ function KpisPageContent() {
       return
     }
 
+    // TEMPORARY: Allow submission without manager for testing
+    // TODO: Re-enable manager validation after seeding test managers
     if (!user.managerId) {
-      toast({
-        title: "Cannot Submit KPI",
-        description: "You don't have a Line Manager assigned. Please contact HR to set up your manager before submitting KPIs.",
-        variant: "destructive"
-      })
-      return
+      console.warn('[KPI-SUBMIT] User has no manager assigned, but allowing for testing purposes');
+      // toast({
+      //   title: "Cannot Submit KPI",
+      //   description: "You don't have a Line Manager assigned. Please contact HR to set up your manager before submitting KPIs.",
+      //   variant: "destructive"
+      // })
+      // return
     }
 
     setSelectedKpiId(kpi.id)

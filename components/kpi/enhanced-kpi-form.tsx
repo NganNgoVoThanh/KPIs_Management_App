@@ -125,7 +125,8 @@ export function KpiForm({
         dataSource: currentKpi.dataSource || ''
       });
     }
-  }, [kpis, selectedKpiIndex, validateSMART]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kpis, selectedKpiIndex]);
 
   // Update SMART validation results when they come back
   useEffect(() => {

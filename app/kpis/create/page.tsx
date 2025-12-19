@@ -58,12 +58,9 @@ export default function CreateKpiPage() {
         return
       }
 
-      // Call API to create KPIs
-      const response = await fetch('/api/kpi', {
+      // Call API to create KPIs - MUST use authenticatedFetch to include x-user-id header
+      const response = await authenticatedFetch('/api/kpi', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           kpis,
           cycleId: currentCycle.id

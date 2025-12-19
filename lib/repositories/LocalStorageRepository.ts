@@ -873,7 +873,7 @@ export class LocalStorageRepository implements IDatabaseRepository {
           weight: row[10] ? parseFloat(row[10].toString()) : undefined,
           source: 'EXCEL_IMPORT',
           uploadId: id,
-          status: 'APPROVED',
+          status: 'ACTIVE',
           isActive: true,
           createdBy: upload.uploadedBy, // Attribute to uploader
           createdAt: new Date().toISOString(),
@@ -993,12 +993,12 @@ export class LocalStorageRepository implements IDatabaseRepository {
   async getTemplateStatistics(): Promise<any> {
     const templates = await this.getAllRecords<any>('kpiTemplates')
 
-    // Only count templates that haven't been deleted
-    const activeTemplates = templates.filter(t => !t.deletedAt && !t.isDeleted)
+    // Only count templates that haven't been deleted or archived
+    const activeTemplates = templates.filter(t => !t.deletedAt && !t.isDeleted && !t.archivedAt)
 
     return {
       total: activeTemplates.length,
-      active: activeTemplates.filter(t => t.isActive).length,
+      active: activeTemplates.filter(t => t.isActive && t.status === 'ACTIVE').length,
       pending: activeTemplates.filter(t => t.status === 'PENDING_REVIEW').length,
       approved: activeTemplates.filter(t => t.status === 'APPROVED').length,
       rejected: activeTemplates.filter(t => t.status === 'REJECTED').length,

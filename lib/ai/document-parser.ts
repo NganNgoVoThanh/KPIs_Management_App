@@ -1,7 +1,7 @@
 
 import * as XLSX from 'xlsx';
 import mammoth from 'mammoth';
-import pdf from 'pdf-parse';
+import * as pdfParse from 'pdf-parse';
 
 export class DocumentParser {
     /**
@@ -37,7 +37,7 @@ export class DocumentParser {
     }
 
     private static async parsePdf(buffer: Buffer): Promise<string> {
-        const data = await pdf(buffer);
+        const data = await pdfParse(buffer);
         return data.text;
     }
 
