@@ -6,7 +6,9 @@
       "Bash(npm run build:*)",
       "Bash(dir /s /b components*notif*.tsx)",
       "Bash(powershell -Command \"Remove-Item -Recurse -Force .next\")",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nFix Vercel deployment: wrap useSearchParams in Suspense boundary\n\n- Fix useSearchParams\\(\\) error in /change-requests/create page by wrapping in Suspense\n- Remove debug routes and test files\n- Update approval flow and notification handling\n- Clean up temporary build files\n\n🤖 Generated with [Claude Code]\\(https://claude.com/claude-code\\)\n\nCo-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git push:*)"
     ]
   }
 }
