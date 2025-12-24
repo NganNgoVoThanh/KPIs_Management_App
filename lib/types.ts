@@ -44,8 +44,8 @@ export type KpiType =
 export type KpiStatus =
   | "DRAFT"
   | "SUBMITTED"
-  | "PENDING_LM"
-  | "PENDING_MANAGER"
+  | "WAITING_LINE_MGR"    // Waiting for Line Manager approval (Level 1)
+  | "WAITING_MANAGER"     // Waiting for Manager/HOD approval (Level 2)
   | "APPROVED"
   | "REJECTED"
   | "LOCKED_GOALS"
@@ -198,8 +198,8 @@ export interface Cycle {
 export type ActualStatus =
   | "DRAFT"
   | "SUBMITTED"
-  | "PENDING_LM"
-  | "PENDING_MANAGER"
+  | "WAITING_LINE_MGR"    // Waiting for Line Manager approval (Level 1)
+  | "WAITING_MANAGER"     // Waiting for Manager/HOD approval (Level 2)
   | "APPROVED"
   | "REJECTED"
   | "LOCKED_ACTUALS"

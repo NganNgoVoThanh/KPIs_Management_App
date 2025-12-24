@@ -1,7 +1,9 @@
 // app/api/notifications/[id]/read/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { authService } from '@/lib/auth-service'
-import { db } from '@/lib/db'
+import { getAuthenticatedUser } from '@/lib/auth-server'
+import { getDatabase } from '@/lib/repositories/DatabaseFactory'
+
+export const dynamic = 'force-dynamic'
 
 interface RouteParams {
   params: Promise<{
@@ -18,7 +20,7 @@ export async function POST(
   { params }: RouteParams
 ) {
   try {
-    const user = authService.getCurrentUser()
+    const user = await getAuthenticatedUser(request)
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -27,9 +29,13 @@ export async function POST(
     }
 
     const { id } = await params
+    const db = getDatabase()
 
-    // Mark as read
-    await db.markNotificationAsRead(id)
+    // Mark as read by updating status
+    await db.updateNotification(id, {
+      status: 'READ',
+      readAt: new Date()
+    })
 
     return NextResponse.json({
       success: true,

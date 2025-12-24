@@ -1,7 +1,10 @@
 // app/api/notifications/mark-all-read/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { authService } from '@/lib/auth-service'
-import { db } from '@/lib/db'
+import { getAuthenticatedUser } from '@/lib/auth-server'
+import { getDatabase } from '@/lib/repositories/DatabaseFactory'
+
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
 
 /**
  * POST /api/notifications/mark-all-read
@@ -9,7 +12,7 @@ import { db } from '@/lib/db'
  */
 export async function POST(request: NextRequest) {
   try {
-    const user = authService.getCurrentUser()
+    const user = await getAuthenticatedUser(request)
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
@@ -17,7 +20,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    await db.markAllNotificationsAsRead(user.id)
+    const db = getDatabase()
+    await db.markAllAsRead(user.id)
 
     return NextResponse.json({
       success: true,
@@ -26,6 +30,7 @@ export async function POST(request: NextRequest) {
 
   } catch (error: any) {
     console.error('POST /api/notifications/mark-all-read error:', error)
+    console.error('Stack:', error.stack)
     return NextResponse.json(
       { error: 'Failed to mark all notifications as read', details: error.message },
       { status: 500 }

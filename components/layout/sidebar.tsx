@@ -29,10 +29,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Badge } from "@/components/ui/badge"
-import { notificationService } from "@/lib/notification-service"
-import { kpiService } from "@/lib/kpi-service"
+import { authenticatedFetch } from "@/lib/api-client"
 
 interface SidebarProps {
   user: User
@@ -47,6 +46,8 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
     management: false,
     admin: false
   })
+  const [unreadNotifications, setUnreadNotifications] = useState(0)
+  const [pendingApprovals, setPendingApprovals] = useState(0)
 
   const toggleSection = (section: string) => {
     setOpenSections(prev => ({
@@ -55,9 +56,48 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
     }))
   }
 
-  // Get pending counts
-  const unreadNotifications = notificationService.getUnreadCount(user.id)
-  const pendingApprovals = kpiService.getPendingApprovals().length
+  // Fetch notification count from API
+  useEffect(() => {
+    const fetchNotificationCount = async () => {
+      try {
+        const response = await authenticatedFetch('/api/notifications')
+        const data = await response.json()
+        if (data.success && data.stats) {
+          setUnreadNotifications(data.stats.unread || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching notification count:', error)
+      }
+    }
+
+    const fetchApprovalCount = async () => {
+      try {
+        const response = await authenticatedFetch('/api/approvals?status=PENDING')
+        const data = await response.json()
+        if (data.success) {
+          setPendingApprovals(data.data?.length || 0)
+        }
+      } catch (error) {
+        console.error('Error fetching approval count:', error)
+      }
+    }
+
+    fetchNotificationCount()
+    if (["LINE_MANAGER", "MANAGER", "ADMIN"].includes(user.role)) {
+      fetchApprovalCount()
+    }
+
+    // Poll for updates every 30 seconds
+    const notificationInterval = setInterval(fetchNotificationCount, 30000)
+    const approvalInterval = ["LINE_MANAGER", "MANAGER", "ADMIN"].includes(user.role)
+      ? setInterval(fetchApprovalCount, 30000)
+      : null
+
+    return () => {
+      clearInterval(notificationInterval)
+      if (approvalInterval) clearInterval(approvalInterval)
+    }
+  }, [user.role])
 
   const menuItems = [
     {

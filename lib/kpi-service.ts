@@ -4,6 +4,7 @@ import { authService } from './auth-service'
 import type {
   KpiDefinition,
   KpiActual,
+  KpiStatus,
   Approval,
   ChangeRequest,
   User,
@@ -29,15 +30,7 @@ const getNotificationService = () => {
   return notificationService
 }
 
-export type KpiStatus =
-  | 'DRAFT'
-  | 'SUBMITTED'
-  | 'PENDING_LM'
-  | 'PENDING_MANAGER'
-  | 'APPROVED'
-  | 'REJECTED'
-  | 'LOCKED_GOALS'
-  | 'ARCHIVED'
+
 
 export type ApprovalLevel = 1 | 2
 
@@ -162,7 +155,7 @@ class KpiService {
 
     // Update KPI status
     storageService.updateKpiDefinition(kpiId, {
-      status: 'PENDING_LM',
+      status: 'WAITING_LINE_MGR',
       submittedAt: new Date().toISOString()
     })
 
@@ -282,7 +275,7 @@ class KpiService {
     // Determine next status based on level
     if (level === 1) {
       // Move to Manager (N+2)
-      nextStatus = 'PENDING_MANAGER'
+      nextStatus = 'WAITING_MANAGER'
 
       const manager = this.getNextApprover(user, 2)
       if (manager) {

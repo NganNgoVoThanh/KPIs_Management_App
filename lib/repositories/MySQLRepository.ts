@@ -324,12 +324,16 @@ export class MySQLRepository implements IDatabaseRepository {
     approverId?: string
     status?: string
     entityType?: string
+    kpiDefinitionId?: string
+    entityId?: string
   }) {
     return await this.client.approval.findMany({
       where: {
         ...(filters?.approverId && { approverId: filters.approverId }),
         ...(filters?.status && { status: filters.status }),
         ...(filters?.entityType && { entityType: filters.entityType }),
+        ...(filters?.kpiDefinitionId && { kpiDefinitionId: filters.kpiDefinitionId }),
+        ...(filters?.entityId && { entityId: filters.entityId }),
       },
       include: {
         approver: true,
@@ -731,7 +735,6 @@ export class MySQLRepository implements IDatabaseRepository {
       where: {
         ...(filters?.type && { type: filters.type }),
         ...(filters?.department && { department: filters.department }),
-        ...(filters?.aiIndexed !== undefined && { aiIndexed: filters.aiIndexed }),
       },
       include: {
         uploader: true,
@@ -1179,14 +1182,11 @@ export class MySQLRepository implements IDatabaseRepository {
   }
 
   async getTemplateStatistics(): Promise<any> {
-    // Only count templates that haven't been deleted
-    const notDeletedFilter = { deletedAt: null }
-
     const [total, approved, pending, drafts] = await Promise.all([
-      this.client.kpiTemplate.count({ where: notDeletedFilter }),
-      this.client.kpiTemplate.count({ where: { ...notDeletedFilter, status: 'APPROVED' } }),
-      this.client.kpiTemplate.count({ where: { ...notDeletedFilter, status: 'PENDING' } }),
-      this.client.kpiTemplate.count({ where: { ...notDeletedFilter, status: 'DRAFT' } })
+      this.client.kpiTemplate.count({ where: { status: { not: 'ARCHIVED' } } }),
+      this.client.kpiTemplate.count({ where: { status: 'APPROVED' } }),
+      this.client.kpiTemplate.count({ where: { status: 'PENDING' } }),
+      this.client.kpiTemplate.count({ where: { status: 'DRAFT' } })
     ])
 
     return { total, approved, pending, drafts }

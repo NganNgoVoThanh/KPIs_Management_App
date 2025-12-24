@@ -27,10 +27,16 @@ export async function GET(request: NextRequest) {
 
     // Get notifications for user
     const db = getDatabase()
-    const notifications = await db.getNotifications(user.id, unreadOnly)
+    const allNotifications = await db.getNotifications({
+      userId: user.id,
+      ...(unreadOnly && { status: 'UNREAD' })
+    })
+
+    // Filter out deleted notifications
+    const notifications = allNotifications.filter(n => n.status !== 'DELETED')
 
     // Sort by creation date (newest first)
-    notifications.sort((a, b) => 
+    notifications.sort((a, b) =>
       new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
 
@@ -45,7 +51,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: limitedNotifications,
+      notifications: limitedNotifications,
       count: limitedNotifications.length,
       stats: {
         total: notifications.length,

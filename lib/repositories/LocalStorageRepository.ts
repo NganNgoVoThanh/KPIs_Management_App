@@ -605,7 +605,6 @@ export class LocalStorageRepository implements IDatabaseRepository {
   async getCompanyDocuments(filters?: {
     type?: string
     department?: string
-    aiIndexed?: boolean
   }): Promise<any[]> {
     const documents = await this.getAllRecords<any>('companyDocuments')
     return documents.filter(doc => this.matchesFilters(doc, filters))

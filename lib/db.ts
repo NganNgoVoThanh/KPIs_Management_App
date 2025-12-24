@@ -140,6 +140,8 @@ export class DatabaseService implements IDatabaseRepository {
     approverId?: string
     status?: string
     entityType?: string
+    kpiDefinitionId?: string
+    entityId?: string
   }) {
     return this.repository.getApprovals(filters)
   }
@@ -330,7 +332,6 @@ export class DatabaseService implements IDatabaseRepository {
   async getCompanyDocuments(filters?: {
     type?: string
     department?: string
-    aiIndexed?: boolean
   }) {
     return this.repository.getCompanyDocuments(filters)
   }

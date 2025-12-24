@@ -49,6 +49,8 @@ export interface IApprovalRepository {
     approverId?: string
     status?: string
     entityType?: string
+    kpiDefinitionId?: string
+    entityId?: string
   }): Promise<any[]>
   getApprovalById(id: string): Promise<any | null>
   createApproval(data: any): Promise<any>
@@ -134,7 +136,6 @@ export interface ICompanyDocumentRepository {
   getCompanyDocuments(filters?: {
     type?: string
     department?: string
-    aiIndexed?: boolean
   }): Promise<any[]>
   getCompanyDocumentById(id: string): Promise<any | null>
   createCompanyDocument(data: any): Promise<any>
@@ -189,23 +190,23 @@ export interface IEnhancedKpiTemplateRepository extends IKpiTemplateRepository {
 // This combines all repository interfaces
 export interface IDatabaseRepository
   extends IUserRepository,
-    IOrgUnitRepository,
-    ICycleRepository,
-    IKpiDefinitionRepository,
-    IKpiActualRepository,
-    IApprovalRepository,
-    IChangeRequestRepository,
-    INotificationRepository,
-    IAuditLogRepository,
-    IEvidenceRepository,
-    IKpiLibraryRepository,
-    IApprovalHierarchyRepository,
-    IProxyActionRepository,
-    IHistoricalDataRepository,
-    IEnhancedKpiTemplateRepository,
-    ICompanyDocumentRepository,
-    IKpiResourceRepository,
-    IKpiLibraryUploadRepository {
+  IOrgUnitRepository,
+  ICycleRepository,
+  IKpiDefinitionRepository,
+  IKpiActualRepository,
+  IApprovalRepository,
+  IChangeRequestRepository,
+  INotificationRepository,
+  IAuditLogRepository,
+  IEvidenceRepository,
+  IKpiLibraryRepository,
+  IApprovalHierarchyRepository,
+  IProxyActionRepository,
+  IHistoricalDataRepository,
+  IEnhancedKpiTemplateRepository,
+  ICompanyDocumentRepository,
+  IKpiResourceRepository,
+  IKpiLibraryUploadRepository {
   // Transaction support
   transaction<T>(fn: (tx: any) => Promise<T>): Promise<T>
 

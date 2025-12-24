@@ -127,32 +127,63 @@ export default function ApprovalsPage() {
     setIsProcessing(true)
 
     try {
+      // Determine correct HTTP method and endpoint
+      const isApprove = dialogAction === 'APPROVE'
+      const method = isApprove ? 'POST' : 'PATCH'
+
+      // Get KPI ID from either entity.id, approval.entityId, or entityId
+      const kpiId = selectedApproval.entity?.id || selectedApproval.approval?.entityId || selectedApproval.entityId
+
+      if (!kpiId) {
+        console.error('[APPROVE-ERROR] No KPI ID found in selectedApproval:', selectedApproval)
+        toast({
+          title: "Error",
+          description: "Cannot find KPI ID. Please refresh and try again.",
+          variant: "destructive"
+        })
+        setIsProcessing(false)
+        return
+      }
+
+      console.log(`[APPROVE] Processing ${dialogAction} for KPI ${kpiId}`)
+
       // Call API to approve/reject
-      const response = await authenticatedFetch(`/api/kpi/${selectedApproval.entityId}/approve`, {
-        method: 'POST',
+      const response = await authenticatedFetch(`/api/kpi/${kpiId}/approve`, {
+        method: method,
         body: JSON.stringify({
-          action: dialogAction,
-          comment: comment,
-          approvalId: selectedApproval.id
+          comment: comment || null
         })
       })
 
       const result = await response.json()
 
       if (response.ok && result.success) {
+        // Show success message
         toast({
           title: "Success",
           description: result.message || `KPI ${dialogAction.toLowerCase()}d successfully`
         })
 
-        // Reload approvals
-        if (user) loadApprovals(user)
+        // Clean up dialog state FIRST
+        setShowDialog(false)
+        setSelectedApproval(null)
+        setComment("")
+        setDialogAction(null)
+        setIsProcessing(false)
+
+        // Reload approvals AFTER dialog is closed to prevent race condition
+        if (user) {
+          console.log('[APPROVE] Reloading approvals after action')
+          await loadApprovals(user)
+        }
       } else {
+        // Error case - keep dialog open, just stop processing
         toast({
           title: "Error",
           description: result.error || 'Failed to process approval',
           variant: "destructive"
         })
+        setIsProcessing(false)
       }
     } catch (error) {
       console.error('Approval processing error:', error)
@@ -161,11 +192,7 @@ export default function ApprovalsPage() {
         description: "Failed to process approval",
         variant: "destructive"
       })
-    } finally {
       setIsProcessing(false)
-      setShowDialog(false)
-      setSelectedApproval(null)
-      setComment("")
     }
   }
 
@@ -443,23 +470,90 @@ export default function ApprovalsPage() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {approvalQueue.approved.map((approval: Approval, index: number) => (
-                  <Card key={index}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{approval.entityType}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Approved on {formatDate(approval.decidedAt!)}
-                          </p>
+                {approvalQueue.approved.map((item: any, index: number) => {
+                  const { entity, approval, submitter, approver } = item
+                  const isKpi = approval.entityType === 'KPI'
+
+                  return (
+                    <Card key={index} className="border-green-200 bg-green-50/30">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              {isKpi ? <Target className="h-5 w-5 text-green-600" /> : <TrendingUp className="h-5 w-5 text-green-600" />}
+                              {entity?.title || 'Actual Results'}
+                            </CardTitle>
+                            <CardDescription className="mt-2 space-y-1">
+                              <div className="flex items-center gap-4 text-sm">
+                                <span className="flex items-center gap-1">
+                                  <UserIcon className="h-3 w-3" />
+                                  Submitted by: {submitter?.name || 'Unknown'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  Approved: {formatDate(approval.decidedAt)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-green-700 font-medium">
+                                  Approved by: {approver?.name || 'Unknown'} ({approver?.email || 'N/A'})
+                                </span>
+                              </div>
+                            </CardDescription>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <Badge className="bg-green-600 text-white">
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Approved
+                            </Badge>
+                            <Badge variant="outline" className="border-green-600 text-green-700">
+                              Level {approval.level}
+                            </Badge>
+                          </div>
                         </div>
-                        <Badge className="bg-green-100 text-green-700">
-                          Approved
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {/* KPI Details */}
+                        {isKpi && entity && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm bg-white/50 p-3 rounded-lg">
+                            <div>
+                              <p className="text-muted-foreground">Type</p>
+                              <p className="font-medium">{entity.type?.replace(/_/g, ' ')}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Target</p>
+                              <p className="font-medium">{entity.target} {entity.unit}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Weight</p>
+                              <p className="font-medium">{entity.weight}%</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Data Source</p>
+                              <p className="font-medium text-xs">{entity.dataSource || 'N/A'}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Approval Comment */}
+                        {approval.comment && (
+                          <div className="bg-white/70 rounded-lg p-3 border border-green-200">
+                            <p className="text-xs font-medium text-green-700 mb-1">Approval Comment:</p>
+                            <p className="text-sm text-gray-700">{approval.comment}</p>
+                          </div>
+                        )}
+
+                        {/* Description if exists */}
+                        {entity?.description && (
+                          <div className="bg-white/50 rounded-lg p-3">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Description:</p>
+                            <p className="text-sm">{entity.description}</p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </TabsContent>
@@ -477,28 +571,104 @@ export default function ApprovalsPage() {
               </Card>
             ) : (
               <div className="grid gap-4">
-                {approvalQueue.rejected.map((approval: Approval, index: number) => (
-                  <Card key={index}>
-                    <CardContent className="p-4">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium">{approval.entityType}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Rejected on {formatDate(approval.decidedAt!)}
-                          </p>
-                          {approval.comment && (
-                            <p className="text-sm mt-1">
-                              Reason: {approval.comment}
-                            </p>
-                          )}
+                {approvalQueue.rejected.map((item: any, index: number) => {
+                  const { entity, approval, submitter, approver } = item
+                  const isKpi = approval.entityType === 'KPI'
+
+                  return (
+                    <Card key={index} className="border-red-200 bg-red-50/30">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              {isKpi ? <Target className="h-5 w-5 text-red-600" /> : <TrendingUp className="h-5 w-5 text-red-600" />}
+                              {entity?.title || 'Actual Results'}
+                            </CardTitle>
+                            <CardDescription className="mt-2 space-y-1">
+                              <div className="flex items-center gap-4 text-sm">
+                                <span className="flex items-center gap-1">
+                                  <UserIcon className="h-3 w-3" />
+                                  Submitted by: {submitter?.name || 'Unknown'}
+                                </span>
+                                <span className="flex items-center gap-1">
+                                  <Calendar className="h-3 w-3" />
+                                  Rejected: {formatDate(approval.decidedAt)}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-sm">
+                                <span className="text-red-700 font-medium">
+                                  Rejected by: {approver?.name || 'Unknown'} ({approver?.email || 'N/A'})
+                                </span>
+                              </div>
+                            </CardDescription>
+                          </div>
+                          <div className="flex flex-col items-end gap-2">
+                            <Badge variant="destructive">
+                              <XCircle className="h-3 w-3 mr-1" />
+                              Rejected
+                            </Badge>
+                            <Badge variant="outline" className="border-red-600 text-red-700">
+                              Level {approval.level}
+                            </Badge>
+                          </div>
                         </div>
-                        <Badge variant="destructive">
-                          Rejected
-                        </Badge>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {/* KPI Details */}
+                        {isKpi && entity && (
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm bg-white/50 p-3 rounded-lg">
+                            <div>
+                              <p className="text-muted-foreground">Type</p>
+                              <p className="font-medium">{entity.type?.replace(/_/g, ' ')}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Target</p>
+                              <p className="font-medium">{entity.target} {entity.unit}</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Weight</p>
+                              <p className="font-medium">{entity.weight}%</p>
+                            </div>
+                            <div>
+                              <p className="text-muted-foreground">Data Source</p>
+                              <p className="font-medium text-xs">{entity.dataSource || 'N/A'}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Rejection Reason - ALWAYS SHOW */}
+                        <div className="bg-red-100 rounded-lg p-4 border-2 border-red-300">
+                          <div className="flex items-start gap-2">
+                            <AlertCircle className="h-5 w-5 text-red-700 mt-0.5 flex-shrink-0" />
+                            <div className="flex-1">
+                              <p className="text-sm font-semibold text-red-900 mb-1">Rejection Reason:</p>
+                              <p className="text-sm text-red-800">
+                                {approval.comment || 'No reason provided'}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Description if exists */}
+                        {entity?.description && (
+                          <div className="bg-white/50 rounded-lg p-3">
+                            <p className="text-xs font-medium text-muted-foreground mb-1">Description:</p>
+                            <p className="text-sm">{entity.description}</p>
+                          </div>
+                        )}
+
+                        {/* Action hint for staff */}
+                        {submitter?.id === user?.id && (
+                          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                            <p className="text-xs text-blue-800">
+                              <strong>Next Step:</strong> You can revise this KPI based on the feedback and resubmit it for approval.
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  )
+                })}
               </div>
             )}
           </TabsContent>

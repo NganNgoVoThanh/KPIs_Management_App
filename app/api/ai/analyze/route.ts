@@ -94,7 +94,7 @@ export async function POST(request: NextRequest) {
       try {
         const actuals = await db.getKpiActuals({ kpiDefinitionId: kpiId });
         if (actuals.length > 0) {
-          const evidenceRecords = await db.getEvidences(actuals[0].id);
+          const evidenceRecords = await db.getEvidencesByActualId(actuals[0].id);
           evidence = evidenceRecords || [];
         }
       } catch (error) {

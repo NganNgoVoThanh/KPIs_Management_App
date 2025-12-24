@@ -100,9 +100,8 @@ function KpisPageContent() {
     switch (status) {
       case "DRAFT": return <FileText className="h-4 w-4 text-gray-500" />
       case "SUBMITTED": return <Clock className="h-4 w-4 text-blue-500" />
-      case "PENDING_LM": return <Clock className="h-4 w-4 text-yellow-500" />
-      case "PENDING_HOD": return <Clock className="h-4 w-4 text-yellow-600" />
-      case "PENDING_BOD": return <Clock className="h-4 w-4 text-orange-500" />
+      case "WAITING_LINE_MGR": return <Clock className="h-4 w-4 text-yellow-500" />
+      case "WAITING_MANAGER": return <Clock className="h-4 w-4 text-yellow-600" />
       case "APPROVED": return <CheckCircle className="h-4 w-4 text-green-500" />
       case "REJECTED": return <XCircle className="h-4 w-4 text-red-500" />
       case "LOCKED_GOALS": return <Award className="h-4 w-4 text-blue-600" />
@@ -114,9 +113,8 @@ function KpisPageContent() {
     switch (status) {
       case "DRAFT": return "bg-gray-100 text-gray-700 border-gray-300"
       case "SUBMITTED": return "bg-blue-100 text-blue-700 border-blue-300"
-      case "PENDING_LM": return "bg-yellow-100 text-yellow-700 border-yellow-300"
-      case "PENDING_HOD": return "bg-yellow-100 text-yellow-800 border-yellow-400"
-      case "PENDING_BOD": return "bg-orange-100 text-orange-700 border-orange-300"
+      case "WAITING_LINE_MGR": return "bg-yellow-100 text-yellow-700 border-yellow-300"
+      case "WAITING_MANAGER": return "bg-yellow-100 text-yellow-800 border-yellow-400"
       case "APPROVED": return "bg-green-100 text-green-700 border-green-300"
       case "REJECTED": return "bg-red-100 text-red-700 border-red-300"
       case "LOCKED_GOALS": return "bg-blue-100 text-blue-800 border-blue-400"
@@ -144,7 +142,7 @@ function KpisPageContent() {
   const kpiStats = {
     total: kpis.length,
     draft: kpis.filter(k => k.status === "DRAFT").length,
-    pending: kpis.filter(k => k.status.includes("PENDING") || k.status === "SUBMITTED").length,
+    pending: kpis.filter(k => k.status === "WAITING_LINE_MGR" || k.status === "WAITING_MANAGER" || k.status === "SUBMITTED").length,
     approved: kpis.filter(k => k.status === "APPROVED" || k.status === "LOCKED_GOALS").length,
     rejected: kpis.filter(k => k.status === "REJECTED").length,
     totalWeight: kpis.reduce((sum, k) => sum + (k.weight || 0), 0),
@@ -469,9 +467,8 @@ function KpisPageContent() {
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="DRAFT">Draft</SelectItem>
                   <SelectItem value="SUBMITTED">Submitted</SelectItem>
-                  <SelectItem value="PENDING_LM">Pending LM</SelectItem>
-                  <SelectItem value="PENDING_HOD">Pending HoD</SelectItem>
-                  <SelectItem value="PENDING_BOD">Pending BOD</SelectItem>
+                  <SelectItem value="WAITING_LINE_MGR">Waiting Line Manager</SelectItem>
+                  <SelectItem value="WAITING_MANAGER">Waiting Manager (HOD)</SelectItem>
                   <SelectItem value="APPROVED">Approved</SelectItem>
                   <SelectItem value="REJECTED">Rejected</SelectItem>
                   <SelectItem value="LOCKED_GOALS">Locked Goals</SelectItem>

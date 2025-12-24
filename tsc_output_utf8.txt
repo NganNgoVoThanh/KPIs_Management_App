@@ -1,0 +1,24 @@
+﻿app/api/admin/index-documents/route.ts(52,28): error TS2353: Object literal may only specify known properties, and 'aiIndexed' does not exist in type '{ category?: string | undefined; resourceType?: string | undefined; department?: string | undefined; status?: string | undefined; approvalStatus?: string | undefined; isPublic?: boolean | undefined; isFeatured?: boolean | undefined; dashboardType?: string | undefined; searchQuery?: string | undefined; }'.
+app/api/admin/index-documents/route.ts(53,32): error TS2353: Object literal may only specify known properties, and 'aiIndexed' does not exist in type '{ type?: string | undefined; department?: string | undefined; }'.
+app/api/admin/index-documents/route.ts(54,33): error TS2353: Object literal may only specify known properties, and 'aiIndexed' does not exist in type '{ status?: string | undefined; }'.
+app/api/admin/index-documents/route.ts(151,18): error TS2551: Property 'updateKpiLibraryUpload' does not exist on type 'IDatabaseRepository'. Did you mean 'createKpiLibraryUpload'?
+app/api/admin/index-documents/route.ts(214,28): error TS2353: Object literal may only specify known properties, and 'aiIndexed' does not exist in type '{ category?: string | undefined; resourceType?: string | undefined; department?: string | undefined; status?: string | undefined; approvalStatus?: string | undefined; isPublic?: boolean | undefined; isFeatured?: boolean | undefined; dashboardType?: string | undefined; searchQuery?: string | undefined; }'.
+app/api/admin/index-documents/route.ts(216,32): error TS2353: Object literal may only specify known properties, and 'aiIndexed' does not exist in type '{ type?: string | undefined; department?: string | undefined; }'.
+app/api/admin/index-documents/route.ts(218,33): error TS2353: Object literal may only specify known properties, and 'aiIndexed' does not exist in type '{ status?: string | undefined; }'.
+app/api/admin/proxy/statistics/route.ts(24,56): error TS2554: Expected 0 arguments, but got 2.
+app/api/ai/analyze/route.ts(97,44): error TS2339: Property 'getEvidences' does not exist on type 'DatabaseService'.
+app/api/dashboard/route.ts(27,30): error TS2339: Property 'getAdminStatistics' does not exist on type 'DatabaseService'.
+app/api/dashboard/route.ts(46,9): error TS2322: Type '{ in: any[]; }' is not assignable to type 'string'.
+app/api/debug/reset-data/route.ts(92,65): error TS2554: Expected 0-1 arguments, but got 2.
+app/api/kpi/[id]/archive/route.ts(64,20): error TS2554: Expected 4 arguments, but got 1.
+app/api/kpi/[id]/archive/route.ts(137,20): error TS2554: Expected 4 arguments, but got 1.
+azure-function/src/execute/index.ts(4,71): error TS2307: Cannot find module '@azure/functions' or its corresponding type declarations.
+azure-function/src/functions.ts(2,21): error TS2307: Cannot find module '@azure/functions' or its corresponding type declarations.
+azure-function/src/health/index.ts(4,71): error TS2307: Cannot find module '@azure/functions' or its corresponding type declarations.
+azure-function/src/index.ts(2,71): error TS2307: Cannot find module '@azure/functions' or its corresponding type declarations.
+azure-function/src/query/index.ts(4,71): error TS2307: Cannot find module '@azure/functions' or its corresponding type declarations.
+components/ai/smart-validation-panel.tsx(609,22): error TS2365: Operator '>' cannot be applied to types 'string[]' and 'number'.
+lib/ai/document-parser.ts(40,28): error TS2349: This expression is not callable.
+  Type 'typeof import("C:/Users/ngan.ngo/KPIs_Management_App/node_modules/pdf-parse/dist/pdf-parse/esm/index")' has no call signatures.
+lib/kpi-utils.ts(312,10): error TS2678: Type '"BEHAVIOR"' is not comparable to type 'KpiType'.
+lib/onelake-db-service.ts(365,5): error TS2741: Property 'resourceType' is missing in type '{ id: any; title: any; description: any; category: KpiResourceCategory; department: any; tags: any; fileName: any; fileType: any; fileSize: any; mimeType: any; storageProvider: any; storageUrl: any; ... 12 more ...; rejectionReason: any; }' but required in type 'KpiResource'.

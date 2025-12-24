@@ -88,11 +88,26 @@ export async function GET(request: NextRequest) {
         let entity: any = null
         let submitter: any = null
         let daysPending = 0
+        let entityNotFoundReason: string | null = null
 
         if (approval.entityType === 'KPI') {
           entity = await db.getKpiDefinitionById(approval.entityId)
-          if (entity) {
+          if (!entity) {
+            entityNotFoundReason = `KPI with ID ${approval.entityId} not found in database`
+            console.error(`[APPROVALS-API-ERROR] ${entityNotFoundReason}`, {
+              approvalId: approval.id,
+              entityId: approval.entityId,
+              entityType: approval.entityType,
+              approverId: approval.approverId,
+              status: approval.status,
+              level: approval.level,
+              createdAt: approval.createdAt
+            })
+          } else {
             submitter = await db.getUserById(entity.userId)
+            if (!submitter) {
+              console.error(`[APPROVALS-API-WARNING] Submitter not found for KPI ${entity.id}, userId: ${entity.userId}`)
+            }
           }
         } else if (approval.entityType === 'ACTUAL') {
           const actuals = await db.getKpiActuals({ kpiDefinitionId: approval.entityId })
@@ -101,7 +116,16 @@ export async function GET(request: NextRequest) {
             const kpi = await db.getKpiDefinitionById(entity.kpiDefinitionId)
             if (kpi) {
               submitter = await db.getUserById(kpi.userId)
+            } else {
+              console.error(`[APPROVALS-API-WARNING] KPI not found for actual ${entity.id}, kpiDefinitionId: ${entity.kpiDefinitionId}`)
             }
+          } else {
+            entityNotFoundReason = `ACTUAL with ID ${approval.entityId} not found in database`
+            console.error(`[APPROVALS-API-ERROR] ${entityNotFoundReason}`, {
+              approvalId: approval.id,
+              entityId: approval.entityId,
+              entityType: approval.entityType
+            })
           }
         }
 
@@ -117,13 +141,35 @@ export async function GET(request: NextRequest) {
           entity,
           submitter,
           daysPending,
-          isOverdue: daysPending > 3 // SLA is 3 days per level
+          isOverdue: daysPending > 3, // SLA is 3 days per level
+          entityNotFoundReason
         }
       })
     )
 
-    // Filter out approvals where entity was not found
-    const validApprovals = enrichedApprovals.filter(a => a.entity !== null)
+    // Log approvals where entity was not found but DON'T filter them out
+    // This helps diagnose issues while keeping all approval records visible
+    const approvalsWithoutEntity = enrichedApprovals.filter(a => a.entity === null)
+    if (approvalsWithoutEntity.length > 0) {
+      console.error(`[APPROVALS-API-DIAGNOSTIC] Found ${approvalsWithoutEntity.length} approvals with missing entities:`,
+        approvalsWithoutEntity.map(a => ({
+          approvalId: a.id,
+          entityId: a.entityId,
+          entityType: a.entityType,
+          status: a.status,
+          level: a.level,
+          approverId: a.approverId,
+          reason: a.entityNotFoundReason,
+          createdAt: a.createdAt
+        }))
+      )
+    }
+
+    // Filter out approvals where entity was not found ONLY for PENDING approvals
+    // Keep all historical approvals (APPROVED, REJECTED, CANCELLED) even if entity is missing
+    const validApprovals = enrichedApprovals.filter(a =>
+      a.entity !== null || a.status !== 'PENDING'
+    )
 
     // Sort: overdue first, then by creation date
     validApprovals.sort((a, b) => {
@@ -140,6 +186,18 @@ export async function GET(request: NextRequest) {
       approved: userApprovals.filter(a => a.status === 'APPROVED').length,
       rejected: userApprovals.filter(a => a.status === 'REJECTED').length
     }
+
+    console.log('[APPROVALS-API] Final response stats:', stats)
+    console.log('[APPROVALS-API] Pending approvals:', validApprovals
+      .filter(a => a.status === 'PENDING')
+      .map(a => ({
+        id: a.id,
+        entityId: a.entityId,
+        entityTitle: a.entity?.title,
+        level: a.level,
+        approverId: a.approverId
+      }))
+    )
 
     return NextResponse.json({
       success: true,

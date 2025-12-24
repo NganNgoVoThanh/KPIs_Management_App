@@ -30,7 +30,7 @@ export async function GET(
 
     const { id } = await params
     const actuals = await db.getKpiActuals({ kpiDefinitionId: id })
-    
+
     if (actuals.length === 0) {
       return NextResponse.json(
         { error: 'Actual not found' },
@@ -62,12 +62,12 @@ export async function GET(
     }
 
     // Get evidences
-    const evidences = await db.getEvidences(actual.id)
+    const evidences = await db.getEvidencesByActualId(actual.id)
 
     // Get approvals
-    const approvals = await db.getApprovals({ 
-      entityId: actual.id, 
-      entityType: 'ACTUAL' 
+    const approvals = await db.getApprovals({
+      entityId: actual.id,
+      entityType: 'ACTUAL'
     })
 
     return NextResponse.json({
@@ -156,14 +156,14 @@ export async function PUT(
     }
 
     if (body.selfComment !== undefined) {
-      updateData.selfComment = body.selfComment && body.selfComment.trim() !== '' 
-        ? body.selfComment.trim() 
+      updateData.selfComment = body.selfComment && body.selfComment.trim() !== ''
+        ? body.selfComment.trim()
         : null
     }
 
     if (body.adminNote !== undefined) {
-      updateData.adminNote = body.adminNote && body.adminNote.trim() !== '' 
-        ? body.adminNote.trim() 
+      updateData.adminNote = body.adminNote && body.adminNote.trim() !== ''
+        ? body.adminNote.trim()
         : null
     }
 

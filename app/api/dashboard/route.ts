@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
         kpis: {
           total: teamKpis.length,
           byStatus: kpisByStatus,
-          pending: kpisByStatus['PENDING_LM'] || 0,
+          pending: (kpisByStatus['WAITING_LINE_MGR'] || 0) + (kpisByStatus['WAITING_MANAGER'] || 0),
           approved: kpisByStatus['APPROVED'] || 0,
           draft: kpisByStatus['DRAFT'] || 0
         },
@@ -99,14 +99,17 @@ export async function GET(request: NextRequest) {
       } as any)
 
       // Get notifications
-      const notifications = await db.getNotifications(user.id, true) // unread only
+      const notifications = await db.getNotifications({
+        userId: user.id,
+        status: 'UNREAD'
+      })
 
       dashboardData = {
         kpis: {
           total: myKpis.length,
           byStatus: kpisByStatus,
           draft: kpisByStatus['DRAFT'] || 0,
-          pending: kpisByStatus['PENDING_LM'] || 0,
+          pending: (kpisByStatus['WAITING_LINE_MGR'] || 0) + (kpisByStatus['WAITING_MANAGER'] || 0),
           approved: kpisByStatus['APPROVED'] || 0,
           locked: kpisByStatus['LOCKED_GOALS'] || 0
         },

@@ -9,7 +9,8 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { authService } from "@/lib/auth-service"
-import { notificationService } from "@/lib/notification-service"
+import { authenticatedFetch } from "@/lib/api-client"
+import { useToast } from "@/components/ui/use-toast"
 import type { User, Notification } from "@/lib/types"
 import { 
   Bell, 
@@ -25,6 +26,7 @@ import {
 
 export default function NotificationsPage() {
   const router = useRouter()
+  const { toast } = useToast()
   const [user, setUser] = useState<User | null>(null)
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [activeTab, setActiveTab] = useState("all")
@@ -34,31 +36,122 @@ export default function NotificationsPage() {
     const currentUser = authService.getCurrentUser()
     if (currentUser) {
       setUser(currentUser)
-      loadNotifications(currentUser)
+      loadNotifications()
     }
   }, [])
 
-  const loadNotifications = (currentUser: User) => {
-    const allNotifications = notificationService.getNotifications(currentUser.id, 1, 50).notifications
-    setNotifications(allNotifications)
-    setIsLoading(false)
-  }
+  const loadNotifications = async () => {
+    setIsLoading(true)
+    try {
+      const response = await authenticatedFetch('/api/notifications')
+      const data = await response.json()
 
-  const handleMarkAsRead = (notificationId: string) => {
-    notificationService.markAsRead(notificationId)
-    if (user) loadNotifications(user)
-  }
-
-  const handleMarkAllAsRead = () => {
-    if (user) {
-      notificationService.markAllAsRead(user.id)
-      loadNotifications(user)
+      if (data.success) {
+        setNotifications(data.notifications || [])
+      } else {
+        console.error('Failed to load notifications:', data.error)
+        toast({
+          title: "Error",
+          description: "Failed to load notifications",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error loading notifications:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load notifications",
+        variant: "destructive"
+      })
+    } finally {
+      setIsLoading(false)
     }
   }
 
-  const handleDelete = (notificationId: string) => {
-    notificationService.deleteNotification(notificationId)
-    if (user) loadNotifications(user)
+  const handleMarkAsRead = async (notificationId: string) => {
+    try {
+      const response = await authenticatedFetch(`/api/notifications/${notificationId}/read`, {
+        method: 'POST'
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        loadNotifications()
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to mark as read",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error marking as read:', error)
+      toast({
+        title: "Error",
+        description: "Failed to mark as read",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleMarkAllAsRead = async () => {
+    try {
+      const response = await authenticatedFetch('/api/notifications/mark-all-read', {
+        method: 'POST'
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "All notifications marked as read"
+        })
+        loadNotifications()
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to mark all as read",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error marking all as read:', error)
+      toast({
+        title: "Error",
+        description: "Failed to mark all as read",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleDelete = async (notificationId: string) => {
+    try {
+      const response = await authenticatedFetch(`/api/notifications/${notificationId}`, {
+        method: 'DELETE'
+      })
+      const data = await response.json()
+
+      if (data.success) {
+        toast({
+          title: "Success",
+          description: "Notification deleted"
+        })
+        loadNotifications()
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to delete notification",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error deleting notification:', error)
+      toast({
+        title: "Error",
+        description: "Failed to delete notification",
+        variant: "destructive"
+      })
+    }
   }
 
   const handleActionClick = (notification: Notification) => {
@@ -76,11 +169,14 @@ export default function NotificationsPage() {
       case 'KPI_REJECTED':
       case 'ACTUAL_REJECTED':
         return <AlertCircle className="h-5 w-5 text-red-600" />
+      case 'APPROVAL_REQUEST':
       case 'APPROVAL_REQUIRED':
       case 'ACTUAL_APPROVAL_REQUIRED':
         return <Clock className="h-5 w-5 text-yellow-600" />
+      case 'KPI_SUBMITTED':
+        return <Bell className="h-5 w-5 text-blue-600" />
       default:
-        return <Info className="h-5 w-5 text-red-600" />
+        return <Info className="h-5 w-5 text-gray-600" />
     }
   }
 
