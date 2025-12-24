@@ -128,6 +128,26 @@ export async function PUT(
     delete updateData.createdAt
     delete updateData.approvals
 
+    // Sanitize date fields - convert to proper DateTime or null
+    const dateFields = ['startDate', 'dueDate', 'submittedAt', 'approvedAt', 'rejectedAt', 'lockedAt', 'approvedAtLevel1', 'approvedAtLevel2', 'changeRequestedAt']
+    dateFields.forEach(field => {
+      if (updateData[field] === '' || updateData[field] === null || updateData[field] === undefined) {
+        updateData[field] = null
+      } else if (updateData[field] && typeof updateData[field] === 'string') {
+        // Convert date string to DateTime object
+        const date = new Date(updateData[field])
+        if (isNaN(date.getTime())) {
+          updateData[field] = null
+        } else {
+          // Convert to ISO DateTime string for Prisma
+          updateData[field] = date.toISOString()
+        }
+      } else if (updateData[field] instanceof Date) {
+        // Already a Date object, convert to ISO string
+        updateData[field] = updateData[field].toISOString()
+      }
+    })
+
     const updated = await db.updateKpiDefinition(id, updateData)
 
     return NextResponse.json({

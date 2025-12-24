@@ -5,9 +5,17 @@ import { SmartValidator } from '@/lib/ai/smart-validator';
 const validator = new SmartValidator();
 
 export async function POST(request: NextRequest) {
+  let body: any = {};
+  let title = '';
+  let description = '';
+  let target: any;
+  let unit = '';
+  let measurementMethod = '';
+  let dataSource = '';
+
   try {
-    const body = await request.json();
-    const { title, description, target, unit, measurementMethod, dataSource } = body;
+    body = await request.json();
+    ({ title = '', description = '', target, unit = '', measurementMethod = '', dataSource = '' } = body);
 
     // Validate required fields
     if (!title || target === undefined || !unit) {
@@ -68,7 +76,7 @@ export async function POST(request: NextRequest) {
     console.error('[AI-VALIDATE] SMART validation error:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    // Return a fallback response instead of 500 error
+    // Return a fallback response instead of 500 error (use variables from outer scope)
     return NextResponse.json({
       success: true,
       data: {
@@ -82,7 +90,7 @@ export async function POST(request: NextRequest) {
           timeBound: { score: 60, level: 'Fair', feedback: 'Basic validation passed', improvements: [], examples: [] }
         },
         autoImprovements: {
-          suggestedTitle: title,
+          suggestedTitle: title || 'KPI',
           suggestedDescription: description || '',
           suggestedMeasurement: measurementMethod || '',
           confidenceScore: 0.3

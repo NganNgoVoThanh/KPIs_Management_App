@@ -43,8 +43,8 @@ export async function POST(
       }
     }
 
-    // 2. Fallback: Find any active Line Manager in department
-    if (!approver) {
+    // 2. Fallback: Find any active Line Manager in same department
+    if (!approver && user.department) {
       const lineManagers = await db.getUsers({
         role: 'LINE_MANAGER',
         status: 'ACTIVE',
@@ -55,7 +55,18 @@ export async function POST(
       }
     }
 
-    // 3. Last resort: Assign to any ADMIN
+    // 3. Fallback: Find ANY active Line Manager (cross-department)
+    if (!approver) {
+      const lineManagers = await db.getUsers({
+        role: 'LINE_MANAGER',
+        status: 'ACTIVE'
+      })
+      if (lineManagers && lineManagers.length > 0) {
+        approver = lineManagers[0]
+      }
+    }
+
+    // 4. Last resort: Assign to any ADMIN
     if (!approver) {
       const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
       if (admins && admins.length > 0) {
@@ -63,7 +74,7 @@ export async function POST(
       }
     }
 
-    // 4. No approver available - error
+    // 5. No approver available - error
     if (!approver) {
       return NextResponse.json({
         error: 'No active approver found. Please contact admin.'
