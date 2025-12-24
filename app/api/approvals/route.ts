@@ -41,14 +41,21 @@ export async function GET(request: NextRequest) {
 
     const db = getDatabase()
 
-    // Get all approvals where user is the approver
-    console.log('[APPROVALS-API] Fetching approvals for approverId:', user.id)
-    let allApprovals = await db.getApprovals({
-      approverId: user.id  // Filter by current user
-    })
+    // ADMIN can see ALL approvals (for proxy), others see only their own
+    let allApprovals
+    if (user.role === 'ADMIN') {
+      console.log('[APPROVALS-API] ADMIN - Fetching ALL approvals')
+      allApprovals = await db.getApprovals({})
+    } else {
+      console.log('[APPROVALS-API] Fetching approvals for approverId:', user.id)
+      allApprovals = await db.getApprovals({
+        approverId: user.id
+      })
+    }
 
     console.log('[APPROVALS-API] Raw approvals from DB:', {
       count: allApprovals.length,
+      role: user.role,
       approvals: allApprovals.map(a => ({
         id: a.id,
         entityId: a.entityId,
@@ -58,8 +65,10 @@ export async function GET(request: NextRequest) {
       }))
     })
 
-    // Filter by current user as approver (defensive)
-    let userApprovals = allApprovals.filter(a => a.approverId === user.id)
+    // Filter by current user as approver (ADMIN sees all, others see only their own)
+    let userApprovals = user.role === 'ADMIN'
+      ? allApprovals
+      : allApprovals.filter(a => a.approverId === user.id)
 
     console.log('[APPROVALS-API] After approverId filter:', userApprovals.length)
 

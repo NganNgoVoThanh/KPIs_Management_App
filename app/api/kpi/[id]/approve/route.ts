@@ -58,9 +58,20 @@ export async function POST(
       )
     }
 
-    // Get pending approval for this KPI and user
+    // Get pending approval for this KPI
     const approvals = await db.getApprovals({ kpiDefinitionId: id, status: 'PENDING' })
-    const pendingApproval = approvals.find(a => a.approverId === user.id)
+
+    // For ADMIN: allow proxy approval (take the first pending approval)
+    // For others: find their own pending approval
+    let pendingApproval
+    if (user.role === 'ADMIN') {
+      pendingApproval = approvals.find(a => a.status === 'PENDING')
+      if (pendingApproval) {
+        console.log(`[ADMIN-PROXY] Admin ${user.email} approving on behalf of ${pendingApproval.approverId}`)
+      }
+    } else {
+      pendingApproval = approvals.find(a => a.approverId === user.id)
+    }
 
     if (!pendingApproval) {
       return NextResponse.json(
@@ -211,9 +222,20 @@ export async function PATCH(
       )
     }
 
-    // Get pending approval for this user
+    // Get pending approval for this KPI
     const approvals = await db.getApprovals({ kpiDefinitionId: id, status: 'PENDING' })
-    const pendingApproval = approvals.find(a => a.approverId === user.id)
+
+    // For ADMIN: allow proxy rejection (take the first pending approval)
+    // For others: find their own pending approval
+    let pendingApproval
+    if (user.role === 'ADMIN') {
+      pendingApproval = approvals.find(a => a.status === 'PENDING')
+      if (pendingApproval) {
+        console.log(`[ADMIN-PROXY] Admin ${user.email} rejecting on behalf of ${pendingApproval.approverId}`)
+      }
+    } else {
+      pendingApproval = approvals.find(a => a.approverId === user.id)
+    }
 
     if (!pendingApproval) {
       return NextResponse.json(

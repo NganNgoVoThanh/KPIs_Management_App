@@ -85,6 +85,7 @@ export default function ApprovalsPage() {
             createdAt: item.createdAt
           },
           submitter: item.submitter,
+          approver: item.approver,
           daysPending: item.daysPending
         }))
 
@@ -188,9 +189,10 @@ export default function ApprovalsPage() {
   }
 
   const ApprovalCard = ({ item }: { item: any }) => {
-    const { entity, approval, submitter, daysPending } = item
+    const { entity, approval, submitter, approver, daysPending } = item
     const isKpi = approval.entityType === 'KPI'
-    
+    const isProxyApproval = user?.role === 'ADMIN' && approver && approver.id !== user.id
+
     return (
       <Card className="hover:shadow-md transition-shadow">
         <CardHeader>
@@ -210,6 +212,11 @@ export default function ApprovalsPage() {
                     <Calendar className="h-3 w-3" />
                     {formatDate(approval.createdAt)}
                   </span>
+                  {isProxyApproval && (
+                    <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 border-yellow-300">
+                      Assigned to: {approver.name}
+                    </Badge>
+                  )}
                 </div>
               </CardDescription>
             </div>
