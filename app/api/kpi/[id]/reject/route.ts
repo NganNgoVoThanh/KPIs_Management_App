@@ -107,6 +107,33 @@ export async function POST(
       createdAt: new Date()
     })
 
+    // Notify all Admins about KPI rejection
+    const kpiOwner = await db.getUserById(kpi.userId)
+    const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+    for (const admin of admins) {
+      await db.createNotification({
+        userId: admin.id,
+        type: 'SYSTEM',
+        title: 'KPI Rejected',
+        message: `KPI "${kpi.title}" by ${kpiOwner?.name || 'Unknown'} was rejected at Level ${currentLevel} by ${user.name}. Reason: ${reason}`,
+        priority: 'LOW',
+        status: 'UNREAD',
+        actionRequired: false,
+        actionUrl: `/kpis/${id}`,
+        metadata: {
+          kpiId: id,
+          kpiTitle: kpi.title,
+          kpiOwnerId: kpi.userId,
+          kpiOwnerName: kpiOwner?.name,
+          rejectedBy: user.id,
+          rejectedByName: user.name,
+          level: currentLevel,
+          reason: reason
+        },
+        createdAt: new Date()
+      })
+    }
+
     return NextResponse.json({
       success: true,
       data: {

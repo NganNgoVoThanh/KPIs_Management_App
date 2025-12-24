@@ -283,6 +283,30 @@ export async function POST(
       })
 
       console.log(`[NOTIFICATION] Created final approval notification for STAFF ${kpiOwner.email}`)
+
+      // Notify all Admins about KPI fully approved
+      const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+      for (const admin of admins) {
+        await db.createNotification({
+          userId: admin.id,
+          type: 'SYSTEM',
+          title: 'KPI Fully Approved',
+          message: `KPI "${kpi.title}" by ${kpiOwner.name} has been fully approved by ${user.name} (${user.role}) and is now active.`,
+          priority: 'LOW',
+          status: 'UNREAD',
+          actionRequired: false,
+          actionUrl: `/kpis/${id}`,
+          metadata: {
+            kpiId: id,
+            kpiTitle: kpi.title,
+            kpiOwnerId: kpiOwner.id,
+            kpiOwnerName: kpiOwner.name,
+            finalApproverId: user.id,
+            finalApproverName: user.name
+          },
+          createdAt: new Date()
+        })
+      }
     }
 
     return NextResponse.json({

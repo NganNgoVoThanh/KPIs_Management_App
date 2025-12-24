@@ -306,7 +306,22 @@ export default function ApprovalsPage() {
               <p className="text-sm">{entity.description}</p>
             </div>
           )}
-          
+
+          {/* View KPI Details Button - For all managers */}
+          {isKpi && (user?.role === 'LINE_MANAGER' || user?.role === 'MANAGER' || user?.role === 'ADMIN') && (
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => window.location.href = `/kpis/${entity.id}`}
+                variant="outline"
+                className="w-full"
+              >
+                <FileText className="h-3 w-3 mr-1" />
+                View KPI Details
+              </Button>
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-2">
             <Button
@@ -551,8 +566,8 @@ export default function ApprovalsPage() {
                           </div>
                         )}
 
-                        {/* Admin Actions - Request Change for APPROVED KPIs */}
-                        {user?.role === 'ADMIN' && isKpi && entity?.status === 'APPROVED' && (
+                        {/* View KPI Details for all managers + Admin Actions */}
+                        {isKpi && (user?.role === 'LINE_MANAGER' || user?.role === 'MANAGER' || user?.role === 'ADMIN') && (
                           <div className="flex gap-2 pt-2">
                             <Button
                               size="sm"
@@ -562,14 +577,17 @@ export default function ApprovalsPage() {
                               <FileText className="h-3 w-3 mr-1" />
                               View KPI Details
                             </Button>
-                            <Button
-                              size="sm"
-                              onClick={() => window.location.href = `/change-requests/create?kpiId=${entity.id}`}
-                              className="bg-orange-600 hover:bg-orange-700"
-                            >
-                              <AlertCircle className="h-3 w-3 mr-1" />
-                              Request Change
-                            </Button>
+                            {/* Request Change button - ADMIN only */}
+                            {user?.role === 'ADMIN' && entity?.status === 'APPROVED' && (
+                              <Button
+                                size="sm"
+                                onClick={() => window.location.href = `/change-requests/create?kpiId=${entity.id}`}
+                                className="bg-orange-600 hover:bg-orange-700"
+                              >
+                                <AlertCircle className="h-3 w-3 mr-1" />
+                                Request Change
+                              </Button>
+                            )}
                           </div>
                         )}
                       </CardContent>
@@ -676,6 +694,21 @@ export default function ApprovalsPage() {
                           <div className="bg-white/50 rounded-lg p-3">
                             <p className="text-xs font-medium text-muted-foreground mb-1">Description:</p>
                             <p className="text-sm">{entity.description}</p>
+                          </div>
+                        )}
+
+                        {/* View KPI Details for all managers */}
+                        {isKpi && (user?.role === 'LINE_MANAGER' || user?.role === 'MANAGER' || user?.role === 'ADMIN') && (
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              onClick={() => window.location.href = `/kpis/${entity.id}`}
+                              variant="outline"
+                              className="w-full"
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              View KPI Details
+                            </Button>
                           </div>
                         )}
 

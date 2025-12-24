@@ -318,7 +318,7 @@ export type NotificationType =
   | "SYSTEM"
 
 export type NotificationPriority = "LOW" | "MEDIUM" | "HIGH"
-export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED"
+export type NotificationStatus = "UNREAD" | "READ" | "ARCHIVED" | "DELETED"
 
 export interface Notification {
   id: string

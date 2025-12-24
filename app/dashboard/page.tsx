@@ -143,7 +143,7 @@ function DashboardContent() {
         const notificationsResponse = await authenticatedFetch('/api/notifications?limit=5')
         const notificationsData = await notificationsResponse.json()
         if (notificationsData.success) {
-          setNotifications(notificationsData.data || [])
+          setNotifications(notificationsData.notifications || [])
           setUnreadCount(notificationsData.stats?.unread || 0)
         }
       } catch (error) {

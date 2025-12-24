@@ -94,6 +94,27 @@ export async function POST(
             })
           }
         }
+
+        // Notify all Admins about cycle opening
+        const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+        for (const admin of admins) {
+          await db.createNotification({
+            userId: admin.id,
+            type: 'SYSTEM',
+            title: 'Cycle Opened - Admin Notification',
+            message: `You have opened the KPI cycle "${cycle.name}". ${userIds.length} users have been notified to create their KPIs.`,
+            priority: 'MEDIUM',
+            status: 'UNREAD',
+            actionRequired: false,
+            actionUrl: '/cycles',
+            metadata: {
+              cycleId: cycle.id,
+              cycleName: cycle.name,
+              targetUserCount: userIds.length
+            },
+            createdAt: new Date()
+          })
+        }
         break
 
       case 'activate':
@@ -129,6 +150,26 @@ export async function POST(
         updateData.status = 'CLOSED'
         updateData.closedAt = new Date()
         message = 'Cycle closed successfully. No more changes allowed.'
+
+        // Notify all Admins about cycle closure
+        const adminsForClose = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+        for (const admin of adminsForClose) {
+          await db.createNotification({
+            userId: admin.id,
+            type: 'SYSTEM',
+            title: 'Cycle Closed - Admin Notification',
+            message: `You have closed the KPI cycle "${cycle.name}". No further changes are allowed.`,
+            priority: 'MEDIUM',
+            status: 'UNREAD',
+            actionRequired: false,
+            actionUrl: '/cycles',
+            metadata: {
+              cycleId: cycle.id,
+              cycleName: cycle.name
+            },
+            createdAt: new Date()
+          })
+        }
         break
 
       case 'lock_goals':
@@ -154,6 +195,27 @@ export async function POST(
         }
 
         message = `Locked ${kpis.length} KPI goal(s). Users can now enter actuals.`
+
+        // Notify all Admins about goal locking
+        const adminsForLock = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+        for (const admin of adminsForLock) {
+          await db.createNotification({
+            userId: admin.id,
+            type: 'SYSTEM',
+            title: 'KPI Goals Locked - Admin Notification',
+            message: `You have locked ${kpis.length} KPI goal(s) for cycle "${cycle.name}". Users can now enter actuals.`,
+            priority: 'MEDIUM',
+            status: 'UNREAD',
+            actionRequired: false,
+            actionUrl: '/cycles',
+            metadata: {
+              cycleId: cycle.id,
+              cycleName: cycle.name,
+              lockedKpiCount: kpis.length
+            },
+            createdAt: new Date()
+          })
+        }
         break
 
       default:

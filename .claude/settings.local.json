@@ -3,7 +3,10 @@
     "allow": [
       "Bash(ls:*)",
       "Bash(cat:*)",
-      "Bash(npm run build:*)"
+      "Bash(npm run build:*)",
+      "Bash(dir /s /b components*notif*.tsx)",
+      "Bash(powershell -Command \"Remove-Item -Recurse -Force .next\")",
+      "Bash(git add:*)"
     ]
   }
 }

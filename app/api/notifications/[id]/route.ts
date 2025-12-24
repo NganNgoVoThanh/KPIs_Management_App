@@ -30,15 +30,14 @@ export async function DELETE(
     const { id } = await params
     const db = getDatabase()
 
-    // Get all notifications for this user to verify ownership
-    const userNotifications = await db.getNotifications({
-      userId: user.id
-    })
-
-    const notification = userNotifications.find(n => n.id === id)
-
-    // For non-admin, verify ownership
+    // For non-admin users, verify ownership
     if (user.role !== 'ADMIN') {
+      const userNotifications = await db.getNotifications({
+        userId: user.id
+      })
+
+      const notification = userNotifications.find(n => n.id === id)
+
       if (!notification) {
         return NextResponse.json(
           { error: 'Notification not found or unauthorized' },
@@ -46,11 +45,11 @@ export async function DELETE(
         )
       }
     }
+    // Admin can delete any notification without ownership check
 
     // Soft delete notification (mark as deleted)
     await db.updateNotification(id, {
-      status: 'DELETED',
-      deletedAt: new Date()
+      status: 'DELETED'
     })
 
     return NextResponse.json({

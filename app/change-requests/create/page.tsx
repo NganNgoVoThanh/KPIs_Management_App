@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { AppLayout } from "@/components/layout/app-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -21,7 +21,7 @@ import { authenticatedFetch } from "@/lib/api-client"
 import { useToast } from "@/components/ui/use-toast"
 import type { KpiDefinition } from "@/lib/types"
 
-export default function CreateChangeRequestPage() {
+function CreateChangeRequestContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const kpiId = searchParams.get("kpiId")
@@ -328,5 +328,22 @@ export default function CreateChangeRequestPage() {
         </form>
       </div>
     </AppLayout>
+  )
+}
+
+export default function CreateChangeRequestPage() {
+  return (
+    <Suspense fallback={
+      <AppLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="text-center">
+            <Loader2 className="h-12 w-12 text-red-600 animate-spin mx-auto mb-4" />
+            <p className="text-gray-600">Loading...</p>
+          </div>
+        </div>
+      </AppLayout>
+    }>
+      <CreateChangeRequestContent />
+    </Suspense>
   )
 }

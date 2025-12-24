@@ -185,6 +185,30 @@ export async function POST(
 
     console.log('[KPI-SUBMIT] Notification sent to approver:', approver.email)
 
+    // Notify all Admins for visibility
+    const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
+    for (const admin of admins) {
+      await db.createNotification({
+        userId: admin.id,
+        type: 'SYSTEM',
+        title: isResubmission ? 'KPI Resubmitted' : 'New KPI Submitted',
+        message: `${user.name} has ${isResubmission ? 'resubmitted' : 'submitted'} KPI "${kpi.title}" for approval by ${approver.name} (${approver.role}).`,
+        priority: 'LOW',
+        status: 'UNREAD',
+        actionRequired: false,
+        actionUrl: `/kpis/${kpi.id}`,
+        metadata: {
+          kpiId: kpi.id,
+          kpiTitle: kpi.title,
+          submitterId: user.id,
+          submitterName: user.name,
+          approverId: approver.id,
+          approverName: approver.name
+        },
+        createdAt: new Date()
+      })
+    }
+
     const responseMessage = isResubmission
       ? 'KPI resubmitted successfully. Your Line Manager will review the changes.'
       : 'KPI submitted for approval.'
