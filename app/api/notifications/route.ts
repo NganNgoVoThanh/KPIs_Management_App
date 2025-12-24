@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { getDatabase } from '@/lib/repositories/DatabaseFactory'
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 /**
  * GET /api/notifications
  * Get notifications for current user

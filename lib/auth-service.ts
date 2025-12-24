@@ -6,7 +6,7 @@ import type { User, UserRole } from './types'
  * Rules:
  * - admin@intersnack.com.vn → ADMIN
  * - linemanager@intersnack.com.vn → LINE_MANAGER
- * - manager@intersnack.com.vn → MANAGER
+ * - hod@intersnack.com.vn → MANAGER
  * - Any other @intersnack.com.vn → STAFF
  */
 function getRoleFromEmail(email: string): UserRole {
@@ -14,7 +14,7 @@ function getRoleFromEmail(email: string): UserRole {
 
   if (lowerEmail === 'admin@intersnack.com.vn') return 'ADMIN'
   if (lowerEmail === 'linemanager@intersnack.com.vn') return 'LINE_MANAGER'
-  if (lowerEmail === 'manager@intersnack.com.vn') return 'MANAGER'
+  if (lowerEmail === 'hod@intersnack.com.vn') return 'MANAGER'
   if (lowerEmail.endsWith('@intersnack.com.vn')) return 'STAFF'
 
   throw new Error('Invalid email domain. Please use your Intersnack company email.')
@@ -63,18 +63,20 @@ class AuthService {
   }
 
   /**
-   * Get current user from localStorage (client-side only)
+   * Get current user from sessionStorage (client-side only)
+   * SessionStorage clears on browser close, preventing stale data
    * For server-side authentication, use API middleware to get user from session/cookie
    */
   getCurrentUser(): User | null {
-    // SERVER SIDE: Cannot access localStorage on server
+    // SERVER SIDE: Cannot access sessionStorage on server
     if (this.isServer) {
       return null
     }
 
-    // CLIENT SIDE: Use localStorage
+    // CLIENT SIDE: Use sessionStorage instead of localStorage
+    // This auto-clears when browser closes, preventing role cache issues
     try {
-      const stored = localStorage.getItem(this.STORAGE_KEY)
+      const stored = sessionStorage.getItem(this.STORAGE_KEY)
       if (!stored) return null
 
       const { user, expiry } = JSON.parse(stored)
@@ -92,12 +94,12 @@ class AuthService {
   }
 
   /**
-   * Save user to localStorage after successful login
+   * Save user to sessionStorage after successful login
    * Called from login form after API authentication succeeds
    */
   setCurrentUser(user: User): void {
     this.saveUser(user)
-    this.logActivity('login', user.id)
+    // Don't log to localStorage
   }
 
   async logout(): Promise<void> {
@@ -106,21 +108,10 @@ class AuthService {
       return
     }
 
-    // Get user directly from localStorage to avoid infinite loop
-    try {
-      const stored = localStorage.getItem(this.STORAGE_KEY)
-      if (stored) {
-        const { user } = JSON.parse(stored)
-        if (user) {
-          this.logActivity('logout', user.id)
-        }
-      }
-    } catch (error) {
-      console.error('Error during logout:', error)
-    }
-
-    localStorage.removeItem(this.STORAGE_KEY)
-    this.clearUserData()
+    // Clear sessionStorage
+    sessionStorage.removeItem(this.STORAGE_KEY)
+    // Also clear any old localStorage data
+    localStorage.clear()
   }
 
   // ✅ UPDATED: New permission system for 4 roles
@@ -176,7 +167,9 @@ class AuthService {
       user,
       expiry: new Date().getTime() + this.SESSION_DURATION
     }
-    localStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
+    // Use sessionStorage instead of localStorage
+    // This clears automatically when browser/tab closes
+    sessionStorage.setItem(this.STORAGE_KEY, JSON.stringify(data))
   }
 
   /**
@@ -184,38 +177,6 @@ class AuthService {
    */
   static getRoleFromEmail = getRoleFromEmail
   static getDisplayNameFromEmail = getDisplayNameFromEmail
-
-  private logActivity(action: string, userId: string): void {
-    if (this.isServer) return
-
-    const logs = JSON.parse(localStorage.getItem('auth_logs') || '[]')
-    logs.push({
-      action,
-      userId,
-      timestamp: new Date().toISOString(),
-      userAgent: navigator.userAgent
-    })
-    
-    if (logs.length > 100) {
-      logs.shift()
-    }
-    
-    localStorage.setItem('auth_logs', JSON.stringify(logs))
-  }
-
-  private clearUserData(): void {
-    if (this.isServer) return
-
-    const keysToRemove = []
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i)
-      if (key && key.startsWith('vicc_')) {
-        keysToRemove.push(key)
-      }
-    }
-    
-    keysToRemove.forEach(key => localStorage.removeItem(key))
-  }
 }
 
 export const authService = new AuthService()

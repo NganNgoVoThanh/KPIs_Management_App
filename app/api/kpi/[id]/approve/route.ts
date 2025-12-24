@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { DatabaseService } from '@/lib/db'
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 const db = new DatabaseService()
 
 interface RouteParams {
@@ -15,11 +19,10 @@ interface RouteParams {
  * POST /api/kpi/[id]/approve
  * Approve KPI at current level
  *
- * Workflow (3-4 levels as per flowchart):
+ * Workflow (2 levels):
  * DRAFT → Submit → WAITING_LINE_MGR (Level 1)
- * Level 1 (Line Manager N+1): WAITING_LINE_MGR → WAITING_HOD (Level 2)
- * Level 2 (Head of Dept): WAITING_HOD → WAITING_ADMIN (Level 3)
- * Level 3 (Admin Check): WAITING_ADMIN → ACTIVE (Ready for tracking)
+ * Level 1 (LINE_MANAGER): WAITING_LINE_MGR → WAITING_MANAGER (Level 2)
+ * Level 2 (MANAGER): WAITING_MANAGER → APPROVED (Final)
  */
 export async function POST(
   request: NextRequest,
@@ -70,79 +73,31 @@ export async function POST(
     let newStatus: string
     let nextApproverId: string | null = null
 
-    // Determine workflow based on current level
+    // ✅ 2-LEVEL WORKFLOW
     if (currentLevel === 1) {
-      // Line Manager (N+1) approval → Move to Head of Department (Level 2)
-      newStatus = 'WAITING_HOD'
+      // Level 1: LINE_MANAGER approval → Move to MANAGER (Level 2 - Final)
+      newStatus = 'WAITING_MANAGER'
 
-      // Get Head of Department (Look for user with role HEAD_OF_DEPT or MANAGER in same department)
-      // FIXED: Prevent duplicate approver (same person at L1 and L2)
-      const kpiOwnerOrgUnit = await db.getOrgUnitById(kpiOwner.orgUnitId)
-      if (kpiOwnerOrgUnit) {
-        // Find HOD in the department
-        const allUsers = await db.getUsers({
-          department: kpiOwner.department,
-          role: ['MANAGER', 'HEAD_OF_DEPT'],
-          status: 'ACTIVE'
-        })
+      // Find MANAGER (hod@intersnack.com.vn or any active MANAGER)
+      const managers = await db.getUsers({
+        role: 'MANAGER',
+        status: 'ACTIVE'
+      })
 
-        // CRITICAL: Exclude current approver to prevent duplicate
-        const hod = allUsers.find(u => u.id !== user.id)
-
-        if (hod) {
-          // Double-check: Ensure HOD is not the same as L1 approver
-          if (hod.id === user.id) {
-            console.warn(`[APPROVE] HOD same as Line Manager (${user.email}), skipping to Admin`)
-            newStatus = 'WAITING_ADMIN'
-          } else {
-            nextApproverId = hod.id
-          }
-        } else {
-          // No eligible HOD found, skip to admin
-          console.warn(`[APPROVE] No eligible HOD in ${kpiOwner.department}, skipping to Admin`)
-          newStatus = 'WAITING_ADMIN'
-        }
-      }
-
-    } else if (currentLevel === 2) {
-      // Head of Department approval → Move to Admin (Level 3)
-      newStatus = 'WAITING_ADMIN'
-
-      // Get admin users (all active admins)
-      const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
-
-      if (!admins || admins.length === 0) {
-        // CRITICAL: No admin available - should NOT auto-approve!
-        console.error(`[APPROVE] No active ADMIN users found. Cannot complete approval.`)
+      if (managers && managers.length > 0) {
+        // Prefer hod@intersnack.com.vn if exists
+        const hod = managers.find(m => m.email === 'hod@intersnack.com.vn')
+        nextApproverId = hod ? hod.id : managers[0].id
+      } else {
         return NextResponse.json({
-          error: 'No active admin users found. Cannot complete approval workflow. Please contact system administrator.',
-          code: 'NO_ADMIN_AVAILABLE'
+          error: 'No active MANAGER found. Cannot proceed with approval.',
+          code: 'NO_MANAGER_AVAILABLE'
         }, { status: 500 })
       }
 
-      // Load balancing: Select admin with least pending approvals
-      const adminLoads = await Promise.all(
-        admins.map(async admin => {
-          const pending = await db.getApprovals({
-            approverId: admin.id,
-            status: 'PENDING'
-          })
-          return {
-            id: admin.id,
-            pendingCount: pending.length
-          }
-        })
-      )
-
-      const selectedAdmin = adminLoads.reduce((prev, current) =>
-        prev.pendingCount < current.pendingCount ? prev : current
-      )
-
-      nextApproverId = selectedAdmin.id
-
-    } else if (currentLevel === 3) {
-      // Admin approval → KPI becomes ACTIVE for tracking
-      newStatus = 'ACTIVE'
+    } else if (currentLevel === 2) {
+      // Level 2: MANAGER approval → KPI fully APPROVED
+      newStatus = 'APPROVED'
 
     } else {
       return NextResponse.json(
@@ -168,11 +123,10 @@ export async function POST(
       updateData.approvedByLevel1 = user.id
       updateData.approvedAtLevel1 = new Date()
     } else if (currentLevel === 2) {
+      // MANAGER approval = Final approval
       updateData.approvedByLevel2 = user.id
       updateData.approvedAtLevel2 = new Date()
-    } else if (currentLevel === 3) {
-      // Admin approval = Final approval
-      updateData.approvedAt = new Date()
+      updateData.approvedAt = new Date() // Final approval timestamp
     }
 
     await db.updateKpiDefinition(id, updateData)
@@ -192,8 +146,8 @@ export async function POST(
       })
 
       console.log(`[APPROVE L${currentLevel}] KPI ${id} approved by ${user.email} → ${nextApprover?.email} (Level ${nextLevel})`)
-    } else if (currentLevel === 3 || newStatus === 'ACTIVE') {
-      console.log(`[APPROVE L${currentLevel}] KPI ${id} fully approved by ${user.email} → Status: ACTIVE`)
+    } else if (currentLevel === 2 || newStatus === 'APPROVED') {
+      console.log(`[APPROVE L${currentLevel}] KPI ${id} fully approved by ${user.email} → Status: APPROVED`)
     }
 
     return NextResponse.json({
@@ -204,10 +158,10 @@ export async function POST(
         newStatus: newStatus,
         currentLevel,
         nextLevel: nextApproverId ? currentLevel + 1 : null,
-        fullyApproved: currentLevel === 3 || newStatus === 'ACTIVE'
+        fullyApproved: currentLevel === 2 || newStatus === 'APPROVED'
       },
-      message: newStatus === 'ACTIVE'
-        ? 'KPI fully approved and activated for tracking'
+      message: newStatus === 'APPROVED'
+        ? 'KPI fully approved! Ready for tracking.'
         : `Level ${currentLevel} approved, sent to Level ${currentLevel + 1}`
     })
 

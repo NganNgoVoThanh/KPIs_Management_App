@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { getAuthenticatedUser } from '@/lib/auth-server';
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 export async function GET(request: NextRequest) {
   try {
     const user = await getAuthenticatedUser(request);
@@ -24,39 +28,71 @@ export async function GET(request: NextRequest) {
     const { getDatabase } = await import('@/lib/repositories/DatabaseFactory');
     const db = getDatabase();
 
-    // 1. Fetch Legacy/Excel Entries
-    const libraryEntries = await db.getKpiLibraryEntries(filters);
+    // Check if we should only fetch templates
+    const isTemplateQuery = searchParams.get('isTemplate') === 'true';
 
-    // 2. Fetch New KPI Templates (Unified Library)
-    // Map template filters
-    const templateFilters: any = {
-      isActive: true
-    };
-    if (filters.department) templateFilters.department = filters.department;
+    let combinedEntries: any[] = [];
 
-    const templates = await db.getKpiTemplates(templateFilters);
+    if (isTemplateQuery) {
+      // Only fetch New KPI Templates (for KPI selection dialog)
+      const templateFilters: any = {
+        isActive: true,
+        status: 'ACTIVE' // Only show ACTIVE templates
+      };
+      if (filters.department) templateFilters.department = filters.department;
 
-    // 3. Convert Templates to LibraryEntry format for the UI
-    const templateEntries = templates.map((t: any) => ({
-      id: t.id,
-      stt: 9999, // Sort last
-      kpiName: t.name,
-      ogsmTarget: t.description || '', // Map description to OGSM/Description
-      department: t.department,
-      jobTitle: t.jobTitle || 'All Levels',
-      kpiType: mapTypeToCode(t.kpiType),
-      unit: t.unit,
-      dataSource: t.dataSource || 'Manual',
-      yearlyTarget: t.targetValue || 0,
-      quarterlyTarget: 0,
-      uploadedBy: t.createdBy,
-      status: 'ACTIVE',
-      version: t.version,
-      isTemplate: true
-    }));
+      const templates = await db.getKpiTemplates(templateFilters);
 
-    // 4. Merge results
-    const combinedEntries = [...libraryEntries, ...templateEntries];
+      // Convert Templates to LibraryEntry format for the UI
+      combinedEntries = templates.map((t: any, index: number) => ({
+        id: t.id,
+        stt: index + 1,
+        kpiName: t.name,
+        ogsmTarget: t.description || '', // Map description to OGSM/Description
+        department: t.department,
+        jobTitle: t.jobTitle || 'All Levels',
+        kpiType: mapTypeToCode(t.kpiType),
+        unit: t.unit,
+        dataSource: t.dataSource || 'Manual',
+        yearlyTarget: t.targetValue || 0,
+        quarterlyTarget: 0,
+        uploadedBy: t.createdBy,
+        status: 'ACTIVE',
+        version: t.version,
+        isTemplate: true
+      }));
+    } else {
+      // Fetch both Legacy/Excel Entries and Templates (for admin view)
+      const libraryEntries = await db.getKpiLibraryEntries(filters);
+
+      const templateFilters: any = {
+        isActive: true
+      };
+      if (filters.department) templateFilters.department = filters.department;
+
+      const templates = await db.getKpiTemplates(templateFilters);
+
+      const templateEntries = templates.map((t: any) => ({
+        id: t.id,
+        stt: 9999, // Sort last
+        kpiName: t.name,
+        ogsmTarget: t.description || '',
+        department: t.department,
+        jobTitle: t.jobTitle || 'All Levels',
+        kpiType: mapTypeToCode(t.kpiType),
+        unit: t.unit,
+        dataSource: t.dataSource || 'Manual',
+        yearlyTarget: t.targetValue || 0,
+        quarterlyTarget: 0,
+        uploadedBy: t.createdBy,
+        status: 'ACTIVE',
+        version: t.version,
+        isTemplate: true
+      }));
+
+      // Merge results
+      combinedEntries = [...libraryEntries, ...templateEntries];
+    }
 
     // 5. Apply other filters if necessary (handle in memory)
     const searchQuery = searchParams.get('q')?.toLowerCase();

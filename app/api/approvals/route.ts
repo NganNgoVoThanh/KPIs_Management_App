@@ -1,7 +1,11 @@
 // app/api/approvals/route.ts
 import { NextRequest, NextResponse } from 'next/server'
-import { authService } from '@/lib/auth-service'
-import { db } from '@/lib/db'
+import { getAuthenticatedUser } from '@/lib/auth-server'
+import { getDatabase } from '@/lib/repositories/DatabaseFactory'
+
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
 
 /**
  * GET /api/approvals
@@ -9,13 +13,19 @@ import { db } from '@/lib/db'
  */
 export async function GET(request: NextRequest) {
   try {
-    const user = authService.getCurrentUser()
+    const user = await getAuthenticatedUser(request)
     if (!user) {
       return NextResponse.json(
         { error: 'Authentication required' },
         { status: 401 }
       )
     }
+
+    console.log('[APPROVALS-API] User authenticated:', {
+      id: user.id,
+      email: user.email,
+      role: user.role
+    })
 
     // Only managers can access approvals
     if (!['LINE_MANAGER', 'MANAGER', 'ADMIN'].includes(user.role)) {
@@ -29,14 +39,29 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get('status') || 'PENDING'
     const entityType = searchParams.get('entityType') || undefined
 
+    const db = getDatabase()
+
     // Get all approvals where user is the approver
+    console.log('[APPROVALS-API] Fetching approvals for approverId:', user.id)
     let allApprovals = await db.getApprovals({
-      entityId: '', // Will filter by approverId instead
-      entityType: 'KPI' // Default, will be overridden
+      approverId: user.id  // Filter by current user
     })
 
-    // Filter by current user as approver
+    console.log('[APPROVALS-API] Raw approvals from DB:', {
+      count: allApprovals.length,
+      approvals: allApprovals.map(a => ({
+        id: a.id,
+        entityId: a.entityId,
+        approverId: a.approverId,
+        status: a.status,
+        level: a.level
+      }))
+    })
+
+    // Filter by current user as approver (defensive)
     let userApprovals = allApprovals.filter(a => a.approverId === user.id)
+
+    console.log('[APPROVALS-API] After approverId filter:', userApprovals.length)
 
     // Filter by status
     if (status !== 'ALL') {

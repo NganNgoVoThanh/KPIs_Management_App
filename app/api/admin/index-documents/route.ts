@@ -4,6 +4,10 @@ import { getAuthenticatedUser } from '@/lib/auth-server';
 import { KnowledgeBaseService } from '@/lib/ai/knowledge-base-service';
 import { getDatabase } from '@/lib/repositories/DatabaseFactory';
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 // In-memory lock to prevent concurrent indexing
 const indexingLocks = new Map<string, { promise: Promise<void>; startedAt: Date }>();
 

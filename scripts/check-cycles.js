@@ -4,9 +4,9 @@ const prisma = new PrismaClient()
 
 // Real test users with proper emails (NO MOCK DATA)
 // Email-based role determination:
-// - admin@intersnack.com.vn → ADMIN
-// - linemanager@intersnack.com.vn → LINE_MANAGER
-// - manager@intersnack.com.vn → MANAGER
+// - admin@intersnack.com.vn → ADMIN (Full access + Proxy approval)
+// - linemanager@intersnack.com.vn → LINE_MANAGER (Level 1 Approver)
+// - hod@intersnack.com.vn → MANAGER (Level 2 Approver - Final)
 // - Any other @intersnack.com.vn → STAFF
 const TEST_USERS = [
   {
@@ -24,7 +24,7 @@ const TEST_USERS = [
     employeeId: 'VICC-LM-001'
   },
   {
-    email: 'manager@intersnack.com.vn',
+    email: 'hod@intersnack.com.vn',
     name: 'Viet Cuong Nguyen',
     role: 'MANAGER',
     department: 'Executive',

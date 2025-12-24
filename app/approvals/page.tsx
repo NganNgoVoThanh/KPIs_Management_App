@@ -19,8 +19,7 @@ import {
 } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/use-toast"
 import { authService } from "@/lib/auth-service"
-import { workflowService } from "@/lib/workflow-service"
-import { storageService } from "@/lib/storage-service"
+import { authenticatedFetch } from "@/lib/api-client"
 import type { User, KpiDefinition, Approval } from "@/lib/types"
 import { 
   CheckCircle, 
@@ -62,9 +61,50 @@ export default function ApprovalsPage() {
     }
   }, [])
 
-  const loadApprovals = (currentUser: User) => {
-    const queue = workflowService.getApprovalQueue(currentUser.id, currentUser.role)
-    setApprovalQueue(queue)
+  const loadApprovals = async (currentUser: User) => {
+    try {
+      // Fetch ALL approvals from API
+      const response = await authenticatedFetch('/api/approvals?status=ALL')
+      const data = await response.json()
+
+      console.log('[APPROVALS-PAGE] API response:', data)
+
+      if (data.success) {
+        // Transform API response to match component format
+        const transformedData = data.data.map((item: any) => ({
+          entity: item.entity,
+          approval: {
+            id: item.id,
+            entityType: item.entityType,
+            entityId: item.entityId,
+            approverId: item.approverId,
+            status: item.status,
+            level: item.level,
+            comment: item.comment,
+            decidedAt: item.decidedAt,
+            createdAt: item.createdAt
+          },
+          submitter: item.submitter,
+          daysPending: item.daysPending
+        }))
+
+        // Group approvals by status
+        const grouped = {
+          pending: transformedData.filter((item: any) => item.approval.status === 'PENDING'),
+          approved: transformedData.filter((item: any) => item.approval.status === 'APPROVED'),
+          rejected: transformedData.filter((item: any) => item.approval.status === 'REJECTED')
+        }
+
+        console.log('[APPROVALS-PAGE] Grouped approvals:', grouped)
+        setApprovalQueue(grouped)
+      } else {
+        console.error('Failed to load approvals:', data.error)
+        setApprovalQueue({ pending: [], approved: [], rejected: [] })
+      }
+    } catch (error) {
+      console.error('Error loading approvals:', error)
+      setApprovalQueue({ pending: [], approved: [], rejected: [] })
+    }
   }
 
   const handleApprovalAction = (approval: any, action: 'APPROVE' | 'REJECT') => {
@@ -82,33 +122,39 @@ export default function ApprovalsPage() {
 
   const processApproval = async () => {
     if (!selectedApproval || !dialogAction) return
-    
+
     setIsProcessing(true)
-    
+
     try {
-      const result = await workflowService.processApproval(
-        selectedApproval.entity.id,
-        selectedApproval.approval.entityType,
-        dialogAction,
-        comment
-      )
-      
-      if (result.success) {
+      // Call API to approve/reject
+      const response = await authenticatedFetch(`/api/kpi/${selectedApproval.entityId}/approve`, {
+        method: 'POST',
+        body: JSON.stringify({
+          action: dialogAction,
+          comment: comment,
+          approvalId: selectedApproval.id
+        })
+      })
+
+      const result = await response.json()
+
+      if (response.ok && result.success) {
         toast({
           title: "Success",
-          description: result.message
+          description: result.message || `KPI ${dialogAction.toLowerCase()}d successfully`
         })
-        
+
         // Reload approvals
         if (user) loadApprovals(user)
       } else {
         toast({
           title: "Error",
-          description: result.message,
+          description: result.error || 'Failed to process approval',
           variant: "destructive"
         })
       }
     } catch (error) {
+      console.error('Approval processing error:', error)
       toast({
         title: "Error",
         description: "Failed to process approval",

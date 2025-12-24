@@ -27,6 +27,10 @@ export function LoginForm({ onLogin }: LoginFormProps) {
     setError("")
 
     try {
+      // ✅ IMPORTANT: Clear all storage BEFORE login to prevent stale data
+      sessionStorage.clear()
+      localStorage.clear()
+
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -40,6 +44,9 @@ export function LoginForm({ onLogin }: LoginFormProps) {
       }
 
       const user = data.data
+      console.log('[LOGIN] User from API:', user.email, 'Role:', user.role)
+
+      // Save fresh user data to sessionStorage
       authService.setCurrentUser(user)
       onLogin(user)
     } catch (err: any) {

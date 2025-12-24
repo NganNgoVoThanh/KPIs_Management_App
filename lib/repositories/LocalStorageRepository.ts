@@ -569,7 +569,7 @@ export class LocalStorageRepository implements IDatabaseRepository {
 
   // ==================== KPI Template Repository ====================
 
-  async getKpiTemplates(filters?: { department?: string; isActive?: boolean }): Promise<any[]> {
+  async getKpiTemplates(filters?: { department?: string; isActive?: boolean; status?: string }): Promise<any[]> {
     const templates = await this.getAllRecords<any>('kpiTemplates')
     return templates.filter(template => this.matchesFilters(template, filters))
   }

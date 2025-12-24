@@ -5,6 +5,10 @@ import { getAuthenticatedUser } from '@/lib/auth-server';
 import { anomalyDetector } from '@/lib/ai/anomaly-detector-complete';
 import { DatabaseService } from '@/lib/db';
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 const db = new DatabaseService();
 
 export async function POST(request: NextRequest) {

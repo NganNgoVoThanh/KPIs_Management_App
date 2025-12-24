@@ -4,7 +4,7 @@
 const managers = [
   { email: 'admin@intersnack.com.vn', password: '123456' },
   { email: 'hod@intersnack.com.vn', password: '123456' },
-  { email: 'line.manager@intersnack.com.vn', password: '123456' }
+  { email: 'linemanager@intersnack.com.vn', password: '123456' }
 ];
 
 async function seedManagers() {

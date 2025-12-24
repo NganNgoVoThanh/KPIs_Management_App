@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { adminProxyService } from '@/lib/admin-proxy-service';
 import { authService } from '@/lib/auth-service';
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 export async function GET(request: NextRequest) {
   try {
     const user = authService.getCurrentUser();

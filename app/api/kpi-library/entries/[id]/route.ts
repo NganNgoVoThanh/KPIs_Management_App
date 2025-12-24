@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { kpiLibraryService } from '@/lib/kpi-library-service';
 import { authService } from '@/lib/auth-service';
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 export async function GET(request: NextRequest) {
   try {
     const user = authService.getCurrentUser();

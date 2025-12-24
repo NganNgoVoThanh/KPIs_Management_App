@@ -15,7 +15,10 @@ import type { User } from './types'
 export async function getAuthenticatedUser(request: NextRequest): Promise<User | null> {
   try {
     console.log('[AUTH-SERVER] ==================== AUTHENTICATION CHECK ====================')
-    console.log('[AUTH-SERVER] Request URL:', request.url)
+    // Only log URL in development to avoid static rendering issues
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[AUTH-SERVER] Request URL:', request.url)
+    }
     console.log('[AUTH-SERVER] Request Method:', request.method)
 
     // Log all headers for debugging

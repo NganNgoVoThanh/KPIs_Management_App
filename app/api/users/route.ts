@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { authService } from '@/lib/auth-service'
 import { db } from '@/lib/db'
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 /**
  * GET /api/users
  * Get users with optional filters

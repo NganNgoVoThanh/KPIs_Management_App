@@ -124,7 +124,7 @@ export interface IHistoricalDataRepository {
 }
 
 export interface IKpiTemplateRepository {
-  getKpiTemplates(filters?: { department?: string; isActive?: boolean }): Promise<any[]>
+  getKpiTemplates(filters?: { department?: string; isActive?: boolean; status?: string }): Promise<any[]>
   getKpiTemplateById(id: string): Promise<any | null>
   createKpiTemplate(data: any): Promise<any>
   updateKpiTemplate(id: string, data: any): Promise<any>

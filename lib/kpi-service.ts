@@ -600,7 +600,7 @@ class KpiService {
   private getNextApprover(currentUser: User, targetLevel: number): User | null {
     // This is simplified - in real app, would query org hierarchy
     const approvers = {
-      1: 'linemanager@intersnack.com.vn',
+      1: 'linehod@intersnack.com.vn',
       2: 'hod@intersnack.com.vn',
       3: 'bod@intersnack.com.vn'
     }

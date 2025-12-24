@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/repositories/DatabaseFactory';
 import { getAuthenticatedUser } from '@/lib/auth-server';
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }

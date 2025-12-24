@@ -5,6 +5,10 @@ import { db } from '@/lib/db'
 import { calculateKpiActualScore } from '@/lib/evaluation-utils'
 import type { KpiDefinition } from '@/lib/types'
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 /**
  * GET /api/actuals
  * Get actuals with filters

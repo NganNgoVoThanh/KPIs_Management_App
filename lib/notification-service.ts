@@ -4,14 +4,14 @@ import type { Notification } from './types'
 
 // Tạo hàm UUID đơn giản
 function generateUUID(): string {
-  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0
     const v = c === 'x' ? r : (r & 0x3 | 0x8)
     return v.toString(16)
   })
 }
 
-export type NotificationType = 
+export type NotificationType =
   | 'KPI_CREATED'
   | 'KPI_SUBMITTED'
   | 'KPI_APPROVED'
@@ -156,7 +156,7 @@ class NotificationService {
     actionUrl?: string
   ): Notification {
     const template = this.templates[type]
-    
+
     const notification: Notification = {
       id: `notif-${generateUUID()}`,
       userId,
@@ -172,13 +172,13 @@ class NotificationService {
     }
 
     storageService.saveNotification(notification)
-    
+
     // Trigger browser notification if enabled
     this.triggerBrowserNotification(notification)
-    
+
     // Log email simulation
     this.simulateEmailNotification(notification)
-    
+
     return notification
   }
 
@@ -209,7 +209,7 @@ class NotificationService {
     const start = (page - 1) * pageSize
     const end = start + pageSize
     const notifications = allNotifications.slice(start, end)
-    
+
     return {
       notifications,
       total,
@@ -240,9 +240,9 @@ class NotificationService {
   deleteNotification(notificationId: string): boolean {
     const notifications = storageService.getItem<Notification>('vicc_kpi_notifications')
     const index = notifications.findIndex(n => n.id === notificationId)
-    
+
     if (index === -1) return false
-    
+
     notifications.splice(index, 1)
     storageService.setItem('vicc_kpi_notifications', notifications)
     return true
@@ -254,10 +254,10 @@ class NotificationService {
   sendReminders(): void {
     // Check for pending approvals
     this.checkPendingApprovals()
-    
+
     // Check for cycle deadlines
     this.checkCycleDeadlines()
-    
+
     // Check for incomplete KPIs
     this.checkIncompleteKpis()
   }
@@ -269,18 +269,18 @@ class NotificationService {
     const approvals = storageService.getItem<any>('vicc_kpi_approvals')
     const threeDaysAgo = new Date()
     threeDaysAgo.setDate(threeDaysAgo.getDate() - 3)
-    
-    const pendingOld = approvals.filter((a: any) => 
-      a.status === 'PENDING' && 
+
+    const pendingOld = approvals.filter((a: any) =>
+      a.status === 'PENDING' &&
       new Date(a.createdAt) < threeDaysAgo
     )
-    
+
     pendingOld.forEach((approval: any) => {
       this.createNotification(
         approval.approverId,
         'REMINDER',
         `You have a pending ${approval.entityType} approval waiting for more than 3 days`,
-        { 
+        {
           entityId: approval.entityId,
           daysPending: Math.floor((Date.now() - new Date(approval.createdAt).getTime()) / (1000 * 60 * 60 * 24))
         },
@@ -295,32 +295,32 @@ class NotificationService {
   private checkCycleDeadlines(): void {
     const cycles = storageService.getCycles({ status: 'ACTIVE' })
     const now = new Date()
-    
+
     cycles.forEach(cycle => {
       const endDate = new Date(cycle.periodEnd)
       const daysRemaining = Math.floor((endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
-      
+
       // Send reminder at 7, 3, and 1 days before deadline
       if ([7, 3, 1].includes(daysRemaining)) {
         // Get all users who haven't submitted
         const allUsers = this.getAllUsers()
-        
+
         allUsers.forEach(user => {
           const userKpis = storageService.getKpiDefinitions({
             userId: user.id,
             cycleId: cycle.id
           })
-          
+
           const hasIncomplete = userKpis.some(k => k.status === 'DRAFT')
-          
+
           if (hasIncomplete) {
             this.createNotification(
               user.id,
               'CYCLE_CLOSING_SOON',
               '',
-              { 
+              {
                 cycleName: cycle.name,
-                daysRemaining 
+                daysRemaining
               },
               `/kpis?cycle=${cycle.id}`
             )
@@ -335,25 +335,25 @@ class NotificationService {
    */
   private checkIncompleteKpis(): void {
     const cycles = storageService.getCycles({ status: 'ACTIVE' })
-    
+
     cycles.forEach(cycle => {
       const allUsers = this.getAllUsers()
-      
+
       allUsers.forEach(user => {
         const kpis = storageService.getKpiDefinitions({
           userId: user.id,
           cycleId: cycle.id,
           status: 'DRAFT'
         })
-        
+
         if (kpis.length > 0) {
           this.createNotification(
             user.id,
             'REMINDER',
             `You have ${kpis.length} draft KPI(s) waiting for submission`,
-            { 
+            {
               count: kpis.length,
-              cycleId: cycle.id 
+              cycleId: cycle.id
             },
             '/kpis'
           )
@@ -377,7 +377,7 @@ class NotificationService {
   private triggerBrowserNotification(notification: Notification): void {
     // Check if browser notifications are enabled
     if (!('Notification' in window)) return
-    
+
     if (Notification.permission === 'granted') {
       new Notification(notification.title, {
         body: notification.message,
@@ -419,7 +419,7 @@ class NotificationService {
       'user-VICC-HR-001': 'hr@intersnack.com.vn',
       'user-VICC-IT-001': 'admin@intersnack.com.vn',
       'user-VICC-RD-001': 'staff@intersnack.com.vn',
-      'user-VICC-PD-001': 'linemanager@intersnack.com.vn',
+      'user-VICC-PD-001': 'linehod@intersnack.com.vn',
       'user-VICC-QA-001': 'hod@intersnack.com.vn',
       'user-VICC-EX-001': 'bod@intersnack.com.vn'
     }
@@ -435,7 +435,7 @@ class NotificationService {
       { id: 'user-VICC-HR-001', email: 'hr@intersnack.com.vn' },
       { id: 'user-VICC-IT-001', email: 'admin@intersnack.com.vn' },
       { id: 'user-VICC-RD-001', email: 'staff@intersnack.com.vn' },
-      { id: 'user-VICC-PD-001', email: 'linemanager@intersnack.com.vn' },
+      { id: 'user-VICC-PD-001', email: 'linehod@intersnack.com.vn' },
       { id: 'user-VICC-QA-001', email: 'hod@intersnack.com.vn' },
       { id: 'user-VICC-EX-001', email: 'bod@intersnack.com.vn' }
     ]

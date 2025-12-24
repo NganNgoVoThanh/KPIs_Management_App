@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getDatabase } from '@/lib/repositories/DatabaseFactory'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 /**
  * GET /api/kpi-templates
  * Get all KPI templates with optional filters
@@ -42,9 +46,15 @@ export async function GET(request: NextRequest) {
     const db = getDatabase()
     const templates = await db.getKpiTemplates(filters)
 
+    // Map 'name' to 'kpiName' for UI compatibility
+    const mappedTemplates = templates.map((t: any) => ({
+      ...t,
+      kpiName: t.name
+    }))
+
     return NextResponse.json({
       success: true,
-      data: templates
+      data: mappedTemplates
     })
   } catch (error: any) {
     console.error('Error fetching templates:', error)

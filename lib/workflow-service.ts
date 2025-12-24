@@ -2,17 +2,17 @@
 import { storageService } from './storage-service'
 import { authService } from './auth-service'
 import { notificationService } from './notification-service'
-import type { 
-  KpiDefinition, 
-  KpiActual, 
-  Approval, 
+import type {
+  KpiDefinition,
+  KpiActual,
+  Approval,
   ChangeRequest,
   User,
   ApprovalStatus
 } from './types'
 
 function generateUUID(): string {
-  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function(c) {
+  return 'xxxx-xxxx-4xxx-yxxx-xxxx'.replace(/[xy]/g, function (c) {
     const r = Math.random() * 16 | 0
     const v = c === 'x' ? r : (r & 0x3 | 0x8)
     return v.toString(16)
@@ -63,7 +63,7 @@ class WorkflowService {
     submitterId: string
   ): WorkflowState {
     const steps = this.getWorkflowConfig()
-    
+
     const Steps = steps.map(step => ({
       ...step,
       approver: this.getApproverForLevel(submitterId, step.level)
@@ -110,7 +110,10 @@ class WorkflowService {
     }
 
     const userLevel = authService.getApprovalLevel()
-    if (userLevel === 0) {
+    const isAdmin = user.role === 'ADMIN'
+
+    // ADMIN can approve at any level (proxy), others need approval authority
+    if (userLevel === 0 && !isAdmin) {
       return {
         success: false,
         message: 'You do not have approval authority'
@@ -118,31 +121,46 @@ class WorkflowService {
     }
 
     const approvals = storageService.getApprovals(entityId, entityType)
-    const pendingApproval = approvals.find(
-      a => a.level === userLevel && 
-           a.status === 'PENDING' &&
-           a.approverId === user.id
-    )
+
+    // Find pending approval - ADMIN can take any pending approval (proxy mode)
+    const pendingApproval = approvals.find(a => {
+      if (isAdmin) {
+        // ADMIN can approve any pending approval
+        return a.status === 'PENDING'
+      } else {
+        // Regular approvers can only approve their own
+        return a.level === userLevel &&
+          a.status === 'PENDING' &&
+          a.approverId === user.id
+      }
+    })
 
     if (!pendingApproval) {
       return {
         success: false,
-        message: 'No pending approval found for you'
+        message: isAdmin
+          ? 'No pending approvals found'
+          : 'No pending approval found for you'
       }
     }
 
     const updatedApproval: Approval = {
       ...pendingApproval,
       status: action === 'APPROVE' ? 'APPROVED' : 'REJECTED',
-      comment,
-      decidedAt: new Date().toISOString()
+      comment: comment || (isAdmin ? `Approved by ADMIN (proxy for Level ${pendingApproval.level})` : undefined),
+      decidedAt: new Date().toISOString(),
+      // Track if this was a proxy approval by ADMIN
+      ...(isAdmin && { proxyApprovedBy: user.id })
     }
     storageService.saveApproval(updatedApproval)
 
+    // Use the actual approval level from the pending approval (for ADMIN proxy)
+    const approvalLevel = pendingApproval.level
+
     if (action === 'APPROVE') {
-      return this.handleApproval(entityId, entityType, userLevel)
+      return this.handleApproval(entityId, entityType, approvalLevel)
     } else {
-      return this.handleRejection(entityId, entityType, userLevel, comment)
+      return this.handleRejection(entityId, entityType, approvalLevel, comment)
     }
   }
 
@@ -156,11 +174,11 @@ class WorkflowService {
     nextStep?: WorkflowStep
   }> {
     const maxLevel = 2
-    
+
     if (currentLevel < maxLevel) {
       const nextLevel = currentLevel + 1
       const nextApprover = this.getApproverForLevel(entityId, nextLevel)
-      
+
       if (nextApprover) {
         this.createApprovalRequest(
           entityId,
@@ -191,14 +209,14 @@ class WorkflowService {
       }
     } else {
       this.updateEntityStatus(entityId, entityType, 'APPROVED')
-      
+
       const entity = this.getEntity(entityId, entityType)
       if (entity && 'userId' in entity) {
         notificationService.createNotification(
           entity.userId,
-          entityType === 'KPI' ? 'KPI_APPROVED' : 
-          entityType === 'ACTUAL' ? 'ACTUAL_APPROVED' : 
-          'CHANGE_REQUEST',
+          entityType === 'KPI' ? 'KPI_APPROVED' :
+            entityType === 'ACTUAL' ? 'ACTUAL_APPROVED' :
+              'CHANGE_REQUEST',
           `Your ${entityType.toLowerCase()} has been fully approved`,
           { entityId }
         )
@@ -226,7 +244,7 @@ class WorkflowService {
     message: string
   }> {
     this.updateEntityStatus(entityId, entityType, 'REJECTED', reason)
-    
+
     const approvals = storageService.getApprovals(entityId, entityType)
     approvals
       .filter(a => a.status === 'PENDING')
@@ -242,9 +260,9 @@ class WorkflowService {
     if (entity && 'userId' in entity) {
       notificationService.createNotification(
         entity.userId,
-        entityType === 'KPI' ? 'KPI_REJECTED' : 
-        entityType === 'ACTUAL' ? 'ACTUAL_REJECTED' : 
-        'CHANGE_REQUEST',
+        entityType === 'KPI' ? 'KPI_REJECTED' :
+          entityType === 'ACTUAL' ? 'ACTUAL_REJECTED' :
+            'CHANGE_REQUEST',
         `Your ${entityType.toLowerCase()} has been rejected at level ${level}`,
         { entityId, reason, level }
       )
@@ -259,9 +277,9 @@ class WorkflowService {
   getApprovalQueue(userId: string, role: string): ApprovalQueue {
     const level = this.getLevelForRole(role)
     const allApprovals = storageService.getItem<Approval>('vicc_kpi_approvals')
-    
+
     const userApprovals = allApprovals.filter(a => a.approverId === userId)
-    
+
     const pending = userApprovals
       .filter(a => a.status === 'PENDING')
       .map(approval => {
@@ -270,7 +288,7 @@ class WorkflowService {
         const daysPending = Math.floor(
           (Date.now() - new Date(approval.createdAt).getTime()) / (1000 * 60 * 60 * 24)
         )
-        
+
         return {
           entity: entity!,
           approval,
@@ -285,10 +303,10 @@ class WorkflowService {
 
     return {
       pending: pending.sort((a, b) => b.daysPending - a.daysPending),
-      approved: approved.sort((a, b) => 
+      approved: approved.sort((a, b) =>
         new Date(b.decidedAt!).getTime() - new Date(a.decidedAt!).getTime()
       ),
-      rejected: rejected.sort((a, b) => 
+      rejected: rejected.sort((a, b) =>
         new Date(b.decidedAt!).getTime() - new Date(a.decidedAt!).getTime()
       )
     }
@@ -304,7 +322,7 @@ class WorkflowService {
   }> {
     const approvals = storageService.getItem<Approval>('vicc_kpi_approvals')
     const approval = approvals.find(a => a.id === approvalId)
-    
+
     if (!approval || approval.status !== 'PENDING') {
       return {
         success: false,
@@ -324,10 +342,10 @@ class WorkflowService {
       delegateToUserId,
       'APPROVAL_REQUIRED',
       `Approval delegated to you: ${approval.entityType}`,
-      { 
+      {
         approvalId,
         delegatedFrom: approval.approverId,
-        reason 
+        reason
       }
     )
 
@@ -341,7 +359,7 @@ class WorkflowService {
     const approvals = storageService.getItem<Approval>('vicc_kpi_approvals')
     const sladays = 3
     const now = new Date()
-    
+
     approvals
       .filter(a => a.status === 'PENDING')
       .forEach(approval => {
@@ -349,19 +367,19 @@ class WorkflowService {
         const daysPending = Math.floor(
           (now.getTime() - createdAt.getTime()) / (1000 * 60 * 60 * 24)
         )
-        
+
         if (daysPending > sladays) {
           notificationService.createNotification(
             approval.approverId,
             'REMINDER',
             `Overdue approval: ${approval.entityType} pending for ${daysPending} days`,
-            { 
+            {
               approvalId: approval.id,
               daysPending,
-              slaViolation: true 
+              slaViolation: true
             }
           )
-          
+
           if (daysPending > sladays * 2) {
             const manager = this.getManagerOf(approval.approverId)
             if (manager) {
@@ -369,10 +387,10 @@ class WorkflowService {
                 manager.id,
                 'SYSTEM',
                 `Escalation: ${approval.entityType} approval overdue by ${daysPending} days`,
-                { 
+                {
                   approvalId: approval.id,
                   approverId: approval.approverId,
-                  daysPending 
+                  daysPending
                 }
               )
             }
@@ -396,7 +414,7 @@ class WorkflowService {
       status: 'PENDING',
       createdAt: new Date().toISOString()
     }
-    
+
     storageService.saveApproval(approval)
     return approval
   }
@@ -409,15 +427,15 @@ class WorkflowService {
   ): void {
     switch (entityType) {
       case 'KPI':
-        storageService.updateKpiDefinition(entityId, { 
+        storageService.updateKpiDefinition(entityId, {
           status: status as any,
-          rejectionReason: reason 
+          rejectionReason: reason
         } as Partial<KpiDefinition>)
         break
       case 'ACTUAL':
-        storageService.updateKpiActual(entityId, { 
+        storageService.updateKpiActual(entityId, {
           status: status as any,
-          rejectionReason: reason 
+          rejectionReason: reason
         } as Partial<KpiActual>)
         break
       case 'CHANGE_REQUEST':
@@ -455,10 +473,10 @@ class WorkflowService {
 
   private getSubmitter(entity: any): User | null {
     if (!entity) return null
-    
+
     const userId = entity.userId || entity.requesterId || entity.submitterId
     if (!userId) return null
-    
+
     return {
       id: userId,
       name: 'Staff Member',
@@ -472,7 +490,7 @@ class WorkflowService {
   private getApproverForLevel(entityOrUserId: string, level: number): User | null {
     const approvers: Record<number, string> = {
       1: 'linemanager@intersnack.com.vn',
-      2: 'manager@intersnack.com.vn'
+      2: 'hod@intersnack.com.vn'
     }
 
     const email = approvers[level]
@@ -491,7 +509,7 @@ class WorkflowService {
   private getManagerOf(userId: string): User | null {
     return {
       id: 'user-manager',
-      email: 'manager@intersnack.com.vn',
+      email: 'hod@intersnack.com.vn',
       name: 'Manager',
       role: 'MANAGER',
       orgUnitId: 'org-vicc',

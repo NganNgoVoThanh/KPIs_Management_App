@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { getDatabase } from '@/lib/repositories/DatabaseFactory'
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 export async function POST(
   request: NextRequest,
   { params }: { params: { id: string } }
@@ -66,6 +70,16 @@ export async function POST(
       }, { status: 500 })
     }
 
+    console.log('[KPI-SUBMIT] Creating approval:', {
+      kpiId: kpi.id,
+      kpiTitle: kpi.title,
+      submitter: user.email,
+      submitterId: user.id,
+      approver: approver.email,
+      approverId: approver.id,
+      approverRole: approver.role
+    })
+
     // Update KPI Status (Level 1: Waiting for Line Manager)
     await db.updateKpiDefinition(params.id, {
       status: 'WAITING_LINE_MGR',
@@ -73,7 +87,7 @@ export async function POST(
     })
 
     // Create Level 1 Approval Request (Line Manager)
-    await db.createApproval({
+    const approval = await db.createApproval({
       kpiDefinitionId: kpi.id,
       entityType: 'KPI',
       entityId: kpi.id,
@@ -81,6 +95,13 @@ export async function POST(
       status: 'PENDING',
       level: 1,
       createdAt: new Date()
+    })
+
+    console.log('[KPI-SUBMIT] Approval created:', {
+      approvalId: approval.id,
+      approverId: approval.approverId,
+      entityId: approval.entityId,
+      status: approval.status
     })
 
     // Notify Approver

@@ -65,10 +65,10 @@ async function main() {
 
   // ✅ 1. Create Manager (N+2) first - no manager above
   const manager = await prisma.user.upsert({
-    where: { email: 'manager@intersnack.com.vn' },
+    where: { email: 'hod@intersnack.com.vn' },
     update: {},
     create: {
-      email: 'manager@intersnack.com.vn',
+      email: 'hod@intersnack.com.vn',
       name: 'Nguyen Viet Cuong',
       role: 'MANAGER',
       orgUnitId: company.id,

@@ -8,14 +8,30 @@ import { IDatabaseRepository } from './IRepository'
 // Prevent multiple instances of Prisma Client in development
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
+  databaseUrl: string | undefined
 }
 
 // Lazy-load Prisma Client - only initialize when MySQLRepository is actually instantiated
+// Force reinitialize if DATABASE_URL changes (for SSL config updates)
 function getPrismaClient(): PrismaClient {
-  if (!globalForPrisma.prisma) {
+  const currentDatabaseUrl = process.env.DATABASE_URL
+
+  if (!globalForPrisma.prisma || globalForPrisma.databaseUrl !== currentDatabaseUrl) {
+    // Disconnect old client if exists
+    if (globalForPrisma.prisma) {
+      globalForPrisma.prisma.$disconnect().catch(console.error)
+    }
+
     globalForPrisma.prisma = new PrismaClient({
       log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+      datasources: {
+        db: {
+          url: currentDatabaseUrl
+        }
+      }
     })
+    globalForPrisma.databaseUrl = currentDatabaseUrl
+    console.log('✅ Prisma Client initialized with DATABASE_URL:', currentDatabaseUrl?.substring(0, 50) + '...')
   }
   return globalForPrisma.prisma
 }
@@ -663,11 +679,12 @@ export class MySQLRepository implements IDatabaseRepository {
 
   // ==================== KPI TEMPLATE OPERATIONS ====================
 
-  async getKpiTemplates(filters?: { department?: string; isActive?: boolean }) {
+  async getKpiTemplates(filters?: { department?: string; isActive?: boolean; status?: string }) {
     return await this.client.kpiTemplate.findMany({
       where: {
         ...(filters?.department && { department: filters.department }),
         ...(filters?.isActive !== undefined && { isActive: filters.isActive }),
+        ...(filters?.status && { status: filters.status }),
       },
       include: {
         creator: true,

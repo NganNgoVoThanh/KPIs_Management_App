@@ -8,17 +8,17 @@ const db = new DatabaseService()
 /**
  * Determine role based on email address
  * Rules:
- * - admin@intersnack.com.vn → ADMIN (L3 Approver - Final approval)
- * - hod@intersnack.com.vn → MANAGER (L2 Approver - Head of Department)
- * - line.manager@intersnack.com.vn → LINE_MANAGER (L1 Approver - Direct Manager)
+ * - admin@intersnack.com.vn → ADMIN (Full access + Proxy approval)
+ * - linemanager@intersnack.com.vn → LINE_MANAGER (L1 Approver - Direct Manager)
+ * - hod@intersnack.com.vn → MANAGER (L2 Approver - Final approval)
  * - Any other @intersnack.com.vn → STAFF
  */
 function getRoleFromEmail(email: string): UserRole {
   const lowerEmail = email.toLowerCase()
 
   if (lowerEmail === 'admin@intersnack.com.vn') return 'ADMIN'
+  if (lowerEmail === 'linemanager@intersnack.com.vn') return 'LINE_MANAGER'
   if (lowerEmail === 'hod@intersnack.com.vn') return 'MANAGER'
-  if (lowerEmail === 'line.manager@intersnack.com.vn') return 'LINE_MANAGER'
   if (lowerEmail.endsWith('@intersnack.com.vn')) return 'STAFF'
 
   throw new Error('Invalid email domain. Please use your Intersnack company email.')
@@ -27,8 +27,17 @@ function getRoleFromEmail(email: string): UserRole {
 /**
  * Extract display name from email
  * Example: ngan.ngo@intersnack.com.vn → Ngan Ngo
+ * Special accounts get proper display names
  */
 function getDisplayNameFromEmail(email: string): string {
+  const lowerEmail = email.toLowerCase()
+
+  // For special accounts, return proper display names
+  if (lowerEmail === 'admin@intersnack.com.vn') return 'Admin'
+  if (lowerEmail === 'linemanager@intersnack.com.vn') return 'Line Manager'
+  if (lowerEmail === 'hod@intersnack.com.vn') return 'Manager (HOD)'
+
+  // For regular users, extract name from email prefix
   const username = email.split('@')[0]
   const parts = username.split('.')
 
@@ -40,8 +49,16 @@ function getDisplayNameFromEmail(email: string): string {
 /**
  * Generate employee ID from email
  * Example: ngan.ngo@intersnack.com.vn → VICC-NN-001
+ * Special accounts get fixed IDs
  */
 function generateEmployeeId(email: string): string {
+  const lowerEmail = email.toLowerCase()
+
+  // Fixed IDs for special accounts
+  if (lowerEmail === 'admin@intersnack.com.vn') return 'VICC-ADMIN-000'
+  if (lowerEmail === 'linemanager@intersnack.com.vn') return 'VICC-LM-000'
+  if (lowerEmail === 'hod@intersnack.com.vn') return 'VICC-HOD-000'
+
   const username = email.split('@')[0]
   const parts = username.split('.')
 

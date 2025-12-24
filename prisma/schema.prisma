@@ -121,7 +121,7 @@ model KpiTemplate {
   id             String   @id @default(uuid())
 
   // Basic information
-  name           String
+  name           String   @db.Text
   description    String?  @db.Text
   department     String
   jobTitle       String?
@@ -129,7 +129,7 @@ model KpiTemplate {
 
   // KPI Details
   kpiType        String   // QUANTITATIVE, QUALITATIVE
-  unit           String?
+  unit           String?  @db.VarChar(500)
   formula        String?  @db.Text
   dataSource     String?  @db.Text
   targetValue    Float?
@@ -476,15 +476,15 @@ model KpiLibraryUpload {
 model KpiLibraryEntry {
   id              String   @id @default(uuid())
   stt             Int
-  ogsmTarget      String
+  ogsmTarget      String   @db.VarChar(500)
   department      String
   jobTitle        String
-  kpiName         String
+  kpiName         String   @db.Text
   kpiType         String
-  unit            String
-  dataSource      String
-  yearlyTarget    String?
-  quarterlyTarget String?
+  unit            String   @db.VarChar(500)
+  dataSource      String   @db.Text
+  yearlyTarget    String?  @db.Text
+  quarterlyTarget String?  @db.Text
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   uploadedBy      String

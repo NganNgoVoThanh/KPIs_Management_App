@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-server'
 import { DatabaseService } from '@/lib/db'
 
+// Force dynamic rendering for authenticated routes
+export const dynamic = 'force-dynamic'
+
+
 const db = new DatabaseService()
 
 interface RouteParams {
