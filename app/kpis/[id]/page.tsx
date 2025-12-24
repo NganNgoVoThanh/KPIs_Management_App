@@ -6,6 +6,7 @@ import { AppLayout } from "@/components/layout/app-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -27,24 +28,43 @@ import {
   Loader2,
   Send,
   Award,
-  BarChart3
+  BarChart3,
+  XCircle
 } from "lucide-react"
 import type { KpiDefinition, Approval, KpiActual, ChangeRequest, Evidence } from "@/lib/types"
 import { authService } from "@/lib/auth-service"
 import { authenticatedFetch } from "@/lib/api-client"
+import { useToast } from "@/components/ui/use-toast"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 
 export default function KpiDetailPage() {
   const params = useParams()
   const kpiId = params?.id as string
   const router = useRouter()
+  const { toast } = useToast()
   const [kpi, setKpi] = useState<KpiDefinition | null>(null)
   const [approvals, setApprovals] = useState<Approval[]>([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState("details")
 
+  // Change request dialog state
+  const [showResolveDialog, setShowResolveDialog] = useState(false)
+  const [selectedChangeRequest, setSelectedChangeRequest] = useState<ChangeRequest | null>(null)
+  const [resolveComment, setResolveComment] = useState("")
+  const [resolvingRequest, setResolvingRequest] = useState(false)
+
   // Derived state
   const actual = kpi?.actuals?.length ? kpi.actuals[kpi.actuals.length - 1] : null
   const changeRequests = kpi?.changeRequests || []
+  const pendingChangeRequest = changeRequests.find(cr => cr.status === 'PENDING')
 
   const currentUser = authService.getCurrentUser()
 
@@ -142,6 +162,51 @@ export default function KpiDetailPage() {
     router.push(`/change-requests/create?kpiId=${kpiId}`)
   }
 
+  const handleResolveChangeRequest = async () => {
+    if (!selectedChangeRequest) return
+
+    setResolvingRequest(true)
+    try {
+      const response = await authenticatedFetch(
+        `/api/change-requests/${selectedChangeRequest.id}/resolve`,
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            comment: resolveComment.trim() || 'Changes completed as requested'
+          })
+        }
+      )
+
+      const data = await response.json()
+
+      if (response.ok && data.success) {
+        toast({
+          title: "Success",
+          description: "Change request marked as completed",
+        })
+        setShowResolveDialog(false)
+        setSelectedChangeRequest(null)
+        setResolveComment("")
+        loadKpiData()
+      } else {
+        toast({
+          variant: "destructive",
+          title: "Error",
+          description: data.error || "Failed to resolve change request",
+        })
+      }
+    } catch (error: any) {
+      console.error("Error resolving change request:", error)
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: error.message || "Failed to resolve change request",
+      })
+    } finally {
+      setResolvingRequest(false)
+    }
+  }
+
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       DRAFT: "bg-gray-100 text-gray-800",
@@ -215,6 +280,46 @@ export default function KpiDetailPage() {
   return (
     <AppLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Pending Change Request Alert */}
+        {pendingChangeRequest && kpi.userId === currentUser?.id && (
+          <Alert className="border-orange-500 bg-orange-50">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="text-orange-800">
+              <div className="space-y-2">
+                <p className="font-semibold">Change Requested by Admin</p>
+                <p className="text-sm">
+                  <strong>Type:</strong> {pendingChangeRequest.changeType.replace(/_/g, ' ')}
+                </p>
+                <p className="text-sm">
+                  <strong>Reason:</strong> {pendingChangeRequest.reason}
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button
+                    size="sm"
+                    onClick={() => router.push(`/kpis/${kpiId}/edit`)}
+                    className="bg-orange-600 hover:bg-orange-700"
+                  >
+                    <Edit className="h-3 w-3 mr-1" />
+                    Make Changes
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setSelectedChangeRequest(pendingChangeRequest)
+                      setShowResolveDialog(true)
+                    }}
+                    className="border-orange-600 text-orange-600 hover:bg-orange-100"
+                  >
+                    <CheckCircle className="h-3 w-3 mr-1" />
+                    Mark as Completed
+                  </Button>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -654,16 +759,50 @@ export default function KpiDetailPage() {
                     {changeRequests.map((cr: ChangeRequest) => (
                       <div key={cr.id} className="border-l-4 border-orange-500 pl-4 py-2">
                         <div className="flex items-start justify-between">
-                          <div>
-                            <Badge className="mb-2">{cr.changeType}</Badge>
-                            <p className="text-sm text-gray-700 mb-2">{cr.reason}</p>
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <Badge className="bg-orange-100 text-orange-800">
+                                {cr.changeType.replace(/_/g, ' ')}
+                              </Badge>
+                              <Badge variant={
+                                cr.status === "COMPLETED" ? "default" :
+                                cr.status === "PENDING" ? "outline" :
+                                "secondary"
+                              }>
+                                {cr.status}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-700 mb-2">
+                              <strong>Reason:</strong> {cr.reason}
+                            </p>
                             <p className="text-xs text-gray-500">
                               Requested: {new Date(cr.createdAt).toLocaleDateString()}
                             </p>
+                            {cr.resolvedAt && (
+                              <p className="text-xs text-gray-500">
+                                Completed: {new Date(cr.resolvedAt).toLocaleDateString()}
+                              </p>
+                            )}
+                            {cr.resolutionComment && (
+                              <p className="text-sm text-gray-600 mt-2 italic">
+                                "{cr.resolutionComment}"
+                              </p>
+                            )}
                           </div>
-                          <Badge variant={cr.status === "APPROVED" ? "default" : "outline"}>
-                            {cr.status}
-                          </Badge>
+                          {cr.status === 'PENDING' && kpi.userId === currentUser?.id && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setSelectedChangeRequest(cr)
+                                setShowResolveDialog(true)
+                              }}
+                              className="ml-2"
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              Mark Complete
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))}
@@ -673,6 +812,84 @@ export default function KpiDetailPage() {
             </Card>
           </TabsContent>
         </Tabs>
+
+        {/* Resolve Change Request Dialog */}
+        <Dialog open={showResolveDialog} onOpenChange={setShowResolveDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Mark Change Request as Completed</DialogTitle>
+              <DialogDescription>
+                Confirm that you have made the requested changes to this KPI.
+              </DialogDescription>
+            </DialogHeader>
+
+            {selectedChangeRequest && (
+              <div className="space-y-4 py-4">
+                <Alert>
+                  <FileText className="h-4 w-4" />
+                  <AlertDescription>
+                    <div className="space-y-1">
+                      <p className="text-sm">
+                        <strong>Change Type:</strong> {selectedChangeRequest.changeType.replace(/_/g, ' ')}
+                      </p>
+                      <p className="text-sm">
+                        <strong>Requested by Admin:</strong> {selectedChangeRequest.reason}
+                      </p>
+                    </div>
+                  </AlertDescription>
+                </Alert>
+
+                <div className="space-y-2">
+                  <Label htmlFor="resolveComment">
+                    Comment (Optional)
+                  </Label>
+                  <Textarea
+                    id="resolveComment"
+                    value={resolveComment}
+                    onChange={(e) => setResolveComment(e.target.value)}
+                    placeholder="Describe what changes you made..."
+                    rows={4}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-gray-500">
+                    This comment will be sent to the admin who requested the change
+                  </p>
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowResolveDialog(false)
+                  setSelectedChangeRequest(null)
+                  setResolveComment("")
+                }}
+                disabled={resolvingRequest}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleResolveChangeRequest}
+                disabled={resolvingRequest}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                {resolvingRequest ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Confirm Completion
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppLayout>
   )

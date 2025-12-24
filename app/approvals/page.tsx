@@ -550,6 +550,28 @@ export default function ApprovalsPage() {
                             <p className="text-sm">{entity.description}</p>
                           </div>
                         )}
+
+                        {/* Admin Actions - Request Change for APPROVED KPIs */}
+                        {user?.role === 'ADMIN' && isKpi && entity?.status === 'APPROVED' && (
+                          <div className="flex gap-2 pt-2">
+                            <Button
+                              size="sm"
+                              onClick={() => window.location.href = `/kpis/${entity.id}`}
+                              variant="outline"
+                            >
+                              <FileText className="h-3 w-3 mr-1" />
+                              View KPI Details
+                            </Button>
+                            <Button
+                              size="sm"
+                              onClick={() => window.location.href = `/change-requests/create?kpiId=${entity.id}`}
+                              className="bg-orange-600 hover:bg-orange-700"
+                            >
+                              <AlertCircle className="h-3 w-3 mr-1" />
+                              Request Change
+                            </Button>
+                          </div>
+                        )}
                       </CardContent>
                     </Card>
                   )

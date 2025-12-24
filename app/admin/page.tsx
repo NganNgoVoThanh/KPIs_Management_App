@@ -186,7 +186,7 @@ export default function AdminPage() {
           <TabsList className="grid w-full grid-cols-7">
             <TabsTrigger value="debug" className="flex items-center gap-2">
               <Database className="h-4 w-4" />
-              Debug Tools (Test)
+              Debug Tools
             </TabsTrigger>
             <TabsTrigger value="users" className="flex items-center gap-2">
               <Users className="h-4 w-4" />
