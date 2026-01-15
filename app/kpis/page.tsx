@@ -75,21 +75,34 @@ function KpisPageContent() {
     }
   }, [router, searchParams])
 
+  const [activeCycle, setActiveCycle] = useState<any>(null)
+
   const loadKpis = async (userId: string) => {
     setLoading(true)
     try {
-      // Fetch KPIs from API with authentication headers
-      const response = await authenticatedFetch(`/api/kpi?userId=${userId}`)
-      const data = await response.json()
+      // Parallel fetch: KPIs and Active Cycle
+      const [kpiResponse, cycleResponse] = await Promise.all([
+        authenticatedFetch(`/api/kpi?userId=${userId}`),
+        authenticatedFetch('/api/cycles/active')
+      ])
 
-      if (data.success) {
-        setKpis(data.data || [])
+      const [kpiData, cycleData] = await Promise.all([
+        kpiResponse.json(),
+        cycleResponse.json()
+      ])
+
+      if (cycleData.success && cycleData.data) {
+        setActiveCycle(cycleData.data)
+      }
+
+      if (kpiData.success) {
+        setKpis(kpiData.data || [])
       } else {
-        console.error("Failed to load KPIs:", data.error)
+        console.error("Failed to load KPIs:", kpiData.error)
         setKpis([])
       }
     } catch (error) {
-      console.error("Error loading KPIs:", error)
+      console.error("Error loading data:", error)
       setKpis([])
     } finally {
       setLoading(false)
@@ -139,22 +152,28 @@ function KpisPageContent() {
     return matchesSearch && matchesStatus && matchesCategory
   })
 
+  // Calculate stats strictly for the ACTIVE cycle
+  const activeCycleKpis = activeCycle
+    ? kpis.filter(k => k.cycleId === activeCycle.id)
+    : kpis; // Fallback to all if no active cycle (or maybe [] if we want to be strict)
+
   const kpiStats = {
-    total: kpis.length,
-    draft: kpis.filter(k => k.status === "DRAFT").length,
-    pending: kpis.filter(k =>
+    total: activeCycleKpis.length,
+    draft: activeCycleKpis.filter(k => k.status === "DRAFT").length,
+    pending: activeCycleKpis.filter(k =>
       k.status === "WAITING_LINE_MGR" ||
       k.status === "WAITING_MANAGER" ||
       k.status === "SUBMITTED" ||
       k.status === "PENDING_APPROVAL"
     ).length,
-    approved: kpis.filter(k => k.status === "APPROVED" || k.status === "LOCKED_GOALS").length,
-    rejected: kpis.filter(k => k.status === "REJECTED").length,
-    // Fix: Total Weight should only include Active (Non-Rejected/Non-Archived) KPIs
-    totalWeight: kpis
+    approved: activeCycleKpis.filter(k => k.status === "APPROVED" || k.status === "LOCKED_GOALS").length,
+    rejected: activeCycleKpis.filter(k => k.status === "REJECTED").length,
+    totalWeight: activeCycleKpis
       .filter(k => k.status !== 'REJECTED' && k.status !== 'ARCHIVED')
       .reduce((sum, k) => sum + (k.weight || 0), 0),
-    avgSmartScore: kpis.length > 0 ? Math.round(kpis.reduce((sum, k) => sum + (k.smartScore || 0), 0) / kpis.length) : 0
+    avgSmartScore: activeCycleKpis.length > 0
+      ? Math.round(activeCycleKpis.reduce((sum, k) => sum + (Number(k.smartScore) || 0), 0) / activeCycleKpis.length)
+      : 0
   }
 
   const handleCreateNew = () => {
@@ -571,221 +590,293 @@ function KpisPageContent() {
             </CardContent>
           </Card>
         ) : (
-          <div className="space-y-4">
-            {filteredKpis.map((kpi) => (
-              <Card
-                key={kpi.id}
-                className={`bg-white border-l-4 transition-all hover:shadow-xl ${getCategoryColor(kpi.category || "")}`}
-              >
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <CardTitle className="text-xl font-bold text-gray-900 line-clamp-1">
-                          {kpi.title}
-                        </CardTitle>
-                      </div>
+          <div className="space-y-8">
+            {/* Active Cycle KPIs */}
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200 px-3 py-1 text-sm font-semibold">
+                  Currently Active Cycle: {activeCycle ? activeCycle.name : 'Unknown'}
+                </Badge>
+              </div>
 
-                      {kpi.description && (
-                        <CardDescription className="text-gray-600 line-clamp-2 text-base">
-                          {kpi.description}
-                        </CardDescription>
-                      )}
-                    </div>
+              <div className="space-y-4">
+                {filteredKpis
+                  .filter(k => !activeCycle || k.cycleId === activeCycle.id)
+                  .map((kpi) => (
+                    <Card
+                      key={kpi.id}
+                      className={`bg-white border-l-4 transition-all hover:shadow-xl ${getCategoryColor(kpi.category || "")}`}
+                    >
+                      <CardHeader className="pb-3">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-3 mb-2">
+                              <CardTitle className="text-xl font-bold text-gray-900 line-clamp-1">
+                                {kpi.title}
+                              </CardTitle>
+                            </div>
 
-                    <div className="flex items-center gap-2 ml-4 flex-shrink-0">
-                      <Badge className={`${getStatusColor(kpi.status)} flex items-center gap-1 border-2 px-3 py-1`}>
-                        {getStatusIcon(kpi.status)}
-                        <span className="text-xs font-semibold">
-                          {kpi.status.replace(/_/g, ' ')}
-                        </span>
-                      </Badge>
-                    </div>
-                  </div>
-                </CardHeader>
+                            {kpi.description && (
+                              <CardDescription className="text-gray-600 line-clamp-2 text-base">
+                                {kpi.description}
+                              </CardDescription>
+                            )}
+                          </div>
 
-                <CardContent className="pt-0">
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-4">
-                    <div className="bg-red-50 p-3 rounded-lg text-center border border-red-200">
-                      <div className="text-xl font-bold text-red-600">
-                        {kpi.target} {kpi.unit}
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium">Target</div>
-                    </div>
+                          <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                            <Badge className={`${getStatusColor(kpi.status)} flex items-center gap-1 border-2 px-3 py-1`}>
+                              {getStatusIcon(kpi.status)}
+                              <span className="text-xs font-semibold">
+                                {kpi.status.replace(/_/g, ' ')}
+                              </span>
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardHeader>
 
-                    <div className="bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
-                      <div className="text-xl font-bold text-purple-600">
-                        {kpi.weight}%
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium">Weight</div>
-                    </div>
+                      <CardContent className="pt-0">
+                        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-4">
+                          <div className="bg-red-50 p-3 rounded-lg text-center border border-red-200">
+                            <div className="text-xl font-bold text-red-600">
+                              {kpi.target} {kpi.unit}
+                            </div>
+                            <div className="text-xs text-gray-600 font-medium">Target</div>
+                          </div>
 
-                    <div className="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
-                      <div className="text-xl font-bold text-blue-600">
-                        Type {kpi.type === 'QUANT_HIGHER_BETTER' ? '1' :
-                          kpi.type === 'QUANT_LOWER_BETTER' ? '2' :
-                            kpi.type === 'BOOLEAN' ? '3' : '4'}
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium">KPI Type</div>
-                    </div>
+                          <div className="bg-purple-50 p-3 rounded-lg text-center border border-purple-200">
+                            <div className="text-xl font-bold text-purple-600">
+                              {kpi.weight}%
+                            </div>
+                            <div className="text-xs text-gray-600 font-medium">Weight</div>
+                          </div>
 
-                    <div className="bg-green-50 p-3 rounded-lg text-center border border-green-200">
-                      <div className="text-xl font-bold text-green-600">
-                        {kpi.smartScore || 0}
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium">SMART Score</div>
-                    </div>
+                          <div className="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
+                            <div className="text-xl font-bold text-blue-600">
+                              Type {kpi.type === 'QUANT_HIGHER_BETTER' ? '1' :
+                                kpi.type === 'QUANT_LOWER_BETTER' ? '2' :
+                                  kpi.type === 'BOOLEAN' ? '3' : '4'}
+                            </div>
+                            <div className="text-xs text-gray-600 font-medium">KPI Type</div>
+                          </div>
 
-                    <div className="bg-orange-50 p-3 rounded-lg text-center border border-orange-200">
-                      <div className="text-xl font-bold text-orange-600">
-                        {kpi.frequency || 'Quarterly'}
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium">Frequency</div>
-                    </div>
+                          <div className="bg-green-50 p-3 rounded-lg text-center border border-green-200">
+                            <div className="text-xl font-bold text-green-600">
+                              {kpi.smartScore || 0}
+                            </div>
+                            <div className="text-xs text-gray-600 font-medium">SMART Score</div>
+                          </div>
 
-                    <div className="bg-gray-50 p-3 rounded-lg text-center border border-gray-200">
-                      <div className="text-xl font-bold text-gray-600">
-                        {kpi.priority || 'Medium'}
-                      </div>
-                      <div className="text-xs text-gray-600 font-medium">Priority</div>
-                    </div>
-                  </div>
+                          <div className="bg-orange-50 p-3 rounded-lg text-center border border-orange-200">
+                            <div className="text-xl font-bold text-orange-600">
+                              {kpi.frequency || 'Quarterly'}
+                            </div>
+                            <div className="text-xs text-gray-600 font-medium">Frequency</div>
+                          </div>
 
-                  {/* SMART Score Progress */}
-                  {kpi.smartScore && (
-                    <div className="mb-4">
-                      <div className="flex justify-between text-sm mb-2">
-                        <span className="text-gray-700 font-medium">SMART Quality</span>
-                        <span className={`font-bold ${kpi.smartScore >= 80 ? 'text-green-600' :
-                          kpi.smartScore >= 60 ? 'text-yellow-600' : 'text-red-600'
-                          }`}>
-                          {kpi.smartScore}/100
-                        </span>
-                      </div>
-                      <Progress
-                        value={kpi.smartScore}
-                        className={`h-2 ${kpi.smartScore >= 80 ? '[&>div]:bg-green-600' :
-                          kpi.smartScore >= 60 ? '[&>div]:bg-yellow-600' : '[&>div]:bg-red-600'
-                          }`}
-                      />
-                    </div>
-                  )}
+                          <div className="bg-gray-50 p-3 rounded-lg text-center border border-gray-200">
+                            <div className="text-xl font-bold text-gray-600">
+                              {kpi.priority || 'Medium'}
+                            </div>
+                            <div className="text-xs text-gray-600 font-medium">Priority</div>
+                          </div>
+                        </div>
 
-                  {/* Additional Info */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4 bg-gray-50 p-3 rounded-lg">
-                    {kpi.category && (
-                      <div>
-                        <span className="font-semibold text-gray-700">Category:</span>
-                        <span className="ml-2 text-gray-600">{kpi.category}</span>
-                      </div>
-                    )}
-
-                    {kpi.dataSource && (
-                      <div>
-                        <span className="font-semibold text-gray-700">Data Source:</span>
-                        <span className="ml-2 text-gray-600">{kpi.dataSource}</span>
-                      </div>
-                    )}
-
-                    {kpi.createdAt && (
-                      <div>
-                        <span className="font-semibold text-gray-700">Created:</span>
-                        <span className="ml-2 text-gray-600">
-                          {new Date(kpi.createdAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-
-                    {kpi.submittedAt && (
-                      <div>
-                        <span className="font-semibold text-gray-700">Submitted:</span>
-                        <span className="ml-2 text-gray-600">
-                          {new Date(kpi.submittedAt).toLocaleDateString()}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex items-center justify-between pt-4 border-t-2 border-gray-200">
-                    <div className="text-xs text-gray-500 font-mono">
-                      ID: {kpi.id.slice(-8)}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      {/* Submit Actual Action for Approved KPIs */}
-                      {(kpi.status === 'APPROVED' || kpi.status === 'LOCKED_GOALS') && (
-                        <Button variant="outline" size="sm" onClick={() => router.push('/evaluation')}>
-                          <TrendingUp className="h-4 w-4 text-green-600 mr-2" />
-                          Update Actual
-                        </Button>
-                      )}
-
-                      {/* View Action */}
-                      <Button variant="outline" size="sm" onClick={() => handleViewKpi(kpi.id)}>
-                        {actionLoading[`view-${kpi.id}`] ? (
-                          <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
-                        ) : (
-                          <Eye className="h-4 w-4 text-blue-500" />
+                        {/* SMART Score Progress */}
+                        {kpi.smartScore && (
+                          <div className="mb-4">
+                            <div className="flex justify-between text-sm mb-2">
+                              <span className="text-gray-700 font-medium">SMART Quality</span>
+                              <span className={`font-bold ${kpi.smartScore >= 80 ? 'text-green-600' :
+                                kpi.smartScore >= 60 ? 'text-yellow-600' : 'text-red-600'
+                                }`}>
+                                {kpi.smartScore}/100
+                              </span>
+                            </div>
+                            <Progress
+                              value={kpi.smartScore}
+                              className={`h-2 ${kpi.smartScore >= 80 ? '[&>div]:bg-green-600' :
+                                kpi.smartScore >= 60 ? '[&>div]:bg-yellow-600' : '[&>div]:bg-red-600'
+                                }`}
+                            />
+                          </div>
                         )}
-                        <span className="ml-2">View</span>
-                      </Button>
 
-                      {(kpi.status === 'DRAFT' || kpi.status === 'REJECTED') && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleSubmitClick(kpi)}
-                            disabled={actionLoading[`submit-${kpi.id}`]}
-                            className="text-white bg-green-600 hover:bg-green-700 border border-green-700 disabled:opacity-50"
-                          >
-                            {actionLoading[`submit-${kpi.id}`] ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : (
-                              <Send className="h-4 w-4 mr-1" />
-                            )}
-                            Submit
-                          </Button>
-
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEditKpi(kpi.id)}
-                            disabled={actionLoading[`edit-${kpi.id}`]}
-                            className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-300"
-                          >
-                            {actionLoading[`edit-${kpi.id}`] ? (
-                              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                            ) : (
-                              <Edit className="h-4 w-4 mr-1" />
-                            )}
-                            Edit
-                          </Button>
-
-                          {kpi.status === 'DRAFT' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteClick(kpi)}
-                              disabled={actionLoading[`delete-${kpi.id}`]}
-                              className="text-gray-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-300"
-                            >
-                              {actionLoading[`delete-${kpi.id}`] ? (
-                                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                              ) : (
-                                <Trash2 className="h-4 w-4 mr-1" />
-                              )}
-                              Delete
-                            </Button>
+                        {/* Additional Info */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm mb-4 bg-gray-50 p-3 rounded-lg">
+                          {kpi.category && (
+                            <div>
+                              <span className="font-semibold text-gray-700">Category:</span>
+                              <span className="ml-2 text-gray-600">{kpi.category}</span>
+                            </div>
                           )}
-                        </>
-                      )}
-                    </div>
+
+                          {kpi.dataSource && (
+                            <div>
+                              <span className="font-semibold text-gray-700">Data Source:</span>
+                              <span className="ml-2 text-gray-600">{kpi.dataSource}</span>
+                            </div>
+                          )}
+
+                          {kpi.createdAt && (
+                            <div>
+                              <span className="font-semibold text-gray-700">Created:</span>
+                              <span className="ml-2 text-gray-600">
+                                {new Date(kpi.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+
+                          {kpi.submittedAt && (
+                            <div>
+                              <span className="font-semibold text-gray-700">Submitted:</span>
+                              <span className="ml-2 text-gray-600">
+                                {new Date(kpi.submittedAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Action Buttons */}
+                        <div className="flex items-center justify-between pt-4 border-t-2 border-gray-200">
+                          <div className="text-xs text-gray-500 font-mono">
+                            ID: {kpi.id.slice(-8)}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {/* Submit Actual Action for Approved KPIs */}
+                            {(kpi.status === 'APPROVED' || kpi.status === 'LOCKED_GOALS') && (
+                              <Button variant="outline" size="sm" onClick={() => router.push('/evaluation')}>
+                                <TrendingUp className="h-4 w-4 text-green-600 mr-2" />
+                                Update Actual
+                              </Button>
+                            )}
+
+                            {/* View Action */}
+                            <Button variant="outline" size="sm" onClick={() => handleViewKpi(kpi.id)}>
+                              {actionLoading[`view-${kpi.id}`] ? (
+                                <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
+                              ) : (
+                                <Eye className="h-4 w-4 text-blue-500" />
+                              )}
+                              <span className="ml-2">View</span>
+                            </Button>
+
+                            {(kpi.status === 'DRAFT' || kpi.status === 'REJECTED') && (
+                              <>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleSubmitClick(kpi)}
+                                  disabled={actionLoading[`submit-${kpi.id}`]}
+                                  className="text-white bg-green-600 hover:bg-green-700 border border-green-700 disabled:opacity-50"
+                                >
+                                  {actionLoading[`submit-${kpi.id}`] ? (
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <Send className="h-4 w-4 mr-1" />
+                                  )}
+                                  Submit
+                                </Button>
+
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditKpi(kpi.id)}
+                                  disabled={actionLoading[`edit-${kpi.id}`]}
+                                  className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-300"
+                                >
+                                  {actionLoading[`edit-${kpi.id}`] ? (
+                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                  ) : (
+                                    <Edit className="h-4 w-4 mr-1" />
+                                  )}
+                                  Edit
+                                </Button>
+
+                                {kpi.status === 'DRAFT' && (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleDeleteClick(kpi)}
+                                    disabled={actionLoading[`delete-${kpi.id}`]}
+                                    className="text-gray-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-300"
+                                  >
+                                    {actionLoading[`delete-${kpi.id}`] ? (
+                                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                    ) : (
+                                      <Trash2 className="h-4 w-4 mr-1" />
+                                    )}
+                                    Delete
+                                  </Button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+
+                {filteredKpis.filter(k => !activeCycle || k.cycleId === activeCycle.id).length === 0 && (
+                  <div className="text-center p-8 bg-gray-50 border-2 border-dashed border-gray-300 rounded-xl">
+                    <p className="text-gray-500">No KPIs found for the current active cycle.</p>
                   </div>
-                </CardContent>
-              </Card>
-            ))}
+                )}
+              </div>
+            </div>
+
+            {/* Past/Other Cycles KPIs - Semi-collapsed/Separated */}
+            {activeCycle && filteredKpis.some(k => k.cycleId !== activeCycle.id) && (
+              <div className="mt-12 pt-8 border-t-2 border-gray-200">
+                <h3 className="text-xl font-bold text-gray-500 mb-4 flex items-center gap-2">
+                  <Clock className="w-5 h-5" />
+                  History / Other Cycles
+                </h3>
+                <div className="opacity-75 hover:opacity-100 transition-opacity space-y-4">
+                  {filteredKpis
+                    .filter(k => k.cycleId !== activeCycle.id)
+                    .map((kpi) => (
+                      <Card
+                        key={kpi.id}
+                        className="bg-gray-50 border-gray-200 border-l-4 border-l-gray-400"
+                      >
+                        <CardHeader className="pb-3">
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-3 mb-2">
+                                <CardTitle className="text-lg font-bold text-gray-700 line-clamp-1">
+                                  {kpi.title}
+                                </CardTitle>
+                                <Badge variant="outline" className="text-xs bg-gray-200 text-gray-600">
+                                  Past Cycle
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 ml-4 flex-shrink-0">
+                              <Badge className="bg-gray-200 text-gray-700 border-gray-300 flex items-center gap-1 border px-3 py-1">
+                                {getStatusIcon(kpi.status)}
+                                <span className="text-xs font-semibold">
+                                  {kpi.status.replace(/_/g, ' ')}
+                                </span>
+                              </Badge>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex justify-between items-center">
+                            <div className="text-sm text-gray-500">
+                              Target: {kpi.target} {kpi.unit} | Weight: {kpi.weight}%
+                            </div>
+                            <Button variant="ghost" size="sm" onClick={() => handleViewKpi(kpi.id)}>
+                              View Details
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

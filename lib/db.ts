@@ -114,7 +114,7 @@ export class DatabaseService implements IDatabaseRepository {
 
   // ==================== KPI ACTUAL OPERATIONS ====================
 
-  async getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string }) {
+  async getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string; userId?: string; cycleId?: string }) {
     return this.repository.getKpiActuals(filters)
   }
 

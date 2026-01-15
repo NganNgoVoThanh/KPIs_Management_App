@@ -37,7 +37,7 @@ export interface IKpiDefinitionRepository {
 }
 
 export interface IKpiActualRepository {
-  getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string }): Promise<any[]>
+  getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string; userId?: string; cycleId?: string }): Promise<any[]>
   getKpiActualById(id: string): Promise<any | null>
   createKpiActual(data: any): Promise<any>
   updateKpiActual(id: string, data: any): Promise<any>

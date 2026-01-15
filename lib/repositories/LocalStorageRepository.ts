@@ -283,7 +283,7 @@ export class LocalStorageRepository implements IDatabaseRepository {
 
   // ==================== KPI Actual Repository ====================
 
-  async getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string }): Promise<any[]> {
+  async getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string; userId?: string; cycleId?: string }): Promise<any[]> {
     const actuals = await this.getAllRecords<any>('kpiActuals')
     return actuals.filter(actual => this.matchesFilters(actual, filters))
   }

@@ -41,42 +41,45 @@ export default function EvaluationPage() {
   const loadData = async (userId: string) => {
     setLoading(true)
     try {
-      // 0. Fetch Active Cycle
+      // 0. Fetch Active Cycle FIRST to optimize subsequent queries
       const cycleResponse = await authenticatedFetch('/api/cycles/active')
       const cycleData = await cycleResponse.json()
 
       let currentCycle = null;
+      let cycleId = '';
+
       if (cycleData.success && cycleData.data) {
         setCycle(cycleData.data)
         currentCycle = cycleData.data;
+        cycleId = currentCycle.id;
 
         // Check timeline
-        if (currentCycle) {
-          const now = new Date();
-          const start = new Date(currentCycle.trackingStart);
-          const end = new Date(currentCycle.trackingEnd);
-          // End of day adjustment
-          end.setHours(23, 59, 59, 999);
-
-          const isTime = now >= start && now <= end;
-          setIsWithinTimeline(isTime);
-        }
+        const now = new Date();
+        const start = new Date(currentCycle.trackingStart);
+        const end = new Date(currentCycle.trackingEnd);
+        end.setHours(23, 59, 59, 999);
+        const isTime = now >= start && now <= end;
+        setIsWithinTimeline(isTime);
       }
 
-      // 1. Fetch User's KPIs
-      const kpiResponse = await authenticatedFetch(`/api/kpi?userId=${userId}`)
-      const kpiData = await kpiResponse.json()
+      // 1. Fetch KPIs and Actuals in parallel, BUT filtered by Cycle ID (Performance Critical)
+      const [kpiResponse, actualsResponse] = await Promise.all([
+        authenticatedFetch(`/api/kpi?userId=${userId}${cycleId ? `&cycleId=${cycleId}` : ''}`),
+        authenticatedFetch(`/api/actuals?userId=${userId}${cycleId ? `&cycleId=${cycleId}` : ''}`)
+      ])
 
-      // Filter for KPIs ready for execution
+      const [kpiData, actualsData] = await Promise.all([
+        kpiResponse.json(),
+        actualsResponse.json()
+      ])
+
+      // 2. Process KPIs
       const approvedKpis = (kpiData.data || []).filter((k: KpiDefinition) =>
         k.status === 'APPROVED' || k.status === 'LOCKED_GOALS'
       )
       setKpis(approvedKpis)
 
-      // 2. Fetch User's Actuals
-      const actualsResponse = await authenticatedFetch(`/api/actuals?userId=${userId}`)
-      const actualsData = await actualsResponse.json()
-
+      // 3. Process Actuals
       const actualsMap: Record<string, KpiActual> = {}
       if (actualsData.success && Array.isArray(actualsData.data)) {
         actualsData.data.forEach((actual: KpiActual) => {
@@ -89,7 +92,7 @@ export default function EvaluationPage() {
       console.error("Failed to load evaluation data", error)
       toast({
         title: "Error",
-        description: "Failed to load KPIs and actuals",
+        description: "Failed to load evaluation data",
         variant: "destructive"
       })
     } finally {

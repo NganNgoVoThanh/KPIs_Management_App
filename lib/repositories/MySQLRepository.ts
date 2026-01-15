@@ -23,7 +23,7 @@ function getPrismaClient(): PrismaClient {
     }
 
     globalForPrisma.prisma = new PrismaClient({
-      log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
+      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
       datasources: {
         db: {
           url: currentDatabaseUrl
@@ -263,11 +263,17 @@ export class MySQLRepository implements IDatabaseRepository {
 
   // ==================== KPI ACTUAL OPERATIONS ====================
 
-  async getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string }) {
+  async getKpiActuals(filters?: { kpiDefinitionId?: string; status?: string; userId?: string; cycleId?: string }) {
     return await this.client.kpiActual.findMany({
       where: {
         ...(filters?.kpiDefinitionId && { kpiDefinitionId: filters.kpiDefinitionId }),
         ...(filters?.status && { status: filters.status }),
+        ...((filters?.userId || filters?.cycleId) && {
+          kpiDefinition: {
+            ...(filters?.userId && { userId: filters.userId }),
+            ...(filters?.cycleId && { cycleId: filters.cycleId }),
+          }
+        }),
       },
       include: {
         kpiDefinition: true,

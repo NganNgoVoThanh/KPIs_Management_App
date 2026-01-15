@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url)
+    const cycleId = searchParams.get('cycleId') || undefined
     const kpiDefinitionId = searchParams.get('kpiDefinitionId') || undefined
     const status = searchParams.get('status') || undefined
     const userId = searchParams.get('userId') || undefined
@@ -32,17 +33,16 @@ export async function GET(request: NextRequest) {
     const filters: any = {}
     if (kpiDefinitionId) filters.kpiDefinitionId = kpiDefinitionId
     if (status) filters.status = status
+    if (cycleId) filters.cycleId = cycleId
 
     // Authorization: staff can only see their own
-    let actuals = await db.getKpiActuals(filters)
-
     if (user.role === 'STAFF') {
-      const userKpiIds = (await db.getKpiDefinitions({ userId: user.id })).map(k => k.id)
-      actuals = actuals.filter(a => userKpiIds.includes(a.kpiDefinitionId))
+      filters.userId = user.id
     } else if (userId) {
-      const userKpiIds = (await db.getKpiDefinitions({ userId })).map(k => k.id)
-      actuals = actuals.filter(a => userKpiIds.includes(a.kpiDefinitionId))
+      filters.userId = userId
     }
+
+    const actuals = await db.getKpiActuals(filters)
 
     // Enrich with KPI data
     const enrichedActuals = await Promise.all(

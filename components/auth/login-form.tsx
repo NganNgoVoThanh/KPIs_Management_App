@@ -187,6 +187,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
               <br />
               <span className="text-gray-600">IT Security Policies</span> of Intersnack Group.
             </p>
+            <p className="text-[10px] text-red-500 mt-4 font-mono">Version 01.03</p>
           </div>
         </div>
       </div>

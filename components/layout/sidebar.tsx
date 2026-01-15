@@ -29,7 +29,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { Badge } from "@/components/ui/badge"
 import { authenticatedFetch } from "@/lib/api-client"
 
@@ -99,7 +99,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
     }
   }, [user.role])
 
-  const menuItems = [
+  const menuItems = useMemo(() => [
     {
       label: "Dashboard",
       href: "/dashboard",
@@ -218,7 +218,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         }
       ]
     }
-  ]
+  ], [user.role, pendingApprovals, unreadNotifications])
 
   const renderMenuItem = (item: any, index: number) => {
     if (!item.show) return null
