@@ -28,6 +28,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { CyclesManager } from "@/components/admin/cycles-manager"
 
 // Mock data with proper types
 // Mock data removed (mockUsers)
@@ -632,28 +633,7 @@ export default function AdminPage() {
           </TabsContent>
 
           <TabsContent value="cycles" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Performance Cycles</h2>
-              <Button>Create New Cycle</Button>
-            </div>
-
-            <div className="grid gap-4">
-              {cycles.length === 0 ? <p className="text-muted-foreground p-4">No cycles found.</p> : cycles.map((cycle) => (
-                <Card key={cycle.id}>
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h3 className="font-medium">{cycle.name}</h3>
-                        <p className="text-sm text-muted-foreground">
-                          {new Date(cycle.periodStart).toLocaleDateString()} - {new Date(cycle.periodEnd).toLocaleDateString()}
-                        </p>
-                      </div>
-                      <Badge variant={cycle.status === "ACTIVE" ? "default" : "secondary"}>{cycle.status}</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
+            <CyclesManager />
           </TabsContent>
 
           <TabsContent value="templates" className="space-y-4">

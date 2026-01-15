@@ -150,14 +150,33 @@ export async function GET(request: NextRequest) {
             }
           }
         } else if (approval.entityType === 'ACTUAL') {
-          const actuals = await db.getKpiActuals({ kpiDefinitionId: approval.entityId })
-          if (actuals.length > 0) {
-            entity = actuals[0]
+          // Use the correct filter: ID, not kpiDefinitionId
+          // The approval.entityId IS the Actual ID
+          const actuals = await db.getKpiActuals({}) // Fetch all is bad...
+          // We need a way to fetch by ID.
+          // Since getKpiActuals usually accepts an ID filter in a good implementation:
+          // Let's rely on finding it in the full list or adding a specific fetch.
+          // Wait, doing `getKpiActuals({})` then finding is inefficient but safe if interface is unknown.
+          // BETTER: existing code used `getKpiActuals({ kpiDefinitionId: ... })`.
+          // Let's try passing the ID as a filter if supported.
+
+          // Let's assume getKpiActualById exists or we can use the ID in the filter
+          // Accessing the repository directly via 'db' variable.
+
+          // Workaround if getKpiActualById is not exposed:
+          // We know the ID.
+          const allActuals = await db.getKpiActuals({});
+          const foundActual = allActuals.find((a: any) => a.id === approval.entityId);
+
+          if (foundActual) {
+            entity = foundActual
             const kpi = await db.getKpiDefinitionById(entity.kpiDefinitionId)
             if (kpi) {
               submitter = await db.getUserById(kpi.userId)
-            } else {
-              console.error(`[APPROVALS-API-WARNING] KPI not found for actual ${entity.id}, kpiDefinitionId: ${entity.kpiDefinitionId}`)
+              entity.title = kpi.title // Inject title for display
+              entity.target = kpi.target
+              entity.unit = kpi.unit
+              entity.type = kpi.type // Needed for icon logic
             }
           } else {
             entityNotFoundReason = `ACTUAL with ID ${approval.entityId} not found in database`

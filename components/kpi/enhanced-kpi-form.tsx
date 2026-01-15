@@ -19,6 +19,7 @@ import {
   Copy, Calendar, BookOpen, Shield, TrendingUp, X,
   ChevronDown, ChevronUp, Edit2
 } from 'lucide-react';
+import { useToast } from '@/components/ui/use-toast';
 import { TypeIVScaleEditor } from './type-iv-scale-editor';
 import { KpiLibrarySelectorModal } from './kpi-library-selector-modal';
 import type { TypeIVScoringRules } from '@/lib/scoring-service';
@@ -101,6 +102,7 @@ export function KpiForm({
     ...initialData
   }]);
 
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState('manual');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
@@ -277,7 +279,9 @@ export function KpiForm({
     const realKpis = kpis.filter(k => k.title && k.title.trim().length > 0);
 
     if (realKpis.length === 0) {
-      setSubmitError("Please fill in at least one KPI.");
+      const msg = "Please fill in at least one KPI title.";
+      setSubmitError(msg);
+      toast({ title: "Validation Error", description: msg, variant: "destructive" });
       return;
     }
 
@@ -309,7 +313,10 @@ export function KpiForm({
     setValidationErrors(newErrors);
 
     if (hasError) {
-      setSubmitError("Please fix the highlighted errors below before submitting.");
+      const msg = "Please fix the highlighted errors in the form before submitting.";
+      setSubmitError(msg);
+      toast({ title: "Validation Failed", description: msg, variant: "destructive" });
+      // Scroll to first error?
       return;
     }
 
@@ -320,14 +327,18 @@ export function KpiForm({
     const currentTotalWeight = realKpis.reduce((sum, k) => sum + (k.weight || 0), 0);
 
     if (!isSingleEditMode && Math.abs(currentTotalWeight - 100) > 0.1) { // 0.1 tolerance
-      setSubmitError(`Total weight must be exactly 100%. Current: ${currentTotalWeight.toFixed(1)}% (Calculated from ${realKpis.length} active KPIs)`);
+      const msg = `Total weight must be exactly 100%. Current: ${currentTotalWeight.toFixed(1)}%`;
+      setSubmitError(msg);
+      toast({ title: "Weight Mismatch", description: msg, variant: "destructive" });
       return;
     }
 
     const effectiveMinKpis = isSingleEditMode ? 1 : (minKpis || 1);
 
     if (realKpis.length < effectiveMinKpis) {
-      setSubmitError(`You need at least ${effectiveMinKpis} active KPIs. Current: ${realKpis.length}`);
+      const msg = `You need at least ${effectiveMinKpis} active KPIs. Current: ${realKpis.length}`;
+      setSubmitError(msg);
+      toast({ title: "Not Enough KPIs", description: msg, variant: "destructive" });
       return;
     }
 
@@ -338,9 +349,12 @@ export function KpiForm({
       // The parent component should handle the actual API calls (batch or sequential)
       await onSubmit(realKpis);
       localStorage.removeItem('kpi_form_draft'); // Clean up on success
+      toast({ title: "Success", description: "KPIs submitted successfully" });
     } catch (error) {
       console.error('Form submission error:', error);
-      setSubmitError('Failed to submit KPIs. Please try again.');
+      const msg = error instanceof Error ? error.message : 'Failed to submit KPIs';
+      setSubmitError(msg);
+      toast({ title: "Submission Failed", description: msg, variant: "destructive" });
       setIsSubmitting(false);
     }
   };
@@ -543,7 +557,7 @@ export function KpiForm({
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid w-full grid-cols-3 h-12 bg-white border-2 border-gray-200 p-1 rounded-xl shadow-sm">
+          <TabsList className="grid w-full grid-cols-2 h-12 bg-white border-2 border-gray-200 p-1 rounded-xl shadow-sm">
             <TabsTrigger
               value="ai-suggestions"
               className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg font-semibold"
@@ -557,13 +571,6 @@ export function KpiForm({
             >
               <FileText className="mr-2 h-4 w-4" />
               Manual Entry
-            </TabsTrigger>
-            <TabsTrigger
-              value="preview"
-              className="data-[state=active]:bg-gradient-to-r data-[state=active]:from-red-500 data-[state=active]:to-red-600 data-[state=active]:text-white data-[state=active]:shadow-md rounded-lg font-semibold"
-            >
-              <Eye className="mr-2 h-4 w-4" />
-              Preview
             </TabsTrigger>
           </TabsList>
 
@@ -964,45 +971,21 @@ export function KpiForm({
             )}
           </TabsContent>
 
-          <TabsContent value="preview" className="mt-4">
-            <Card className="border-2 border-red-200 bg-white shadow-md">
-              <CardHeader className="bg-gradient-to-r from-red-50 to-indigo-50 border-b-2">
-                <CardTitle className="flex items-center gap-2 text-red-900">
-                  <BarChart3 className="h-5 w-5" />
-                  KPI Portfolio Summary
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-5 space-y-3">
-                {kpis.filter(k => k.title.trim()).length === 0 ? (
-                  <div className="text-center text-gray-500 py-8">
-                    No KPIs added yet.
-                  </div>
-                ) : (
-                  kpis.filter(k => k.title.trim()).map((kpi) => (
-                    <div key={kpi.id} className="border-l-4 border-l-red-600 rounded-lg p-4 bg-gradient-to-r from-red-50 to-indigo-50">
-                      <div className="flex items-start justify-between">
-                        <div>
-                          <h4 className="font-bold text-gray-900">{kpi.title}</h4>
-                          <p className="text-sm text-gray-600">{kpi.description}</p>
-                        </div>
-                        <Badge className="bg-red-100 text-red-800 font-bold border-red-200 border">{kpi.weight}%</Badge>
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        Target: {kpi.target} {kpi.unit} | Type: {kpi.type}
-                      </div>
-                    </div>
-                  )))}
-              </CardContent>
-            </Card>
-          </TabsContent>
+
         </Tabs>
       </div>
 
       {/* FIXED FOOTER ACTIONS */}
       <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="text-sm text-gray-500 font-medium hidden md:block">
-            {kpis.length} KPIs • {totalWeight}% Total Weight
+          <div className="flex flex-col md:flex-row gap-4 md:items-center">
+            <div className="text-sm font-medium text-gray-500">
+              {kpis.length} Items ({validKpiCount} valid)
+            </div>
+            <div className={`flex items-center gap-1 text-sm font-bold ${Math.abs(totalWeight - 100) > 0.1 ? 'text-red-600' : 'text-green-600'}`}>
+              {Math.abs(totalWeight - 100) > 0.1 ? <AlertCircle className="h-4 w-4" /> : <CheckCircle className="h-4 w-4" />}
+              Total Weight: {totalWeight.toFixed(1)}% {Math.abs(totalWeight - 100) > 0.1 && "(Target: 100%)"}
+            </div>
           </div>
           <div className="flex gap-4 w-full md:w-auto">
             <Button
@@ -1035,8 +1018,11 @@ export function KpiForm({
             )}
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || isDraftSaving}
-              className="flex-1 md:flex-none bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-md font-bold px-8"
+              disabled={isSubmitting || isDraftSaving || Math.abs(totalWeight - 100) > 0.1 || validKpiCount < minKpis}
+              className={`flex-1 md:flex-none text-white shadow-md font-bold px-8 ${Math.abs(totalWeight - 100) > 0.1 || validKpiCount < minKpis
+                  ? 'bg-gray-400 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
+                }`}
             >
               {isSubmitting ? (
                 <>

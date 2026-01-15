@@ -713,19 +713,22 @@ function KpisPageContent() {
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleViewKpi(kpi.id)}
-                        disabled={actionLoading[`view-${kpi.id}`]}
-                        className="text-gray-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-300"
-                      >
+                      {/* Submit Actual Action for Approved KPIs */}
+                      {(kpi.status === 'APPROVED' || kpi.status === 'LOCKED_GOALS') && (
+                        <Button variant="outline" size="sm" onClick={() => router.push('/evaluation')}>
+                          <TrendingUp className="h-4 w-4 text-green-600 mr-2" />
+                          Update Actual
+                        </Button>
+                      )}
+
+                      {/* View Action */}
+                      <Button variant="outline" size="sm" onClick={() => handleViewKpi(kpi.id)}>
                         {actionLoading[`view-${kpi.id}`] ? (
-                          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin text-gray-500" />
                         ) : (
-                          <Eye className="h-4 w-4 mr-1" />
+                          <Eye className="h-4 w-4 text-blue-500" />
                         )}
-                        View
+                        <span className="ml-2">View</span>
                       </Button>
 
                       {(kpi.status === 'DRAFT' || kpi.status === 'REJECTED') && (

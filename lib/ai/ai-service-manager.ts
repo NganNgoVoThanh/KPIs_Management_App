@@ -54,9 +54,23 @@ export class enhancedAIServiceManager {
   private cleanupInterval?: NodeJS.Timeout;
 
   constructor(config?: Partial<enhancedAIServiceConfig>) {
+    // Auto-detect provider if not explicitly set
+    const envProvider = process.env.AI_SERVICE_PROVIDER as 'anthropic' | 'openai' | 'local';
+    const hasOpenAI = !!process.env.OPENAI_API_KEY;
+    const hasAnthropic = !!process.env.ANTHROPIC_API_KEY;
+
+    // Prefer OpenAI if explicitly requested OR if it's the only one available OR if both are available but provider not set (user preference implication)
+    const provider = envProvider || (hasOpenAI ? 'openai' : (hasAnthropic ? 'anthropic' : 'local'));
+
+    // Select appropriate key
+    let apiKey = process.env.ANTHROPIC_API_KEY;
+    if (provider === 'openai') {
+      apiKey = process.env.OPENAI_API_KEY;
+    }
+
     this.config = {
-      provider: (process.env.AI_SERVICE_PROVIDER as 'anthropic' | 'openai' | 'local') || 'anthropic',
-      apiKey: process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY,
+      provider,
+      apiKey,
       maxRetries: 3,
       timeoutMs: 30000,
       rateLimitRpm: 100,
@@ -126,8 +140,8 @@ export class enhancedAIServiceManager {
   }
 
   async callService<T>(
-    serviceName: string, 
-    method: string, 
+    serviceName: string,
+    method: string,
     params: any,
     options?: {
       bypassCache?: boolean;
@@ -160,7 +174,7 @@ export class enhancedAIServiceManager {
           callRecord.status = 'success';
           callRecord.duration = Date.now() - startTime;
           this.callHistory.push(callRecord);
-          
+
           return {
             success: true,
             data: cachedResult,
@@ -172,7 +186,7 @@ export class enhancedAIServiceManager {
       }
 
       const result = await this.executeServiceCall<T>(serviceName, method, params);
-      
+
       if (this.config.cacheEnabled && result) {
         this.setCachedResult(cacheKey, result);
       }
@@ -212,13 +226,13 @@ export class enhancedAIServiceManager {
   }
 
   private async executeServiceCall<T>(
-    serviceName: string, 
-    method: string, 
+    serviceName: string,
+    method: string,
     params: any
   ): Promise<T> {
     // Get service with lazy loading
     let service: any;
-    
+
     switch (serviceName) {
       case 'kpi-suggestion':
         service = this.getKpiSuggestionService();
@@ -235,13 +249,13 @@ export class enhancedAIServiceManager {
       default:
         service = this.services.get(serviceName);
     }
-    
+
     if (!service) {
       throw new Error(`Service ${serviceName} not found`);
     }
 
     let lastError: Error | null = null;
-    
+
     for (let attempt = 1; attempt <= this.config.maxRetries; attempt++) {
       try {
         const result = await Promise.race([
@@ -253,11 +267,11 @@ export class enhancedAIServiceManager {
 
       } catch (error) {
         lastError = error instanceof Error ? error : new Error('Unknown error');
-        
+
         if (attempt < this.config.maxRetries) {
           const delay = Math.pow(2, attempt - 1) * 1000;
           await this.delay(delay);
-          
+
           if (this.config.debugMode) {
             console.log(`Retry attempt ${attempt + 1} for ${serviceName}.${method} after ${delay}ms`);
           }
@@ -304,9 +318,9 @@ export class enhancedAIServiceManager {
       body: JSON.stringify({
         model: "claude-3-sonnet-20240229",
         max_tokens: context.maxTokens || 4000,
-        messages: [{ 
-          role: "user", 
-          content: prompt 
+        messages: [{
+          role: "user",
+          content: prompt
         }],
         temperature: context.temperature || 0.3
       })
@@ -338,10 +352,10 @@ export class enhancedAIServiceManager {
         "Authorization": `Bearer ${this.config.apiKey}`
       },
       body: JSON.stringify({
-        model: context.model || "gpt-4",
-        messages: [{ 
-          role: "user", 
-          content: prompt 
+        model: context.model || "gpt-4o",
+        messages: [{
+          role: "user",
+          content: prompt
         }],
         max_tokens: context.maxTokens || 4000,
         temperature: context.temperature || 0.3
@@ -368,7 +382,7 @@ export class enhancedAIServiceManager {
 
   private async callLocalAI(prompt: string, context: any): Promise<any> {
     const endpoint = this.config.endpoint || 'http://localhost:8000/ai/chat';
-    
+
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -460,7 +474,7 @@ export class enhancedAIServiceManager {
       analyzeEvidence: async (params: { prompt: string; filePath: string }) => {
         const documentContent = await this.extractDocumentContent(params.filePath);
         const analysisPrompt = `${params.prompt}\n\nDOCUMENT CONTENT:\n${documentContent}`;
-        
+
         return await this.executeAIPrompt(analysisPrompt, {
           maxTokens: 2000,
           temperature: 0.1
@@ -478,7 +492,7 @@ export class enhancedAIServiceManager {
           
           Return as JSON with the requested fields.
         `;
-        
+
         return await this.executeAIPrompt(extractionPrompt, {
           maxTokens: 1000,
           temperature: 0.1
@@ -501,7 +515,7 @@ export class enhancedAIServiceManager {
           
           Focus on key points and actionable items.
         `;
-        
+
         return await this.executeAIPrompt(prompt, {
           maxTokens: 500,
           temperature: 0.3
@@ -524,7 +538,7 @@ export class enhancedAIServiceManager {
   private async extractDocumentContent(filePath: string): Promise<string> {
     try {
       const fileExtension = filePath.split('.').pop()?.toLowerCase();
-      
+
       switch (fileExtension) {
         case 'pdf':
           return await this.extractPDFContent(filePath);
@@ -578,15 +592,15 @@ export class enhancedAIServiceManager {
 
   private sanitizeParamsForLogging(params: any): any {
     const sanitized = { ...params };
-    
+
     if (sanitized.apiKey) delete sanitized.apiKey;
     if (sanitized.password) delete sanitized.password;
     if (sanitized.token) delete sanitized.token;
-    
+
     if (sanitized.prompt && sanitized.prompt.length > 500) {
       sanitized.prompt = sanitized.prompt.substring(0, 500) + '...';
     }
-    
+
     return sanitized;
   }
 
@@ -594,11 +608,11 @@ export class enhancedAIServiceManager {
     if (typeof result === 'string' && result.length > 1000) {
       return result.substring(0, 1000) + '...';
     }
-    
+
     if (typeof result === 'object') {
       return { ...result, _truncated: true };
     }
-    
+
     return result;
   }
 
@@ -618,13 +632,13 @@ export class enhancedAIServiceManager {
     const totalCalls = this.callHistory.length;
     const successfulCalls = this.callHistory.filter(c => c.status === 'success').length;
     const errorCalls = this.callHistory.filter(c => c.status === 'error').length;
-    
+
     const durations = this.callHistory
       .filter(c => c.duration)
       .map(c => c.duration!);
-    
-    const avgResponseTime = durations.length > 0 
-      ? durations.reduce((sum, d) => sum + d, 0) / durations.length 
+
+    const avgResponseTime = durations.length > 0
+      ? durations.reduce((sum, d) => sum + d, 0) / durations.length
       : 0;
 
     const serviceCalls = this.callHistory.reduce((counts, call) => {
@@ -658,7 +672,7 @@ export class enhancedAIServiceManager {
 
   updateConfig(updates: Partial<enhancedAIServiceConfig>): void {
     this.config = { ...this.config, ...updates };
-    
+
     if (this.config.debugMode) {
       console.log('AI Service configuration updated:', updates);
     }
@@ -666,7 +680,7 @@ export class enhancedAIServiceManager {
 
   async healthCheck(): Promise<{ status: string; services: Record<string, boolean> }> {
     const serviceHealth: Record<string, boolean> = {};
-    
+
     for (const [serviceName, service] of this.services) {
       try {
         if (typeof service.healthCheck === 'function') {
@@ -679,9 +693,9 @@ export class enhancedAIServiceManager {
         serviceHealth[serviceName] = false;
       }
     }
-    
+
     const allHealthy = Object.values(serviceHealth).every(healthy => healthy);
-    
+
     return {
       status: allHealthy ? 'healthy' : 'degraded',
       services: serviceHealth
@@ -691,7 +705,7 @@ export class enhancedAIServiceManager {
   private calculateCacheHitRate(): number {
     const cachedCalls = this.callHistory.filter(c => c.status === 'success' && c.duration! < 100).length;
     const totalCalls = this.callHistory.filter(c => c.status === 'success').length;
-    
+
     return totalCalls > 0 ? (cachedCalls / totalCalls) * 100 : 0;
   }
 
@@ -707,7 +721,7 @@ export class enhancedAIServiceManager {
     this.cache.clear();
     this.callHistory.length = 0;
     this.rateLimiter.clear();
-    
+
     if (this.config.debugMode) {
       console.log('AI Service Manager cleaned up');
     }

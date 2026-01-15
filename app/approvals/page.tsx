@@ -21,10 +21,10 @@ import { useToast } from "@/components/ui/use-toast"
 import { authService } from "@/lib/auth-service"
 import { authenticatedFetch } from "@/lib/api-client"
 import type { User, KpiDefinition, Approval } from "@/lib/types"
-import { 
-  CheckCircle, 
-  XCircle, 
-  Clock, 
+import {
+  CheckCircle,
+  XCircle,
+  Clock,
   AlertCircle,
   FileText,
   TrendingUp,
@@ -131,24 +131,30 @@ export default function ApprovalsPage() {
       const isApprove = dialogAction === 'APPROVE'
       const method = isApprove ? 'POST' : 'PATCH'
 
-      // Get KPI ID from either entity.id, approval.entityId, or entityId
-      const kpiId = selectedApproval.entity?.id || selectedApproval.approval?.entityId || selectedApproval.entityId
+      // Get Entity ID (KPI ID or Actual ID)
+      const entityId = selectedApproval.entity?.id || selectedApproval.approval?.entityId || selectedApproval.entityId
+      const entityType = selectedApproval.approval?.entityType || selectedApproval.entityType || 'KPI'
 
-      if (!kpiId) {
-        console.error('[APPROVE-ERROR] No KPI ID found in selectedApproval:', selectedApproval)
+      if (!entityId) {
+        console.error('[APPROVE-ERROR] No Entity ID found in selectedApproval:', selectedApproval)
         toast({
           title: "Error",
-          description: "Cannot find KPI ID. Please refresh and try again.",
+          description: "Cannot find Entity ID. Please refresh and try again.",
           variant: "destructive"
         })
         setIsProcessing(false)
         return
       }
 
-      console.log(`[APPROVE] Processing ${dialogAction} for KPI ${kpiId}`)
+      console.log(`[APPROVE] Processing ${dialogAction} for ${entityType} ${entityId}`)
 
       // Call API to approve/reject
-      const response = await authenticatedFetch(`/api/kpi/${kpiId}/approve`, {
+      // Dynamically choose endpoint based on entity type
+      const endpoint = entityType === 'ACTUAL'
+        ? `/api/actuals/${entityId}/approve`
+        : `/api/kpi/${entityId}/approve`
+
+      const response = await authenticatedFetch(endpoint, {
         method: method,
         body: JSON.stringify({
           comment: comment || null
@@ -282,7 +288,7 @@ export default function ApprovalsPage() {
               </div>
             </div>
           )}
-          
+
           {/* Actual Details */}
           {!isKpi && entity.actualValue !== undefined && (
             <div className="space-y-2">
@@ -299,7 +305,7 @@ export default function ApprovalsPage() {
               </div>
             </div>
           )}
-          
+
           {/* Description */}
           {entity.description && (
             <div className="bg-gray-50 rounded-lg p-3">
@@ -408,7 +414,7 @@ export default function ApprovalsPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -422,7 +428,7 @@ export default function ApprovalsPage() {
               </div>
             </CardContent>
           </Card>
-          
+
           <Card>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -740,7 +746,7 @@ export default function ApprovalsPage() {
                 Please provide your feedback for this {dialogAction === 'APPROVE' ? 'approval' : 'rejection'}.
               </DialogDescription>
             </DialogHeader>
-            
+
             <div className="space-y-4">
               <div>
                 <Label htmlFor="comment">
@@ -751,7 +757,7 @@ export default function ApprovalsPage() {
                   value={comment}
                   onChange={(e) => setComment(e.target.value)}
                   placeholder={
-                    dialogAction === 'APPROVE' 
+                    dialogAction === 'APPROVE'
                       ? "Optional: Add any comments or feedback..."
                       : "Required: Please explain the reason for rejection..."
                   }
@@ -759,7 +765,7 @@ export default function ApprovalsPage() {
                 />
               </div>
             </div>
-            
+
             <DialogFooter>
               <Button
                 variant="outline"

@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { kpiDefinitionId, actualValue, selfComment, evidenceFiles } = body
+    const { kpiDefinitionId, actualValue, selfComment, evidenceFiles, evidenceLink } = body
 
     if (!kpiDefinitionId || actualValue === undefined) {
       return NextResponse.json(
@@ -128,22 +128,59 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // AI Gatekeeper: Validation
-    // This runs BEFORE saving to DB to prevent bad data
-    if (process.env.ENABLE_SMART_VALIDATION === 'true' && evidenceFiles && evidenceFiles.length > 0) {
+    // --- TIMELINE VALIDATION ---
+    // Ensure we are within the timeline
+    // Using a try-catch block for safety if getCycles is missing or fails
+    try {
+      // Attempt to find active cycle
+      // db.getCycles accepts a status string
+      const cycles = await db.getCycles('ACTIVE') || [];
+      const activeCycle = cycles[0]; // Assuming single active cycle logic
+
+      if (activeCycle) {
+        const now = new Date();
+        const start = new Date(activeCycle.trackingStart);
+        const end = new Date(activeCycle.trackingEnd);
+        // End of day adjustment
+        end.setHours(23, 59, 59, 999);
+
+        if (now < start || now > end) {
+          return NextResponse.json(
+            { error: `Evidence submission is closed. Open from ${start.toLocaleDateString()} to ${end.toLocaleDateString()}` },
+            { status: 400 }
+          )
+        }
+      }
+    } catch (e) {
+      console.warn('Skipped timeline check due to DB error', e);
+    }
+
+    // --- AI GATEKEEPER VALIDATION ---
+    // Validate evidence against reported data
+    if (evidenceFiles?.length > 0 || (evidenceLink && evidenceLink.length > 5)) {
       const { SmartValidator } = await import('@/lib/ai/smart-validator');
       const validator = new SmartValidator();
 
-      // Mock OCR: In a real app, we would download the file from storageUrl and run Tesseract/AWS Textract
-      // For this implementation, we assume the client might send extracted text or we check filename/metadata
-      const mockEvidenceContent = evidenceFiles.map((f: any) => f.description || f.fileName).join('\n');
+      // Mock OCR / Content Extraction
+      // In production, we would fetch the URL content
+      let mockEvidenceContent = "";
+
+      if (evidenceFiles?.length > 0) {
+        mockEvidenceContent += evidenceFiles.map((f: any) => `File: ${f.fileName} (${f.description || 'No description'})`).join('\n');
+      }
+
+      if (evidenceLink) {
+        mockEvidenceContent += `\nExternal Link Provided: ${evidenceLink}`;
+        // Heuristic: If it's a sharepoint link, we assume it's valid for now, 
+        // but the AI will check if the user CLAIMED a value that matches the "concept" of the evidence.
+      }
 
       const aiCheck = await validator.validateEvidence({
         actualValue: Number(actualValue),
         targetValue: kpi.target,
         reportedDate: new Date().toISOString(),
         evidenceContent: mockEvidenceContent,
-        evidenceType: 'text_metadata'
+        evidenceType: 'mixed'
       });
 
       if (!aiCheck.isValid) {
@@ -172,7 +209,7 @@ export async function POST(request: NextRequest) {
       percentage: Number(percentage),
       score: Number(score),
       selfComment: selfComment && selfComment.trim() !== '' ? selfComment.trim() : null,
-      status: 'WAITING_APPROVAL' as const, // Changed from DRAFT to WAITING_APPROVAL on submit
+      status: 'WAITING_LINE_MGR' as const, // Correct status per types.ts
       period: currentPeriod,
       aiVerificationStatus: 'PASS', // Since we passed the gatekeeper above
       createdAt: new Date(),
@@ -196,7 +233,23 @@ export async function POST(request: NextRequest) {
       actual = await db.createKpiActual(actualData)
     }
 
-    // Handle evidence files if provided
+    // Handle evidence link (Priority 1: User provided link)
+    if (evidenceLink && evidenceLink.trim() !== '') {
+      const linkData = {
+        actualId: actual.id,
+        provider: 'LINK',
+        providerRef: evidenceLink,
+        fileName: 'External Evidence Link',
+        fileSize: 0,
+        fileType: 'url',
+        uploadedBy: user.id,
+        uploadedAt: new Date(),
+        description: 'Link to external evidence (SharePoint/OneDrive)'
+      }
+      await db.createEvidence(linkData)
+    }
+
+    // Handle evidence files if provided (Priority 2: Uploaded files)
     if (evidenceFiles && Array.isArray(evidenceFiles) && evidenceFiles.length > 0) {
       for (const file of evidenceFiles) {
         const evidenceData = {
@@ -204,7 +257,8 @@ export async function POST(request: NextRequest) {
           fileName: file.fileName || 'unnamed',
           fileSize: Number(file.fileSize) || 0,
           fileType: file.fileType || 'unknown',
-          storageUrl: file.storageUrl && file.storageUrl.trim() !== '' ? file.storageUrl.trim() : null,
+          providerRef: file.storageUrl || 'unknown', // Map storageUrl to providerRef
+          provider: 'M365', // Default to M365/Local
           uploadedBy: user.id,
           uploadedAt: new Date(),
           description: file.description && file.description.trim() !== '' ? file.description.trim() : null
@@ -213,9 +267,23 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Trigger Notification to Line Manager (Async)
-    // const { NotificationService } = await import('@/lib/notification-service');
-    // await NotificationService.notifyLevel1Approver(actual.id, user.id);
+    // Create Approval Record for Level 1 Manager
+    const fullUser = await db.getUserById(user.id);
+
+    if (fullUser && fullUser.managerId) {
+      await db.createApproval({
+        entityId: actual.id,
+        entityType: 'ACTUAL',
+        level: 1,
+        approverId: fullUser.managerId,
+        status: 'PENDING',
+        kpiDefinitionId: kpiDefinitionId
+      });
+    } else {
+      console.warn(`User ${user.id} has no manager assigned. Actual ${actual.id} submitted but no approval created.`);
+      // Optional: Auto-approve or assign to Admin? 
+      // For now, we leave it as WAITING_LINE_MGR but no approver sees it unless Admin looks for orphan approvals.'
+    }
 
     return NextResponse.json({
       success: true,

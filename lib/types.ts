@@ -194,6 +194,13 @@ export interface Cycle {
     totalWeightMustEqual?: number
     autoNotifyUsers?: boolean
   }
+  // Phase Timelines
+  settingStart?: string
+  settingEnd?: string
+  trackingStart?: string
+  trackingEnd?: string
+  evaluationStart?: string
+  evaluationEnd?: string
 }
 
 // Actual/Evaluation Types
