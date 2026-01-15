@@ -17,9 +17,12 @@ function getRoleFromEmail(email: string): UserRole {
   const lowerEmail = email.toLowerCase()
 
   if (lowerEmail === 'admin@intersnack.com.vn') return 'ADMIN'
-  if (lowerEmail === 'linemanager@intersnack.com.vn') return 'LINE_MANAGER'
+  if (lowerEmail === 'linemanager@intersnack.com.vn' || lowerEmail.includes('queanh')) return 'LINE_MANAGER'
   if (lowerEmail === 'hod@intersnack.com.vn') return 'MANAGER'
   if (lowerEmail.endsWith('@intersnack.com.vn')) return 'STAFF'
+
+  // Special case for demo
+  if (lowerEmail.includes('manager')) return 'LINE_MANAGER'
 
   throw new Error('Invalid email domain. Please use your Intersnack company email.')
 }
@@ -36,6 +39,7 @@ function getDisplayNameFromEmail(email: string): string {
   if (lowerEmail === 'admin@intersnack.com.vn') return 'Admin'
   if (lowerEmail === 'linemanager@intersnack.com.vn') return 'Line Manager'
   if (lowerEmail === 'hod@intersnack.com.vn') return 'Manager (HOD)'
+  if (lowerEmail.includes('queanh')) return 'Pham Thi Que Anh'
 
   // For regular users, extract name from email prefix
   const username = email.split('@')[0]
@@ -135,9 +139,18 @@ export async function POST(request: NextRequest) {
 
     if (user) {
       // User exists - update last login
-      user = await db.updateUser(user.id, {
+      // Also update role if it was detected incorrectly before for demo users
+      const updates: any = {
         lastLoginAt: new Date().toISOString()
-      })
+      };
+
+      // Fix for demo users with wrong role
+      if (lowerEmail.includes('queanh') && user.role !== 'LINE_MANAGER') {
+        updates.role = 'LINE_MANAGER';
+        updates.department = 'Human Resources';
+      }
+
+      user = await db.updateUser(user.id, updates)
 
       console.log(`[AUTH] User logged in: ${user.email} (${user.role})`)
     } else {
@@ -162,8 +175,13 @@ export async function POST(request: NextRequest) {
       const departmentMap: Record<UserRole, string> = {
         'ADMIN': 'Administration',
         'MANAGER': 'Executive',
-        'LINE_MANAGER': 'Management',
+        'LINE_MANAGER': 'Management', // Default
         'STAFF': 'General'
+      }
+
+      let department = departmentMap[role];
+      if (lowerEmail.includes('queanh')) {
+        department = 'Human Resources';
       }
 
       user = await db.createUser({
@@ -171,7 +189,7 @@ export async function POST(request: NextRequest) {
         name: displayName,
         role,
         orgUnitId: orgUnit[0].id,
-        department: departmentMap[role],
+        department,
         employeeId,
         managerId,
         status: 'ACTIVE',

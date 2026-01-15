@@ -116,19 +116,49 @@ export async function POST(
       // Level 1: LINE_MANAGER approval → Move to MANAGER (Level 2 - Final)
       newStatus = 'WAITING_MANAGER'
 
-      // Find MANAGER (hod@intersnack.com.vn or any active MANAGER)
-      const managers = await db.getUsers({
-        role: 'MANAGER',
-        status: 'ACTIVE'
-      })
+      // CRITICAL FIX: Find MANAGER based on KPI Owner's Department/OrgUnit
+      // 1. Try to find the Manager of the OrgUnit
+      // STRATEGY FOR LEVEL 2 APPROVER (HOD):
 
-      if (managers && managers.length > 0) {
-        // Prefer hod@intersnack.com.vn if exists
-        const hod = managers.find(m => m.email === 'hod@intersnack.com.vn')
-        nextApproverId = hod ? hod.id : managers[0].id
+      // 1. Priority: Check for Admin-assigned specific HOD (Override)
+      // Note: We access 'hod' relation if available (Typescript might need check, but runtime it's there)
+      const specificHod = (kpiOwner as any).hod; // Access dynamic relation
+
+      if (specificHod && specificHod.status === 'ACTIVE') {
+        nextApproverId = specificHod.id;
+        console.log(`[APPROVE-ROUTING] Found Admin-assigned Override HOD: ${specificHod.email}`);
       } else {
+        // 2. Fallback: Look for a User with role 'MANAGER' in the SAME department
+        console.log(`[APPROVE-ROUTING] No override HOD. Looking for Department Head in: ${kpiOwner.department}`);
+
+        const departmentManagers = await db.getUsers({
+          role: 'MANAGER',
+          status: 'ACTIVE',
+          department: kpiOwner.department // Strict Department Match
+        })
+
+        if (departmentManagers && departmentManagers.length > 0) {
+          nextApproverId = departmentManagers[0].id
+          console.log(`[APPROVE-ROUTING] Found Department Head: ${departmentManagers[0].email}`)
+        } else {
+          // 3. Last Resort: Look for the specific 'hod@intersnack.com.vn'
+          const allManagers = await db.getUsers({ role: 'MANAGER', status: 'ACTIVE' })
+          const generalHod = allManagers.find(m => m.email === 'hod@intersnack.com.vn')
+
+          if (generalHod) {
+            nextApproverId = generalHod.id
+            console.log(`[APPROVE-ROUTING] Department Head not found. Fallback to General HOD: ${generalHod.email}`)
+          } else if (allManagers.length > 0) {
+            // 4. Emergency: Any active Manager
+            nextApproverId = allManagers[0].id
+            console.log(`[APPROVE-ROUTING] Fallback to available Manager: ${allManagers[0].email}`)
+          }
+        }
+      }
+
+      if (!nextApproverId) {
         return NextResponse.json({
-          error: 'No active MANAGER found. Cannot proceed with approval.',
+          error: 'No active MANAGER found for Level 2 approval. Please contact Admin.',
           code: 'NO_MANAGER_AVAILABLE'
         }, { status: 500 })
       }
@@ -136,7 +166,7 @@ export async function POST(
     } else if (currentLevel === 2) {
       // Level 2: MANAGER approval → KPI fully APPROVED
       newStatus = 'APPROVED'
-
+      nextApproverId = null
     } else {
       return NextResponse.json(
         { error: 'Invalid approval level' },
@@ -144,14 +174,16 @@ export async function POST(
       )
     }
 
-    // Update approval record
+    // EXECUTE UPDATES (Sequential integrity)
+
+    // 1. Close current approval
     await db.updateApproval(pendingApproval.id, {
       status: 'APPROVED',
       comment: comment || null,
       decidedAt: new Date()
     })
 
-    // Update KPI status
+    // 2. Update KPI Status
     const updateData: any = {
       status: newStatus,
       updatedAt: new Date()
@@ -164,37 +196,15 @@ export async function POST(
       // MANAGER approval = Final approval
       updateData.approvedByLevel2 = user.id
       updateData.approvedAtLevel2 = new Date()
-      updateData.approvedAt = new Date() // Final approval timestamp
+      updateData.approvedAt = new Date()
     }
 
     await db.updateKpiDefinition(id, updateData)
+    console.log(`[APPROVE] KPI ${id} Updated to ${newStatus}`)
 
-    console.log(`[APPROVE] Successfully updated KPI ${id} status to: ${newStatus}`)
-    console.log(`[APPROVE] Update data applied:`, updateData)
-
-    // Verify the update was successful
-    const updatedKpi = await db.getKpiDefinitionById(id)
-    if (updatedKpi) {
-      console.log(`[APPROVE] Verified KPI status after update: ${updatedKpi.status}`)
-    } else {
-      console.error(`[APPROVE-WARNING] Could not verify KPI update - KPI not found after update`)
-    }
-
-    // Create next level approval FIRST (before notifications)
-    if (nextApproverId) {
-      const nextLevel = currentLevel + 1
-      const nextApprover = await db.getUserById(nextApproverId)
-
-      console.log(`[APPROVE-L2] Creating Level 2 approval:`, {
-        kpiId: id,
-        kpiTitle: kpi.title,
-        nextApproverId,
-        nextApproverEmail: nextApprover?.email,
-        nextApproverName: nextApprover?.name,
-        nextLevel,
-        currentStatus: newStatus
-      })
-
+    // 3. Create Next Level Approval (if needed)
+    if (nextApproverId && currentLevel === 1) {
+      const nextLevel = 2
       const level2Approval = await db.createApproval({
         entityId: id,
         entityType: 'KPI',
@@ -204,76 +214,28 @@ export async function POST(
         status: 'PENDING',
         createdAt: new Date()
       })
+      console.log(`[APPROVE] Created Level 2 Approval: ${level2Approval.id} for Approver: ${nextApproverId}`)
 
-      console.log(`[APPROVE-L2] Level 2 approval created successfully:`, {
-        approvalId: level2Approval.id,
-        approverId: level2Approval.approverId,
-        level: level2Approval.level,
-        status: level2Approval.status,
-        entityId: level2Approval.entityId
-      })
-
-      // Verify the approval was created
-      const verifyApproval = await db.getApprovalById(level2Approval.id)
-      if (verifyApproval) {
-        console.log(`[APPROVE-L2] Verified Level 2 approval exists in DB:`, {
-          id: verifyApproval.id,
-          approverId: verifyApproval.approverId,
-          status: verifyApproval.status,
-          level: verifyApproval.level
-        })
-      } else {
-        console.error(`[APPROVE-L2-ERROR] Failed to verify Level 2 approval creation!`)
-      }
-
-      // Notify next approver (MANAGER) that Level 2 approval is needed
-      if (nextApprover) {
-        await db.createNotification({
-          userId: nextApprover.id,
-          title: 'New KPI Ready for Your Approval (Level 2)',
-          message: `KPI "${kpi.title}" from ${kpiOwner.name} has been approved at Level 1 and is ready for your final review.`,
-          type: 'APPROVAL_REQUIRED',
-          priority: 'HIGH',
-          status: 'UNREAD',
-          actionRequired: true,
-          actionUrl: '/approvals',
-          createdAt: new Date()
-        })
-
-        console.log(`[NOTIFICATION] Created Level 2 approval request notification for MANAGER ${nextApprover.email}`)
-      }
-
-      console.log(`[APPROVE L${currentLevel}] KPI ${id} approved by ${user.email} → ${nextApprover?.email} (Level ${nextLevel})`)
-    } else if (currentLevel === 2 || newStatus === 'APPROVED') {
-      console.log(`[APPROVE L${currentLevel}] KPI ${id} fully approved by ${user.email} → Status: APPROVED`)
-    }
-
-    // Create notifications based on approval level
-    if (currentLevel === 1) {
-      // Level 1 (LINE_MANAGER) approval - Notify STAFF
-
-      // 1. Notify STAFF: KPI approved at Level 1
+      // Notify Level 2 Approver
       await db.createNotification({
-        userId: kpiOwner.id,
-        title: 'KPI Approved at Level 1',
-        message: `Your KPI "${kpi.title}" has been approved by your Line Manager and is now under review by the HOD.`,
-        type: 'KPI_APPROVED',
-        priority: 'MEDIUM',
+        userId: nextApproverId,
+        title: 'New KPI Ready for Your Approval (Level 2)',
+        message: `KPI "${kpi.title}" from ${kpiOwner.name} (${kpiOwner.department}) is ready for final review.`,
+        type: 'APPROVAL_REQUIRED',
+        priority: 'HIGH',
         status: 'UNREAD',
-        actionRequired: false,
-        actionUrl: `/kpis/${id}`,
+        actionRequired: true,
+        actionUrl: '/approvals',
         createdAt: new Date()
       })
+    }
 
-      console.log(`[NOTIFICATION] Created Level 1 approval notification for STAFF ${kpiOwner.email}`)
-
-    } else if (currentLevel === 2) {
-      // Level 2 (MANAGER) approval - Notify STAFF: KPI fully approved
-
+    // 4. Notify Staff of Progress
+    if (newStatus === 'APPROVED') {
       await db.createNotification({
         userId: kpiOwner.id,
         title: 'KPI Fully Approved',
-        message: `Congratulations! Your KPI "${kpi.title}" has been fully approved by the HOD and is now active for tracking.`,
+        message: `Your KPI "${kpi.title}" has been fully approved.`,
         type: 'KPI_APPROVED',
         priority: 'HIGH',
         status: 'UNREAD',
@@ -281,32 +243,18 @@ export async function POST(
         actionUrl: `/kpis/${id}`,
         createdAt: new Date()
       })
-
-      console.log(`[NOTIFICATION] Created final approval notification for STAFF ${kpiOwner.email}`)
-
-      // Notify all Admins about KPI fully approved
-      const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
-      for (const admin of admins) {
-        await db.createNotification({
-          userId: admin.id,
-          type: 'SYSTEM',
-          title: 'KPI Fully Approved',
-          message: `KPI "${kpi.title}" by ${kpiOwner.name} has been fully approved by ${user.name} (${user.role}) and is now active.`,
-          priority: 'LOW',
-          status: 'UNREAD',
-          actionRequired: false,
-          actionUrl: `/kpis/${id}`,
-          metadata: {
-            kpiId: id,
-            kpiTitle: kpi.title,
-            kpiOwnerId: kpiOwner.id,
-            kpiOwnerName: kpiOwner.name,
-            finalApproverId: user.id,
-            finalApproverName: user.name
-          },
-          createdAt: new Date()
-        })
-      }
+    } else {
+      await db.createNotification({
+        userId: kpiOwner.id,
+        title: 'KPI Approved at Level 1',
+        message: `Your KPI "${kpi.title}" passed Level 1 and is now with the HOD.`,
+        type: 'KPI_APPROVED',
+        priority: 'MEDIUM',
+        status: 'UNREAD',
+        actionRequired: false,
+        actionUrl: `/kpis/${id}`,
+        createdAt: new Date()
+      })
     }
 
     return NextResponse.json({
@@ -316,12 +264,10 @@ export async function POST(
         previousStatus: kpi.status,
         newStatus: newStatus,
         currentLevel,
-        nextLevel: nextApproverId ? currentLevel + 1 : null,
-        fullyApproved: currentLevel === 2 || newStatus === 'APPROVED'
+        nextLevel: nextApproverId ? 2 : null,
+        fullyApproved: newStatus === 'APPROVED'
       },
-      message: newStatus === 'APPROVED'
-        ? 'KPI fully approved! Ready for tracking.'
-        : `Level ${currentLevel} approved, sent to Level ${currentLevel + 1}`
+      message: newStatus === 'APPROVED' ? 'KPI fully approved!' : 'Approved Level 1. Sent to HOD.'
     })
 
   } catch (error: any) {

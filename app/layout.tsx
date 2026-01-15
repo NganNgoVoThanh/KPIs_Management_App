@@ -1,11 +1,8 @@
 
 // app/layout.tsx - Root layout with ToastProvider
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
 import './globals.css'
 import { ToastProvider } from '@/components/ui/use-toast'
-
-const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
   title: 'KPI Management System',
@@ -19,7 +16,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={inter.className}>
+      <body className="font-sans antialiased">
         <ToastProvider>
           {children}
         </ToastProvider>

@@ -851,7 +851,7 @@ export default function KpiLibraryPage() {
           const hasDeptJobTitle = row.some(c => {
             const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
             return (s.includes('phòng ban') || s.includes('department')) &&
-                   (s.includes('vị trí') || s.includes('job title'))
+              (s.includes('vị trí') || s.includes('job title'))
           })
           const hasNameKPI = row.some(c => {
             const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
@@ -860,7 +860,7 @@ export default function KpiLibraryPage() {
           const hasKPITypeEvidence = row.some(c => {
             const s = c?.toString().toLowerCase().trim().replace(/\s+/g, ' ') || ''
             return (s.includes('loại kpi') || s.includes('kpi type')) ||
-                   (s.includes('đơn vị cung cấp') || s.includes('evidence'))
+              (s.includes('đơn vị cung cấp') || s.includes('evidence'))
           })
 
           const deptMarkers = [hasSTT, hasOGSMCompany, hasDeptJobTitle, hasNameKPI, hasKPITypeEvidence]
@@ -1104,8 +1104,8 @@ export default function KpiLibraryPage() {
 
             // Skip rows with section summaries (like "1. BUSINESS OBJECTIVES (Max 5) 80%")
             if (kpiGroup.toLowerCase().includes('business objective') ||
-                kpiGroup.toLowerCase().includes('individual development') ||
-                kpiGroup.toLowerCase().includes('core value')) {
+              kpiGroup.toLowerCase().includes('individual development') ||
+              kpiGroup.toLowerCase().includes('core value')) {
               // This is a section header, skip
               continue
             }
@@ -1777,15 +1777,6 @@ export default function KpiLibraryPage() {
                                 {template.kpiName}
                               </h4>
                               <Badge variant="outline">{template.category}</Badge>
-                              <Badge
-                                variant={
-                                  template.status === 'APPROVED' ? 'default' :
-                                    template.status === 'REJECTED' ? 'destructive' :
-                                      'secondary'
-                                }
-                              >
-                                {template.status}
-                              </Badge>
                             </div>
                             {template.description && (
                               <p className="text-sm text-gray-600 mb-2">
@@ -1815,10 +1806,14 @@ export default function KpiLibraryPage() {
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge
-                              variant={template.status === 'ACTIVE' ? "default" : "secondary"}
-                              className={template.status === 'ACTIVE' ? "bg-green-600" : "bg-gray-500"}
+                              className={
+                                template.status === 'ACTIVE' ? 'bg-green-600 hover:bg-green-700' :
+                                  template.status === 'APPROVED' ? 'bg-blue-600 hover:bg-blue-700' :
+                                    template.status === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' :
+                                      'bg-gray-500 hover:bg-gray-600'
+                              }
                             >
-                              {template.status === 'ACTIVE' ? 'Active' : 'Draft'}
+                              {template.status ? (template.status.charAt(0) + template.status.slice(1).toLowerCase()) : 'Draft'}
                             </Badge>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>

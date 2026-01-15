@@ -22,6 +22,7 @@ model User {
   department    String?
   employeeId    String?   @unique
   managerId     String?
+  hodId         String?   // [NEW] Custom Level 2 Approver (Override)
   status        String    @default("ACTIVE")
   locale        String    @default("vi-VN")
   createdAt     DateTime  @default(now())
@@ -32,6 +33,9 @@ model User {
   orgUnit              OrgUnit              @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
   manager              User?                @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   subordinates         User[]               @relation("UserManager")
+  
+  hod                  User?                @relation("UserHod", fields: [hodId], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  subordinateHods      User[]               @relation("UserHod")
 
   kpiDefinitions       KpiDefinition[]
   kpiActuals           KpiActual[]

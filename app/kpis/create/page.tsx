@@ -52,36 +52,63 @@ export default function CreateKpiPage() {
   }, [router])
 
   const handleKpiSubmit = async (kpis: any[]) => {
-    try {
-      if (!currentCycle) {
-        alert('No active cycle found. Please contact HR to open a KPI cycle.')
-        return
-      }
+    // Note: We don't catch errors here so they propagate to the form component
+    // offering better UI feedback and resetting the loading state.
 
-      // Call API to create KPIs - MUST use authenticatedFetch to include x-user-id header
-      const response = await authenticatedFetch('/api/kpi', {
-        method: 'POST',
-        body: JSON.stringify({
-          kpis,
-          cycleId: currentCycle.id
-        })
+    if (!currentCycle) {
+      throw new Error('No active cycle found. Please contact HR to open a KPI cycle.')
+    }
+
+    // Set status to PENDING_APPROVAL for submission
+    const submittedKpis = kpis.map(k => ({ ...k, status: 'PENDING_APPROVAL' }));
+
+    // Call API to create KPIs - MUST use authenticatedFetch to include x-user-id header
+    const response = await authenticatedFetch('/api/kpi', {
+      method: 'POST',
+      body: JSON.stringify({
+        kpis: submittedKpis,
+        cycleId: currentCycle.id
       })
+    })
 
-      const result = await response.json()
+    const result = await response.json()
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create KPIs')
-      }
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to create KPIs')
+    }
 
-      if (result.success) {
-        alert(`Successfully created ${result.count} KPI(s)!`)
-        router.push('/kpis?created=true')
-      } else {
-        throw new Error(result.error || 'Unknown error occurred')
-      }
-    } catch (error: any) {
-      console.error('KPI submission failed:', error)
-      alert(`Failed to submit KPIs: ${error.message || 'Please try again.'}`)
+    if (result.success) {
+      // Success! Redirect.
+      router.push('/kpis?created=true')
+    } else {
+      throw new Error(result.error || 'Unknown error occurred')
+    }
+  }
+
+  const handleSaveDraft = async (kpis: any[]) => {
+    if (!currentCycle) {
+      throw new Error('No active cycle found.')
+    }
+
+    // Set status to DRAFT
+    const draftKpis = kpis.map(k => ({ ...k, status: 'DRAFT' }));
+
+    const response = await authenticatedFetch('/api/kpi', {
+      method: 'POST',
+      body: JSON.stringify({
+        kpis: draftKpis,
+        cycleId: currentCycle.id
+      })
+    })
+
+    const result = await response.json()
+
+    if (!response.ok) {
+      throw new Error(result.error || 'Failed to save draft')
+    }
+
+    if (result.success) {
+      router.push('/kpis?draftSaved=true')
     }
   }
 
@@ -143,6 +170,7 @@ export default function CreateKpiPage() {
         cycleYear={currentCycle.periodStart ? new Date(currentCycle.periodStart).getFullYear() : new Date().getFullYear()}
         currentCycle={currentCycle}
         onSubmit={handleKpiSubmit}
+        onSaveDraft={handleSaveDraft}
         onCancel={handleCancel}
       />
     </AppLayout>

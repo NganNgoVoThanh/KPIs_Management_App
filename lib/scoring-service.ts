@@ -10,14 +10,15 @@ export interface ScoreResult {
 }
 
 export interface TypeIVScaleEntry {
-  targetLevel: number | string
-  description: string
+  from: number
+  to: number
   scoreLevel: number
 }
 
 export interface TypeIVScoringRules {
-  direction: 'ASCENDING' | 'DESCENDING'
   scale: TypeIVScaleEntry[]
+  // Direction is no longer strictly needed for calculation but kept for compatibility or sorting if needed
+  direction?: 'ASCENDING' | 'DESCENDING'
 }
 
 export const DEFAULT_SCORE_BANDS: Record<string, number> = {
@@ -29,12 +30,9 @@ export const DEFAULT_SCORE_BANDS: Record<string, number> = {
 }
 
 export function detectScaleDirection(scale: TypeIVScaleEntry[]): 'ASCENDING' | 'DESCENDING' {
+  // Simple heuristic based on 'from' values
   if (scale.length < 2) return 'ASCENDING'
-  
-  const first = Number(scale[0].targetLevel)
-  const second = Number(scale[1].targetLevel)
-  
-  return second > first ? 'ASCENDING' : 'DESCENDING'
+  return scale[0].from < scale[1].from ? 'ASCENDING' : 'DESCENDING'
 }
 
 export function calculateTypeI(
@@ -112,81 +110,46 @@ export function calculateTypeIII(done: boolean): ScoreResult {
 }
 
 /**
- * Type IV: Milestone with Custom Scale - CASCADING CONDITIONS
+ * Type IV: Milestone with Custom Scale - RANGE BASED
  * 
- * CRITICAL LOGIC: Find ALL thresholds that actual satisfies, then take HIGHEST score
- * 
- * ASCENDING Example (Customer Satisfaction %):
- * Scale: [80â†’10pts, 85â†’50pts, 90â†’80pts, 100â†’100pts]
- * If actual = 92%:
- *   - Satisfies: â‰¥80 (10pts), â‰¥85 (50pts), â‰¥90 (80pts)
- *   - Does NOT satisfy: â‰¥100
- *   - Result: Take MAX = 80 points
- * 
- * DESCENDING Example (Project Delay Days):
- * Scale: [30â†’10pts, 15â†’50pts, 5â†’80pts, 0â†’100pts]
- * If actual = 12 days:
- *   - Satisfies: â‰¤30 (10pts), â‰¤15 (50pts)
- *   - Does NOT satisfy: â‰¤5, â‰¤0
- *   - Result: Take MAX = 50 points
+ * Logic: Find the range [min, max] that contains the actual value.
+ * If multiple ranges match, take the one with the highest score.
  */
 export function calculateTypeIV(
   actual: number,
   scoringRules: TypeIVScoringRules
 ): ScoreResult {
-  if (!scoringRules || !scoringRules.scale || scoringRules.scale.length < 2) {
+  if (!scoringRules || !scoringRules.scale || scoringRules.scale.length === 0) {
     return {
       percentage: 0,
       score: 0,
       band: 'Invalid',
-      explanation: 'Invalid scoring rules: minimum 2 scale entries required'
+      explanation: 'Invalid scoring rules: minimum 1 scale entry required'
     }
   }
 
-  const { direction, scale } = scoringRules
-
-  let maxScore = 0
+  const { scale } = scoringRules
   let matchedEntry: TypeIVScaleEntry | null = null
-  const matchedConditions: string[] = []
+  let maxScore = -1
 
-  if (direction === 'ASCENDING') {
-    // ASCENDING: Check all conditions where actual >= threshold
-    for (const entry of scale) {
-      const threshold = Number(entry.targetLevel)
-      
-      if (actual >= threshold) {
-        matchedConditions.push(`â‰¥${threshold} (${entry.scoreLevel}pts)`)
-        
-        if (entry.scoreLevel > maxScore) {
-          maxScore = entry.scoreLevel
-          matchedEntry = entry
-        }
-      }
-    }
-  } else {
-    // DESCENDING: Check all conditions where actual <= threshold
-    for (const entry of scale) {
-      const threshold = Number(entry.targetLevel)
-      
-      if (actual <= threshold) {
-        matchedConditions.push(`â‰¤${threshold} (${entry.scoreLevel}pts)`)
-        
-        if (entry.scoreLevel > maxScore) {
-          maxScore = entry.scoreLevel
-          matchedEntry = entry
-        }
+  for (const entry of scale) {
+    const min = Math.min(entry.from, entry.to)
+    const max = Math.max(entry.from, entry.to)
+
+    if (actual >= min && actual <= max) {
+      if (entry.scoreLevel > maxScore) {
+        maxScore = entry.scoreLevel
+        matchedEntry = entry
       }
     }
   }
 
-  // If no conditions matched â†’ 0 points
   if (!matchedEntry) {
-    const directionText = direction === 'ASCENDING' ? 'below minimum' : 'above maximum'
     return {
       percentage: 0,
       score: 0,
       band: 'Not Achieved',
-      explanation: `Actual ${actual} is ${directionText} threshold â†’ 0 points`
+      explanation: `Actual ${actual} falls outside all defined ranges.`
     }
   }
 
@@ -198,7 +161,7 @@ export function calculateTypeIV(
     percentage: Math.round(percentage * 10) / 10,
     score,
     band,
-    explanation: `Matched: ${matchedConditions.join(', ')} â†’ Best: ${maxScore} points`
+    explanation: `Matched range [${matchedEntry.from} - ${matchedEntry.to}] → ${maxScore} points`
   }
 }
 
@@ -220,72 +183,23 @@ export function getBandFromPercentage(percentage: number): string {
 }
 
 export function validateTypeIVScale(scale: TypeIVScaleEntry[]): { valid: boolean; message: string } {
-  if (scale.length < 2) {
-    return { valid: false, message: 'Scale must have at least 2 entries' }
+  if (scale.length < 1) {
+    return { valid: false, message: 'Scale must have at least 1 entry' }
   }
 
-  if (scale.length > 5) {
-    return { valid: false, message: 'Scale cannot have more than 5 entries' }
+  if (scale.length > 10) {
+    return { valid: false, message: 'Scale cannot have more than 10 entries' }
   }
 
   for (const entry of scale) {
-    if (entry.scoreLevel < 0 || entry.scoreLevel > 100) {
-      return {
-        valid: false,
-        message: `Score levels must be between 0-100 (found: ${entry.scoreLevel})`
-      }
+    if (isNaN(entry.from) || isNaN(entry.to)) {
+      return { valid: false, message: 'From/To values must be numbers' }
+    }
+    if (entry.scoreLevel < 0 || entry.scoreLevel > 120) { // Allow up to 120 for bonuses? sticking to 0-100 logic but checking strictness
+      // User asked for "score 100".
+      if (entry.scoreLevel < 0) return { valid: false, message: 'Score must be positive' }
     }
   }
 
-  const direction = detectScaleDirection(scale)
-
-  for (let i = 1; i < scale.length; i++) {
-    const prevTarget = Number(scale[i - 1].targetLevel)
-    const currTarget = Number(scale[i].targetLevel)
-    const prevScore = scale[i - 1].scoreLevel
-    const currScore = scale[i].scoreLevel
-
-    if (currScore <= prevScore) {
-      return {
-        valid: false,
-        message: `Score levels must strictly increase: ${prevScore} â†’ ${currScore}`
-      }
-    }
-
-    if (direction === 'ASCENDING') {
-      if (currTarget <= prevTarget) {
-        return {
-          valid: false,
-          message: `Ascending scale: Targets must increase (${prevTarget} â†’ ${currTarget})`
-        }
-      }
-    } else {
-      if (currTarget >= prevTarget) {
-        return {
-          valid: false,
-          message: `Descending scale: Targets must decrease (${prevTarget} â†’ ${currTarget})`
-        }
-      }
-    }
-  }
-
-  return { valid: true, message: `Valid ${direction.toLowerCase()} scale` }
-}
-
-export function autoPopulateTypeIVScale(direction: 'ASCENDING' | 'DESCENDING'): TypeIVScaleEntry[] {
-  if (direction === 'ASCENDING') {
-    return [
-      { targetLevel: 80, description: 'Below expectations', scoreLevel: 10 },
-      { targetLevel: 85, description: 'Approaching expectations', scoreLevel: 50 },
-      { targetLevel: 90, description: 'Meets expectations', scoreLevel: 80 },
-      { targetLevel: 100, description: 'Exceeds expectations', scoreLevel: 100 }
-    ]
-  } else {
-    return [
-      { targetLevel: 30, description: 'High risk', scoreLevel: 10 },
-      { targetLevel: 15, description: 'Moderate risk', scoreLevel: 50 },
-      { targetLevel: 5, description: 'Low risk', scoreLevel: 80 },
-      { targetLevel: 0, description: 'No issues', scoreLevel: 100 }
-    ]
-  }
+  return { valid: true, message: `Valid scale with ${scale.length} ranges` }
 }

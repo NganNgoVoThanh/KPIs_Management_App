@@ -87,6 +87,7 @@ export class MySQLRepository implements IDatabaseRepository {
       include: {
         orgUnit: true,
         manager: true,
+        hod: true,
       }
     })
   }

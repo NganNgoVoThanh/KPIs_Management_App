@@ -16,9 +16,11 @@ import { Progress } from '@/components/ui/progress';
 import {
   Sparkles, Target, CheckCircle, AlertCircle, FileText, Calculator,
   Save, Eye, Trash2, Plus, BarChart3, Clock, User, Building, XCircle,
-  Copy, Calendar, BookOpen, Shield, TrendingUp, X
+  Copy, Calendar, BookOpen, Shield, TrendingUp, X,
+  ChevronDown, ChevronUp, Edit2
 } from 'lucide-react';
 import { TypeIVScaleEditor } from './type-iv-scale-editor';
+import { KpiLibrarySelectorModal } from './kpi-library-selector-modal';
 import type { TypeIVScoringRules } from '@/lib/scoring-service';
 import { useSMARTValidation, useKPISuggestions, useDebouncedSMARTValidation } from '@/lib/hooks/useAI';
 import type { SMARTValidationResult, KPISuggestion } from '@/lib/hooks/useAI';
@@ -42,6 +44,7 @@ interface KpiFormData {
   scoringRules?: TypeIVScoringRules;
   startDate?: string;
   dueDate?: string;
+  status?: string;
 }
 
 interface UserProfile {
@@ -56,7 +59,8 @@ interface UserProfile {
 
 interface KpiFormProps {
   initialData?: Partial<KpiFormData>;
-  onSubmit: (kpis: KpiFormData[]) => void;
+  onSubmit: (kpis: KpiFormData[]) => Promise<void> | void;
+  onSaveDraft?: (kpis: KpiFormData[]) => Promise<void>;
   onCancel: () => void;
   userProfile: UserProfile;
   showAISuggestions?: boolean;
@@ -77,7 +81,8 @@ export function KpiForm({
   minKpis = 3,
   cycleYear = new Date().getFullYear(),
   className,
-  currentCycle
+  currentCycle,
+  onSaveDraft
 }: KpiFormProps) {
   const [kpis, setKpis] = useState<KpiFormData[]>([{
     id: `kpi-${Date.now()}`,
@@ -89,7 +94,7 @@ export function KpiForm({
     weight: 0,
     dataSource: '',
     category: 'Business Objective',
-    frequency: 'Quarterly',
+    frequency: undefined, // Force user selection
     priority: 'Medium',
     startDate: new Date().toISOString().split('T')[0],
     dueDate: '',
@@ -98,17 +103,61 @@ export function KpiForm({
 
   const [activeTab, setActiveTab] = useState('manual');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [totalWeight, setTotalWeight] = useState(0);
   const [showLibrarySelector, setShowLibrarySelector] = useState(false);
   const [selectedKpiIndex, setSelectedKpiIndex] = useState<number>(0);
   const [smartValidationResults, setSmartValidationResults] = useState<Map<number, SMARTValidationResult>>(new Map());
+
+  // Warning for unsaved changes
+  // Auto-save to LocalStorage
+  useEffect(() => {
+    if (kpis.length > 0) {
+      const draft = {
+        kpis,
+        lastSaved: new Date().toISOString()
+      };
+      localStorage.setItem('kpi_form_draft', JSON.stringify(draft));
+    }
+  }, [kpis]);
+
+  // Load from LocalStorage on mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem('kpi_form_draft');
+    if (savedDraft && initialData && Object.keys(initialData).length === 0) {
+      try {
+        const { kpis: savedKpis } = JSON.parse(savedDraft);
+        if (Array.isArray(savedKpis) && savedKpis.length > 0) {
+          setKpis(savedKpis);
+        }
+      } catch (e) {
+        console.error("Failed to load draft", e);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (kpis.length > 0) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [kpis]);
 
   // AI Hooks
   const { validate: validateSMART, loading: validatingSmartLoading, result: smartResult } = useDebouncedSMARTValidation(1500);
   const { getSuggestions, loading: suggestionsLoading, suggestions, error: suggestionsError } = useKPISuggestions();
 
   useEffect(() => {
-    const total = kpis.reduce((sum, kpi) => sum + (parseFloat(String(kpi.weight)) || 0), 0);
+    // Only sum weight of "Real" KPIs (those with a title)
+    // This aligns the visual matching with the validation logic
+    const total = kpis
+      .filter(k => k.title && k.title.trim().length > 0)
+      .reduce((sum, kpi) => sum + (parseFloat(String(kpi.weight)) || 0), 0);
     setTotalWeight(total);
   }, [kpis]);
 
@@ -135,7 +184,7 @@ export function KpiForm({
     }
   }, [smartResult, selectedKpiIndex]);
 
-  const handleLibrarySelect = (entry: any) => {
+  const handleLibrarySelect = (entries: any[]) => { // Updated to accept array
     const typeMap = {
       'I': 'QUANT_HIGHER_BETTER',
       'II': 'QUANT_LOWER_BETTER',
@@ -143,25 +192,27 @@ export function KpiForm({
       'IV': 'MILESTONE'
     };
 
-    const newKpi: KpiFormData = {
-      id: `kpi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+    const newKpis = entries.map((entry) => ({
+      id: crypto.randomUUID(),
       title: entry.kpiName,
-      description: entry.ogsmTarget || '',
+      description: entry.description || '',
       type: typeMap[entry.kpiType as keyof typeof typeMap] as KpiFormData['type'],
-      unit: entry.unit,
+      unit: entry.unit || '',
       target: parseFloat(entry.yearlyTarget) || 0,
       weight: 0,
-      dataSource: entry.dataSource,
-      category: 'Business Objective',
-      frequency: 'Quarterly',
-      priority: 'Medium',
-      startDate: new Date().toISOString().split('T')[0],
-      dueDate: '',
-      ogsmAlignment: entry.ogsmTarget
-    };
+      dataSource: entry.dataSource || '',
+      category: 'Business Objective' as KpiFormData['category'],
+      frequency: 'Quarterly' as KpiFormData['frequency'],
+      priority: 'Medium' as KpiFormData['priority'],
+      startDate: currentCycle?.startDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+      dueDate: currentCycle?.endDate?.split('T')[0] || '',
+      ogsmAlignment: entry.ogsmTarget,
+      status: 'DRAFT'
+    }));
 
-    setKpis([...kpis, newKpi]);
+    setKpis([...kpis, ...newKpis]);
     setShowLibrarySelector(false);
+    setActiveTab('manual');
   };
 
   const addKpi = () => {
@@ -175,11 +226,12 @@ export function KpiForm({
         target: 0,
         weight: 0,
         dataSource: '',
-        category: 'Business Objective',
-        frequency: 'Quarterly',
+        category: 'Business Objective' as KpiFormData['category'],
+        frequency: undefined, // Force selection
         priority: 'Medium',
         startDate: new Date().toISOString().split('T')[0],
-        dueDate: ''
+        dueDate: '',
+        status: 'DRAFT'
       }]);
     }
   };
@@ -197,7 +249,8 @@ export function KpiForm({
         ...originalKpi,
         id: `kpi-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         title: `${originalKpi.title} (Copy)`,
-        weight: 0
+        weight: 0,
+        status: 'DRAFT'
       };
 
       const newKpis = [...kpis];
@@ -212,20 +265,104 @@ export function KpiForm({
     setKpis(newKpis);
   };
 
-  const handleSubmit = () => {
+  // Enhanced Validation State
+  const [validationErrors, setValidationErrors] = useState<Record<string, string[]>>({});
+
+  const handleSubmit = async () => {
+    setSubmitError(null);
+    setValidationErrors({});
+
+    // 1. Filter only "Real" KPIs (must have a title)
+    // We ignore empty draft rows completely
+    const realKpis = kpis.filter(k => k.title && k.title.trim().length > 0);
+
+    if (realKpis.length === 0) {
+      setSubmitError("Please fill in at least one KPI.");
+      return;
+    }
+
+    // 2. Validate Real KPIs
+    const newErrors: Record<string, string[]> = {};
+    let hasError = false;
+
+    realKpis.forEach((kpi, index) => {
+      const kpiErrors: string[] = [];
+
+      if (!kpi.title.trim()) kpiErrors.push("Title is required");
+      // Target validation depends on type
+      if (kpi.type === 'QUANT_HIGHER_BETTER' || kpi.type === 'QUANT_LOWER_BETTER') {
+        if (!kpi.target || kpi.target <= 0) kpiErrors.push("Target must be > 0");
+      } else if (!kpi.target) {
+        // for Boolean(1/0) or Milestone(steps), just ensure it has a value
+        kpiErrors.push("Target value is required");
+      }
+
+      if (!kpi.unit.trim()) kpiErrors.push("Unit is required");
+      if (kpi.weight < 5 || kpi.weight > 40) kpiErrors.push("Weight must be 5-40%");
+
+      if (kpiErrors.length > 0) {
+        newErrors[kpi.id!] = kpiErrors; // Use ID as key if possible, else index
+        hasError = true;
+      }
+    });
+
+    setValidationErrors(newErrors);
+
+    if (hasError) {
+      setSubmitError("Please fix the highlighted errors below before submitting.");
+      return;
+    }
+
+    // 3. Weight Check (on Real KPIs only)
+    // SKIP this check if we are in "Single Edit Mode" (maxKpis === 1)
+    // In edit mode, we are likely updating just one KPI, so total weight of the form data won't be 100%.
+    const isSingleEditMode = maxKpis === 1;
+    const currentTotalWeight = realKpis.reduce((sum, k) => sum + (k.weight || 0), 0);
+
+    if (!isSingleEditMode && Math.abs(currentTotalWeight - 100) > 0.1) { // 0.1 tolerance
+      setSubmitError(`Total weight must be exactly 100%. Current: ${currentTotalWeight.toFixed(1)}% (Calculated from ${realKpis.length} active KPIs)`);
+      return;
+    }
+
+    const effectiveMinKpis = isSingleEditMode ? 1 : (minKpis || 1);
+
+    if (realKpis.length < effectiveMinKpis) {
+      setSubmitError(`You need at least ${effectiveMinKpis} active KPIs. Current: ${realKpis.length}`);
+      return;
+    }
+
+    // 4. Submit Logic (improved batch handling)
     setIsSubmitting(true);
     try {
-      const validKpis = kpis.filter(kpi =>
-        kpi.title.trim() &&
-        kpi.target > 0 &&
-        kpi.weight > 0 &&
-        kpi.unit.trim()
-      );
-      onSubmit(validKpis);
+      // Pass the filtered 'realKpis' to the onSubmit handler
+      // The parent component should handle the actual API calls (batch or sequential)
+      await onSubmit(realKpis);
+      localStorage.removeItem('kpi_form_draft'); // Clean up on success
     } catch (error) {
       console.error('Form submission error:', error);
-    } finally {
+      setSubmitError('Failed to submit KPIs. Please try again.');
       setIsSubmitting(false);
+    }
+  };
+
+  const handleSaveDraft = async () => {
+    if (onSaveDraft) {
+      setIsDraftSaving(true);
+      try {
+        // Only save valid rows
+        const draftKpis = kpis.filter(k => k.title && k.title.trim().length > 0);
+        if (draftKpis.length === 0) {
+          setSubmitError("Cannot save empty draft. Please fill at least a title.");
+          setIsDraftSaving(false);
+          return;
+        }
+        await onSaveDraft(draftKpis);
+        localStorage.removeItem('kpi_form_draft'); // Clean form draft after saving to DB (optional, but good for resetting state)
+      } catch (error) {
+        setSubmitError(error instanceof Error ? error.message : "Failed to save draft");
+      } finally {
+        setIsDraftSaving(false);
+      }
     }
   };
 
@@ -271,51 +408,51 @@ export function KpiForm({
               </div>
             </div>
 
-            <div className="bg-white/95 backdrop-blur-sm rounded-2xl px-8 py-3 shadow-lg border-2 border-white/50">
-              <div className="text-center">
-                <div className={`text-4xl font-bold mb-1 ${Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' :
-                    totalWeight > 100 ? 'text-red-600' : 'text-orange-600'
-                  }`}>
-                  {totalWeight.toFixed(1)}%
-                </div>
-                <div className="text-xs text-gray-600 font-semibold uppercase tracking-wider">
-                  Total Weight / 100%
-                </div>
-              </div>
+            <div className="flex gap-4 items-center">
+              <Button
+                onClick={() => setShowLibrarySelector(true)}
+                className="bg-white/20 hover:bg-white/30 text-white border border-white/40"
+              >
+                <BookOpen className="mr-2 h-4 w-4" />
+                Import from Library
+              </Button>
+              <Button
+                onClick={() => alert("Excel Upload Coming Soon")} // Placeholder for Excel Upload
+                className="bg-green-600 hover:bg-green-700 text-white border-0"
+              >
+                <Copy className="mr-2 h-4 w-4" />
+                Upload Excel
+              </Button>
             </div>
           </div>
+
+
         </div>
       </div>
+
+      {
+        submitError && (
+          <div className="max-w-7xl mx-auto px-6 mt-6">
+            <Alert className="bg-red-50 border-red-300">
+              <AlertCircle className="h-4 w-4 text-red-600" />
+              <AlertDescription className="text-sm text-red-700 whitespace-pre-wrap">
+                {submitError}
+              </AlertDescription>
+            </Alert>
+          </div>
+        )
+      }
 
       {/* MAIN CONTENT */}
       <div className="max-w-7xl mx-auto px-6 py-6 space-y-5">
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-2 gap-4">
-          <Button
-            onClick={() => setShowLibrarySelector(true)}
-            size="lg"
-            className="h-12 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-md font-semibold text-base"
-          >
-            <BookOpen className="mr-2 h-5 w-5" />
-            Select from KPI Library
-          </Button>
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={() => setActiveTab('ai-suggestions')}
-            className="h-12 border-2 border-red-500 text-red-700 hover:bg-red-50 font-semibold text-base"
-          >
-            <Sparkles className="mr-2 h-5 w-5" />
-            AI Suggestions
-          </Button>
-        </div>
+
 
         {/* Validation Cards */}
         <div className="grid grid-cols-3 gap-4">
           <Card className={`border-2 shadow-md ${Math.abs(totalWeight - 100) <= 0.01
-              ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
-              : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
+            ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
+            : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
             }`}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
@@ -328,7 +465,7 @@ export function KpiForm({
                   <div>
                     <div className="text-sm font-bold text-gray-700 mb-0.5">Total Weight</div>
                     <div className={`text-3xl font-bold ${Math.abs(totalWeight - 100) <= 0.01 ? 'text-green-600' :
-                        totalWeight > 100 ? 'text-red-600' : 'text-orange-600'
+                      totalWeight > 100 ? 'text-red-600' : 'text-orange-600'
                       }`}>
                       {totalWeight.toFixed(1)}%
                     </div>
@@ -344,8 +481,8 @@ export function KpiForm({
           </Card>
 
           <Card className={`border-2 shadow-md ${validKpiCount >= minKpis && validKpiCount <= maxKpis
-              ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
-              : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
+            ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
+            : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
             }`}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
@@ -365,20 +502,18 @@ export function KpiForm({
                 </div>
               </div>
               <div className="text-xs text-gray-600 font-medium">
-                {validKpiCount < minKpis ? `Need ${minKpis - validKpiCount} more KPI(s)` :
-                  validKpiCount > maxKpis ? `Remove ${validKpiCount - maxKpis} KPI(s)` : `✓ Valid range (${minKpis}-${maxKpis})`}
+                {validKpiCount} Draft(s)
               </div>
-              {currentCycle && (
-                <div className="text-xs text-blue-700 font-semibold mt-2">
-                  Cycle: {currentCycle.name}
-                </div>
-              )}
+              <div className="text-xs text-gray-400 mt-1">
+                {validKpiCount < minKpis ? `Need ${minKpis - validKpiCount} more` :
+                  validKpiCount > maxKpis ? `Remove ${validKpiCount - maxKpis}` : `✓ Valid range (${minKpis}-${maxKpis})`}
+              </div>
             </CardContent>
           </Card>
 
           <Card className={`border-2 shadow-md ${invalidWeightCount === 0
-              ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
-              : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
+            ? 'border-green-400 bg-gradient-to-br from-green-50 to-emerald-50'
+            : 'border-red-400 bg-gradient-to-br from-red-50 to-rose-50'
             }`}>
             <CardContent className="p-5">
               <div className="flex items-start justify-between mb-3">
@@ -510,7 +645,8 @@ export function KpiForm({
                                   frequency: 'Quarterly',
                                   priority: 'Medium',
                                   startDate: new Date().toISOString().split('T')[0],
-                                  dueDate: ''
+                                  dueDate: '',
+                                  status: 'DRAFT'
                                 };
                                 setKpis([...kpis, newKpi]);
                                 setActiveTab('manual');
@@ -558,223 +694,262 @@ export function KpiForm({
           </TabsContent>
 
           <TabsContent value="manual" className="space-y-4 mt-4">
-            {kpis.map((kpi, index) => (
-              <Card key={kpi.id} className="border-l-4 border-l-red-600 shadow-md hover:shadow-lg transition-all bg-white">
-                <CardContent className="p-5">
-                  <div className="flex items-center justify-between mb-4 pb-3 border-b-2 border-gray-100">
-                    <div className="flex items-center gap-2">
-                      <Badge className="bg-gradient-to-r from-red-600 to-red-700 text-white font-bold px-3 py-1">
-                        KPI #{index + 1}
-                      </Badge>
-                      {kpi.category && (
-                        <Badge variant="outline" className="border-red-300 text-red-700 font-semibold">
-                          {kpi.category.split(' ')[0]}
-                        </Badge>
-                      )}
-                      {kpi.weight > 0 && (
-                        <Badge className={`font-bold ${kpi.weight >= 5 && kpi.weight <= 40
-                            ? 'bg-green-100 text-green-800 border-2 border-green-300'
-                            : 'bg-red-100 text-red-800 border-2 border-red-300'
-                          }`}>
-                          {kpi.weight}%
-                        </Badge>
-                      )}
+            {kpis.map((kpi, index) => {
+              const isExpanded = selectedKpiIndex === index;
+              return (
+                <Card
+                  key={kpi.id}
+                  className={`transition-all duration-300 border-l-4 shadow-sm hover:shadow-md ${isExpanded
+                    ? 'border-l-red-600 ring-1 ring-red-100'
+                    : 'border-l-gray-300 bg-white/50'
+                    }`}
+                >
+                  {/* ACCORDION HEADER */}
+                  <div
+                    onClick={() => setSelectedKpiIndex(isExpanded ? -1 : index)}
+                    className={`p-4 flex items-center justify-between cursor-pointer ${isExpanded ? 'bg-gradient-to-r from-red-50 to-white' : ''
+                      }`}
+                  >
+                    <div className="flex items-center gap-4 flex-1">
+                      <div className={`p-2 rounded-full ${isExpanded ? 'bg-red-100 text-red-600' : 'bg-gray-100 text-gray-400'}`}>
+                        {isExpanded ? <Edit2 className="h-4 w-4" /> : <Target className="h-4 w-4" />}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className={`font-bold text-sm ${isExpanded ? 'text-red-700' : 'text-gray-500'}`}>
+                            KPI #{index + 1}
+                          </span>
+                          {kpi.weight > 0 && (
+                            <Badge className={kpi.weight >= 5 && kpi.weight <= 40 ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                              {kpi.weight}%
+                            </Badge>
+                          )}
+                          <Badge variant="outline" className="text-xs bg-white">
+                            {kpi.type.replace('QUANT_', '').replace('_', ' ')}
+                          </Badge>
+                        </div>
+                        <h3 className={`font-bold text-lg ${kpi.title ? 'text-gray-900' : 'text-gray-400 italic'}`}>
+                          {kpi.title || 'Untitled KPI'}
+                        </h3>
+                      </div>
                     </div>
-                    <div className="flex gap-2">
+
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       {kpis.length < maxKpis && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => duplicateKpi(index)}
-                          className="h-8 w-8 p-0 hover:bg-red-50"
-                        >
-                          <Copy className="h-4 w-4 text-red-600" />
+                        <Button variant="ghost" size="sm" onClick={() => duplicateKpi(index)} title="Duplicate">
+                          <Copy className="h-4 w-4 text-gray-500 hover:text-red-600" />
                         </Button>
                       )}
                       {kpis.length > 1 && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeKpi(index)}
-                          className="h-8 w-8 p-0 hover:bg-red-50"
-                        >
-                          <Trash2 className="h-4 w-4 text-red-600" />
+                        <Button variant="ghost" size="sm" onClick={() => removeKpi(index)} title="Remove">
+                          <Trash2 className="h-4 w-4 text-gray-500 hover:text-red-600" />
                         </Button>
                       )}
+                      <Button variant="ghost" size="sm" onClick={() => setSelectedKpiIndex(isExpanded ? -1 : index)}>
+                        {isExpanded ? <ChevronUp className="h-5 w-5 text-red-600" /> : <ChevronDown className="h-5 w-5 text-gray-400" />}
+                      </Button>
                     </div>
                   </div>
 
-                  <div className="space-y-4">
-                    <div>
-                      <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                        KPI Title *
-                      </Label>
-                      <Input
-                        value={kpi.title}
-                        onChange={(e) => updateKpi(index, { title: e.target.value })}
-                        placeholder="Enter a clear, measurable KPI title"
-                        className="h-10 text-sm font-medium border-2 focus:border-red-500"
-                      />
-                    </div>
+                  {/* ACCORDION BODY */}
+                  {isExpanded && (
+                    <CardContent className="p-6 border-t border-gray-100 bg-white animate-in slide-in-from-top-2 duration-200">
 
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          Target *
-                        </Label>
-                        <Input
-                          type="number"
-                          value={kpi.target || ''}
-                          onChange={(e) => updateKpi(index, { target: parseFloat(e.target.value) || 0 })}
-                          placeholder="100"
-                          step="0.01"
-                          className="h-10 text-sm font-medium border-2 focus:border-red-500"
-                        />
+                      {/* SECTION 1: CORE INFO */}
+                      <div className="mb-6">
+                        <h4 className="flex items-center gap-2 text-sm font-bold text-red-700 uppercase tracking-wide mb-4 pb-2 border-b border-red-50">
+                          <BookOpen className="h-4 w-4" /> 1. Core Information
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="col-span-2">
+                            <Label className="text-sm font-semibold text-gray-700 mb-2 block">KPI Title <span className="text-red-500">*</span></Label>
+                            <Input
+                              value={kpi.title}
+                              onChange={(e) => updateKpi(index, { title: e.target.value })}
+                              placeholder="e.g. Achieve Quarterly Sales Target"
+                              className="font-medium h-11 border-gray-200 focus:border-red-500 focus:ring-red-100"
+                              autoFocus
+                            />
+                          </div>
+
+                          <div>
+                            <Label className="text-sm font-semibold text-gray-700 mb-2 block">KPI Type <span className="text-red-500">*</span></Label>
+                            <Select value={kpi.type} onValueChange={(v: any) => updateKpi(index, { type: v })}>
+                              <SelectTrigger className="h-11 border-gray-200 focus:border-red-500">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="QUANT_HIGHER_BETTER">Type I: Higher Better (Profit, Sales)</SelectItem>
+                                <SelectItem value="QUANT_LOWER_BETTER">Type II: Lower Better (Costs, Defects)</SelectItem>
+                                <SelectItem value="BOOLEAN">Type III: Pass/Fail (Compliance)</SelectItem>
+                                <SelectItem value="MILESTONE">Type IV: Custom Scale (Projects)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label className="text-sm font-semibold text-gray-700 mb-2 block">Category</Label>
+                            </div>
+                            <div>
+                              <Label className="text-sm font-semibold text-gray-700 mb-2 block">Priority</Label>
+                              <Select value={kpi.priority} onValueChange={(v: any) => updateKpi(index, { priority: v })}>
+                                <SelectTrigger className="h-11 border-gray-200 focus:border-red-500">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="High">🔴 High</SelectItem>
+                                  <SelectItem value="Medium">🟡 Medium</SelectItem>
+                                  <SelectItem value="Low">🟢 Low</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
                       </div>
 
-                      <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          Unit *
-                        </Label>
-                        <Input
-                          value={kpi.unit}
-                          onChange={(e) => updateKpi(index, { unit: e.target.value })}
-                          placeholder="%, pieces"
-                          className="h-10 text-sm font-medium border-2 focus:border-red-500"
-                        />
+                      {/* INLINE VALIDATION ERRORS */}
+                      {validationErrors[kpi.id!] && (
+                        <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                          <h5 className="text-red-700 font-bold text-sm flex items-center gap-1 mb-1">
+                            <AlertCircle className="h-4 w-4" /> Please fix:
+                          </h5>
+                          <ul className="list-disc list-inside text-sm text-red-600">
+                            {validationErrors[kpi.id!].map((err, i) => <li key={i}>{err}</li>)}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* SECTION 2: MEASUREMENT */}
+                      <div className="mb-6">
+                        <h4 className="flex items-center gap-2 text-sm font-bold text-red-700 uppercase tracking-wide mb-4 pb-2 border-b border-red-50">
+                          <Target className="h-4 w-4" /> 2. Measurement & Targets
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          <div>
+                            <Label className="text-sm font-semibold text-gray-700 mb-2 block">Target Value <span className="text-red-500">*</span></Label>
+
+                            {/* Dynamic Input based on Type */}
+                            {kpi.type === 'BOOLEAN' ? (
+                              <Select
+                                value={String(kpi.target)}
+                                onValueChange={(v) => updateKpi(index, { target: parseFloat(v) })}
+                              >
+                                <SelectTrigger className="h-11 border-gray-200 focus:border-red-500 font-bold">
+                                  <SelectValue placeholder="Select Target" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="1">Pass (100%)</SelectItem>
+                                  <SelectItem value="0">Fail (0%)</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                type={kpi.type === 'MILESTONE' ? "text" : "number"} // Milestone can be text description in some systems, but here we keep number for ID or Count, customizable
+                                value={kpi.target || ''}
+                                onChange={(e) => updateKpi(index, { target: parseFloat(e.target.value) || 0 })}
+                                placeholder={kpi.type === 'MILESTONE' ? "Number of milestones..." : "0.00"}
+                                className="font-bold h-11 border-gray-200 focus:border-red-500 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                              />
+                            )}
+                          </div>
+                          <div>
+                            <Label className="text-sm font-semibold text-gray-700 mb-2 block">Unit <span className="text-red-500">*</span></Label>
+                            <Input
+                              value={kpi.unit}
+                              onChange={(e) => updateKpi(index, { unit: e.target.value })}
+                              placeholder="%, VND, Cases..."
+                              className="h-11 border-gray-200 focus:border-red-500"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-sm font-semibold text-gray-700 mb-2 block">Weight (%) <span className="text-red-500">*</span></Label>
+                            <div className="relative">
+                              <Input
+                                type="number"
+                                value={kpi.weight || ''}
+                                onChange={(e) => updateKpi(index, { weight: parseFloat(e.target.value) || 0 })}
+                                className={`font-bold h-11 pr-8 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none ${kpi.weight >= 5 && kpi.weight <= 40 ? 'border-green-300 bg-green-50 text-green-700' : 'border-red-300 bg-red-50 text-red-700'}`}
+                              />
+                              <span className="absolute right-3 top-3 text-sm text-gray-500 font-bold">%</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">Recommended: 5-40%</p>
+                          </div>
+                        </div>
+
+                        {kpi.type === 'MILESTONE' && (
+                          <div className="mt-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                            <Label className="text-sm font-semibold text-gray-700 mb-3 block">Type IV Scoring Rules</Label>
+                            <TypeIVScaleEditor
+                              value={kpi.scoringRules}
+                              onChange={(rules) => updateKpi(index, { scoringRules: rules })}
+                              actualValue={kpi.target}
+                            />
+                          </div>
+                        )}
                       </div>
 
+                      {/* SECTION 3: IMPLEMENTATION */}
                       <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          Weight (%) *
-                        </Label>
-                        <Input
-                          type="number"
-                          value={kpi.weight || ''}
-                          onChange={(e) => updateKpi(index, { weight: parseFloat(e.target.value) || 0 })}
-                          placeholder="5-40"
-                          min="5"
-                          max="40"
-                          step="0.5"
-                          className="h-10 text-sm font-medium border-2 focus:border-red-500"
-                        />
-                      </div>
-                    </div>
+                        <h4 className="flex items-center gap-2 text-sm font-bold text-red-700 uppercase tracking-wide mb-4 pb-2 border-b border-red-50">
+                          <Calendar className="h-4 w-4" /> 3. Timeline & Details
+                        </h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                          <div>
+                            <Label className="text-sm font-semibold text-gray-700 mb-2 block">Start & Due Date</Label>
+                            <div className="flex gap-2">
+                              <Input
+                                type="date"
+                                value={kpi.startDate?.split('T')[0] || ''}
+                                onChange={(e) => updateKpi(index, { startDate: e.target.value })}
+                                className="h-11 border-gray-200 focus:border-red-500"
+                                min={`${cycleYear}-01-01`}
+                                max={`${cycleYear}-12-31`}
+                              />
+                              <span className="self-center text-gray-400">to</span>
+                              <Input
+                                type="date"
+                                value={kpi.dueDate?.split('T')[0] || ''}
+                                onChange={(e) => updateKpi(index, { dueDate: e.target.value })}
+                                className="h-11 border-gray-200 focus:border-red-500"
+                                min={kpi.startDate?.split('T')[0] || `${cycleYear}-01-01`}
+                                max={`${cycleYear}-12-31`}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label className="text-sm font-semibold text-gray-700 mb-2 block">Measurement Frequency</Label>
+                            <Select value={kpi.frequency} onValueChange={(v: any) => updateKpi(index, { frequency: v })}>
+                              <SelectTrigger className="h-11 border-gray-200 focus:border-red-500">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="Monthly">Monthly Update</SelectItem>
+                                <SelectItem value="Quarterly">Quarterly Review</SelectItem>
+                                <SelectItem value="Annually">Annual Review</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
 
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          KPI Type *
-                        </Label>
-                        <Select
-                          value={kpi.type}
-                          onValueChange={(value: any) => updateKpi(index, { type: value })}
-                        >
-                          <SelectTrigger className="h-10 text-sm font-medium border-2 focus:border-red-500 bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[999999] bg-white border-2 shadow-lg" position="popper" sideOffset={5}>
-                            <SelectItem value="QUANT_HIGHER_BETTER">Type I: Higher Better</SelectItem>
-                            <SelectItem value="QUANT_LOWER_BETTER">Type II: Lower Better</SelectItem>
-                            <SelectItem value="BOOLEAN">Type III: Pass/Fail</SelectItem>
-                            <SelectItem value="MILESTONE">Type IV: Custom Scale</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          Category
-                        </Label>
-                        <Select
-                          value={kpi.category}
-                          onValueChange={(value: any) => updateKpi(index, { category: value })}
-                        >
-                          <SelectTrigger className="h-10 text-sm font-medium border-2 focus:border-red-500 bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[999999] bg-white border-2 shadow-lg" position="popper" sideOffset={5}>
-                            <SelectItem value="Business Objective">Business</SelectItem>
-                            <SelectItem value="Individual Development">Development</SelectItem>
-                            <SelectItem value="Core Values">Values</SelectItem>
-                          </SelectContent>
-                        </Select>
+                        <div>
+                          <Label className="text-sm font-semibold text-gray-700 mb-2 block">Description & Evidence Source</Label>
+                          <Textarea
+                            value={kpi.description || ''}
+                            onChange={(e) => updateKpi(index, { description: e.target.value })}
+                            placeholder="Explain exactly how this KPI is measured and where the data comes from..."
+                            rows={3}
+                            className="text-sm border-gray-200 focus:border-red-500 focus:ring-red-100 resize-none min-h-[80px]"
+                          />
+                        </div>
                       </div>
 
-                      <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          Priority
-                        </Label>
-                        <Select
-                          value={kpi.priority}
-                          onValueChange={(value: any) => updateKpi(index, { priority: value })}
-                        >
-                          <SelectTrigger className="h-10 text-sm font-medium border-2 focus:border-red-500 bg-white">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent className="z-[999999] bg-white border-2 shadow-lg" position="popper" sideOffset={5}>
-                            <SelectItem value="High">High</SelectItem>
-                            <SelectItem value="Medium">Medium</SelectItem>
-                            <SelectItem value="Low">Low</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          <Calendar className="inline h-4 w-4 mr-1.5" />
-                          Start Date *
-                        </Label>
-                        <Input
-                          type="date"
-                          value={kpi.startDate || ''}
-                          onChange={(e) => updateKpi(index, { startDate: e.target.value })}
-                          className="h-10 text-sm font-medium border-2 focus:border-red-500"
-                        />
-                      </div>
-
-                      <div>
-                        <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                          <Calendar className="inline h-4 w-4 mr-1.5" />
-                          Due Date *
-                        </Label>
-                        <Input
-                          type="date"
-                          value={kpi.dueDate || ''}
-                          onChange={(e) => updateKpi(index, { dueDate: e.target.value })}
-                          min={kpi.startDate || undefined}
-                          className="h-10 text-sm font-medium border-2 focus:border-red-500"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <Label className="text-sm font-bold text-gray-700 mb-1.5 block">
-                        Description & Data Source
-                      </Label>
-                      <Textarea
-                        value={kpi.description}
-                        onChange={(e) => updateKpi(index, { description: e.target.value })}
-                        placeholder="Describe the KPI, calculation method, and data source"
-                        rows={3}
-                        className="resize-none text-sm border-2 focus:border-red-500"
-                      />
-                    </div>
-                  </div>
-
-                  {kpi.type === 'MILESTONE' && (
-                    <div className="mt-4">
-                      <TypeIVScaleEditor
-                        value={kpi.scoringRules}
-                        onChange={(rules) => updateKpi(index, { scoringRules: rules })}
-                        actualValue={kpi.target}
-                      />
-                    </div>
+                    </CardContent>
                   )}
-                </CardContent>
-              </Card>
-            ))}
+                </Card>
+              );
+            })}
+
 
             {kpis.length < maxKpis && (
               <Button
@@ -798,87 +973,80 @@ export function KpiForm({
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-5 space-y-3">
-                {kpis.filter(k => k.title.trim()).map((kpi) => (
-                  <div key={kpi.id} className="border-l-4 border-l-red-600 rounded-lg p-4 bg-gradient-to-r from-red-50 to-indigo-50 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <h4 className="font-bold text-base text-gray-900">{kpi.title}</h4>
-                        <p className="text-sm text-gray-600 mt-1">{kpi.description}</p>
-                      </div>
-                      <div className="flex gap-2 ml-4">
-                        <Badge className="bg-red-100 text-red-800 font-bold">{kpi.weight}%</Badge>
-                        <Badge variant="outline" className="border-red-300 text-red-700">{kpi.category.split(' ')[0]}</Badge>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-5 gap-3 text-sm mt-3">
-                      <div>
-                        <span className="text-gray-500 font-medium">Target:</span>
-                        <div className="font-bold text-gray-900">{kpi.target} {kpi.unit}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 font-medium">Type:</span>
-                        <div className="font-bold text-gray-900">{kpi.type.split('_')[0]}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 font-medium">Priority:</span>
-                        <div className="font-bold text-gray-900">{kpi.priority}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 font-medium">Frequency:</span>
-                        <div className="font-bold text-gray-900">{kpi.frequency}</div>
-                      </div>
-                      <div>
-                        <span className="text-gray-500 font-medium">Timeline:</span>
-                        <div className="text-xs font-medium text-gray-700">
-                          {kpi.startDate && kpi.dueDate ? `${kpi.startDate} → ${kpi.dueDate}` : 'Not set'}
-                        </div>
-                      </div>
-                    </div>
+                {kpis.filter(k => k.title.trim()).length === 0 ? (
+                  <div className="text-center text-gray-500 py-8">
+                    No KPIs added yet.
                   </div>
-                ))}
+                ) : (
+                  kpis.filter(k => k.title.trim()).map((kpi) => (
+                    <div key={kpi.id} className="border-l-4 border-l-red-600 rounded-lg p-4 bg-gradient-to-r from-red-50 to-indigo-50">
+                      <div className="flex items-start justify-between">
+                        <div>
+                          <h4 className="font-bold text-gray-900">{kpi.title}</h4>
+                          <p className="text-sm text-gray-600">{kpi.description}</p>
+                        </div>
+                        <Badge className="bg-red-100 text-red-800 font-bold border-red-200 border">{kpi.weight}%</Badge>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-500">
+                        Target: {kpi.target} {kpi.unit} | Type: {kpi.type}
+                      </div>
+                    </div>
+                  )))}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
+      </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center justify-between pt-5 border-t-2 border-gray-200">
-          <Button
-            variant="outline"
-            size="lg"
-            onClick={onCancel}
-            className="h-11 px-8 text-base font-semibold border-2 border-gray-300 hover:bg-gray-50"
-          >
-            Cancel
-          </Button>
-
-          <div className="flex gap-3">
+      {/* FIXED FOOTER ACTIONS */}
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4 shadow-lg z-50">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
+          <div className="text-sm text-gray-500 font-medium hidden md:block">
+            {kpis.length} KPIs • {totalWeight}% Total Weight
+          </div>
+          <div className="flex gap-4 w-full md:w-auto">
             <Button
               variant="outline"
-              size="lg"
-              onClick={() => setActiveTab('preview')}
-              className="h-11 px-6 text-base font-semibold border-2 border-red-500 text-red-700 hover:bg-red-50"
+              onClick={onCancel}
+              className="flex-1 md:flex-none border-gray-300 text-gray-700 hover:bg-gray-50"
+              disabled={isSubmitting || isDraftSaving}
             >
-              <Eye className="mr-2 h-5 w-5" />
-              Preview
+              Cancel
             </Button>
-
+            {onSaveDraft && (
+              <Button
+                variant="secondary"
+                onClick={handleSaveDraft}
+                disabled={isSubmitting || isDraftSaving}
+                className="flex-1 md:flex-none bg-gray-600 hover:bg-gray-700 text-white font-bold"
+              >
+                {isDraftSaving ? (
+                  <>
+                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                    Saving...
+                  </>
+                ) : (
+                  <>
+                    <Copy className="mr-2 h-4 w-4" />
+                    Save Draft
+                  </>
+                )}
+              </Button>
+            )}
             <Button
-              size="lg"
               onClick={handleSubmit}
-              disabled={isSubmitting}
-              className="h-11 px-8 text-base font-bold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg"
+              disabled={isSubmitting || isDraftSaving}
+              className="flex-1 md:flex-none bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-md font-bold px-8"
             >
               {isSubmitting ? (
                 <>
-                  <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                  <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                   Submitting...
                 </>
               ) : (
                 <>
                   <Save className="mr-2 h-5 w-5" />
-                  Submit KPIs ({validKpiCount})
+                  Submit Goals
                 </>
               )}
             </Button>
@@ -887,352 +1055,19 @@ export function KpiForm({
       </div>
 
       {/* KPI Library Selector Modal */}
-      {showLibrarySelector && (
-        <KpiLibrarySelectorModal
-          onClose={() => setShowLibrarySelector(false)}
-          onSelect={handleLibrarySelect}
-          userDepartment={userProfile.department}
-          userJobTitle={userProfile.jobTitle}
-        />
-      )}
-    </div>
+      {
+        showLibrarySelector && (
+          <KpiLibrarySelectorModal
+            onClose={() => setShowLibrarySelector(false)}
+            onSelect={handleLibrarySelect}
+            userDepartment={userProfile.department}
+            userJobTitle={userProfile.jobTitle}
+          />
+        )
+      }
+    </div >
   );
 }
 
-// KPI Library Selector Modal Component
-function KpiLibrarySelectorModal({
-  onClose,
-  onSelect,
-  userDepartment,
-  userJobTitle
-}: {
-  onClose: () => void;
-  onSelect: (entry: any) => void;
-  userDepartment: string;
-  userJobTitle: string;
-}) {
-  const [entries, setEntries] = useState<any[]>([]);
-  const [filteredEntries, setFilteredEntries] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
-  const [kpiTypeFilter, setKpiTypeFilter] = useState('all');
-  const [selectedEntry, setSelectedEntry] = useState<any>(null);
-
-  useEffect(() => {
-    fetchEntries();
-  }, []);
-
-  useEffect(() => {
-    let filtered = [...entries];
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(entry =>
-        entry.kpiName.toLowerCase().includes(query) ||
-        entry.department.toLowerCase().includes(query) ||
-        entry.unit.toLowerCase().includes(query)
-      );
-    }
-
-    if (departmentFilter !== 'all') {
-      filtered = filtered.filter(entry => entry.department === departmentFilter);
-    }
-
-    if (kpiTypeFilter !== 'all') {
-      filtered = filtered.filter(entry => entry.kpiType === kpiTypeFilter);
-    }
-
-    setFilteredEntries(filtered);
-  }, [searchQuery, departmentFilter, kpiTypeFilter, entries]);
-
-  const fetchEntries = async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        status: 'ACTIVE',
-        isTemplate: 'true',
-        limit: '100'
-      });
-
-      const res = await authenticatedFetch(`/api/kpi-library/entries?${params}`);
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-
-      const data = await res.json();
-
-      if (data.success) {
-        setEntries(data.data);
-        setFilteredEntries(data.data);
-      } else {
-        throw new Error(data.error || 'Failed to fetch KPI library');
-      }
-    } catch (error) {
-      console.error('KPI Library fetch error:', error);
-      setEntries([]);
-      setFilteredEntries([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const departments = Array.from(new Set(entries.map(e => e.department))).sort();
-  const kpiTypes = ['I', 'II', 'III', 'IV'];
-
-  const handleSelect = () => {
-    if (selectedEntry) {
-      onSelect(selectedEntry);
-    }
-  };
-
-  const getKpiTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      'I': 'Type I: Higher Better',
-      'II': 'Type II: Lower Better',
-      'III': 'Type III: Pass/Fail',
-      'IV': 'Type IV: Custom Scale'
-    };
-    return labels[type] || type;
-  };
-
-  const getKpiTypeBadgeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      'I': 'bg-red-100 text-red-800 border-red-300',
-      'II': 'bg-green-100 text-green-800 border-green-300',
-      'III': 'bg-red-100 text-red-800 border-red-300',
-      'IV': 'bg-orange-100 text-orange-800 border-orange-300'
-    };
-    return colors[type] || 'bg-gray-100 text-gray-800';
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm">
-      <Card className="w-full max-w-6xl max-h-[85vh] flex flex-col shadow-2xl border-2 border-gray-200">
-        <CardHeader className="border-b-2 bg-gradient-to-r from-red-50 to-indigo-50 pb-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="bg-gradient-to-br from-red-600 to-red-700 p-2.5 rounded-xl shadow-md">
-                <BookOpen className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <CardTitle className="text-xl font-bold text-gray-900">
-                  Select KPI from Library
-                </CardTitle>
-                <p className="text-sm text-gray-600 mt-0.5">
-                  Browse and select approved KPI templates from the company library
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onClose}
-              className="h-9 w-9 p-0 hover:bg-red-50"
-            >
-              <X className="h-5 w-5 text-gray-600" />
-            </Button>
-          </div>
-        </CardHeader>
-
-        <div className="p-6 space-y-4 flex-1 overflow-hidden flex flex-col">
-          {/* Filters */}
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-1">
-              <Label className="text-sm font-bold text-gray-700 mb-2 block">Search</Label>
-              <div className="relative">
-                <Input
-                  placeholder="Search KPI name, department..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 h-10 border-2 focus:border-red-500 font-medium"
-                />
-                <BookOpen className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-              </div>
-            </div>
-
-            <div>
-              <Label className="text-sm font-bold text-gray-700 mb-2 block">Department</Label>
-              <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
-                <SelectTrigger className="h-10 border-2 focus:border-red-500 font-medium bg-white">
-                  <SelectValue placeholder="All Departments" />
-                </SelectTrigger>
-                <SelectContent className="z-[999999] bg-white border-2 shadow-lg" position="popper" sideOffset={5}>
-                  <SelectItem value="all">All Departments</SelectItem>
-                  {departments.map(dept => (
-                    <SelectItem key={dept} value={dept}>{dept}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label className="text-sm font-bold text-gray-700 mb-2 block">KPI Type</Label>
-              <Select value={kpiTypeFilter} onValueChange={setKpiTypeFilter}>
-                <SelectTrigger className="h-10 border-2 focus:border-red-500 font-medium bg-white">
-                  <SelectValue placeholder="All Types" />
-                </SelectTrigger>
-                <SelectContent className="z-[999999] bg-white border-2 shadow-lg" position="popper" sideOffset={5}>
-                  <SelectItem value="all">All Types</SelectItem>
-                  {kpiTypes.map(type => (
-                    <SelectItem key={type} value={type}>Type {type}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Results count */}
-          <div className="flex items-center justify-between">
-            <p className="text-sm font-semibold text-gray-700">
-              Showing {filteredEntries.length} of {entries.length} KPIs
-            </p>
-            {(searchQuery || departmentFilter !== 'all' || kpiTypeFilter !== 'all') && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSearchQuery('');
-                  setDepartmentFilter('all');
-                  setKpiTypeFilter('all');
-                }}
-                className="text-red-600 hover:bg-red-50 font-semibold"
-              >
-                Clear Filters
-              </Button>
-            )}
-          </div>
-
-          {/* Table Container */}
-          <div className="flex-1 overflow-auto border-2 rounded-lg">
-            {loading ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-red-600 border-t-transparent mx-auto mb-4"></div>
-                  <p className="text-gray-600 font-semibold">Loading KPI library...</p>
-                </div>
-              </div>
-            ) : filteredEntries.length === 0 ? (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <AlertCircle className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-700 font-bold text-lg">No KPIs found</p>
-                  <p className="text-sm text-gray-500 mt-2">
-                    Try adjusting your filters or search query
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <div className="divide-y">
-                {filteredEntries.map((entry) => (
-                  <div
-                    key={entry.id}
-                    onClick={() => setSelectedEntry(entry)}
-                    className={`p-4 cursor-pointer transition-all ${selectedEntry?.id === entry.id
-                        ? 'bg-red-50 border-l-4 border-l-red-600'
-                        : 'hover:bg-gray-50'
-                      }`}
-                  >
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          <h3 className="font-bold text-base text-gray-900">{entry.kpiName}</h3>
-                          <Badge className={`${getKpiTypeBadgeColor(entry.kpiType)} font-bold border`}>
-                            Type {entry.kpiType}
-                          </Badge>
-                        </div>
-
-                        <div className="grid grid-cols-4 gap-4 text-sm mt-2">
-                          <div>
-                            <span className="text-gray-500 font-medium">Department:</span>
-                            <div className="font-bold text-gray-900">{entry.department}</div>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 font-medium">Job Title:</span>
-                            <div className="font-bold text-gray-900">{entry.jobTitle}</div>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 font-medium">Unit:</span>
-                            <div className="font-bold text-gray-900">{entry.unit}</div>
-                          </div>
-                          <div>
-                            <span className="text-gray-500 font-medium">Data Source:</span>
-                            <div className="font-bold text-gray-900">{entry.dataSource}</div>
-                          </div>
-                        </div>
-
-                        {entry.ogsmTarget && (
-                          <div className="mt-2 text-xs text-gray-600 bg-gray-100 p-2 rounded">
-                            <span className="font-semibold">OGSM Alignment:</span> {entry.ogsmTarget}
-                          </div>
-                        )}
-                      </div>
-
-                      {selectedEntry?.id === entry.id && (
-                        <CheckCircle className="h-6 w-6 text-red-600 flex-shrink-0 ml-3" />
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Selected KPI Preview */}
-          {selectedEntry && (
-            <div className="rounded-lg border-2 border-red-300 bg-gradient-to-r from-red-50 to-indigo-50 p-4">
-              <div className="flex items-start gap-3">
-                <CheckCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1">
-                  <p className="font-bold text-red-900 mb-2">Selected KPI:</p>
-                  <div className="grid grid-cols-2 gap-3 text-sm">
-                    <div>
-                      <span className="text-red-700 font-semibold">Name:</span>{' '}
-                      <span className="text-red-900 font-bold">{selectedEntry.kpiName}</span>
-                    </div>
-                    <div>
-                      <span className="text-red-700 font-semibold">Type:</span>{' '}
-                      <span className="text-red-900 font-bold">{getKpiTypeLabel(selectedEntry.kpiType)}</span>
-                    </div>
-                    <div>
-                      <span className="text-red-700 font-semibold">Unit:</span>{' '}
-                      <span className="text-red-900 font-bold">{selectedEntry.unit}</span>
-                    </div>
-                    <div>
-                      <span className="text-red-700 font-semibold">Data Source:</span>{' '}
-                      <span className="text-red-900 font-bold">{selectedEntry.dataSource}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer Actions */}
-        <div className="border-t-2 bg-gray-50 px-6 py-4 flex items-center justify-between">
-          <Button
-            variant="outline"
-            onClick={onClose}
-            size="lg"
-            className="h-11 px-6 font-semibold border-2"
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSelect}
-            disabled={!selectedEntry}
-            size="lg"
-            className="h-11 px-8 font-bold bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <CheckCircle className="mr-2 h-5 w-5" />
-            Use This KPI
-          </Button>
-        </div>
-      </Card>
-    </div>
-  );
-}
 
 export default KpiForm;

@@ -102,54 +102,62 @@ function DashboardContent() {
   const loadDashboardData = async (currentUser: User) => {
     setIsLoading(true)
     try {
-      // Load KPIs
-      const kpisResponse = await authenticatedFetch(`/api/kpi?userId=${currentUser.id}`)
-      const kpisData = await kpisResponse.json()
-
-      if (kpisData.success) {
-        const userKpis = kpisData.data || []
-        setKpis(userKpis)
-
-        // Calculate stats
-        const total = userKpis.length
-        const submitted = userKpis.filter((k: KpiDefinition) =>
-          k.status !== 'DRAFT'
-        ).length
-        const approved = userKpis.filter((k: KpiDefinition) =>
-          k.status === 'APPROVED' || k.status === 'LOCKED_GOALS'
-        ).length
-        const pending = userKpis.filter((k: KpiDefinition) =>
-          k.status?.includes('PENDING')
-        ).length
-
-        setStats({
-          total,
-          submitted,
-          approved,
-          pending,
-          avgProgress: total > 0 ? Math.round((approved / total) * 100) : 0
+      // 1. Parallel Fetching for Performance
+      const [kpisResponse, cyclesResponse, notificationsResponse] = await Promise.all([
+        authenticatedFetch(`/api/kpi?userId=${currentUser.id}`),
+        authenticatedFetch('/api/cycles?status=ACTIVE'),
+        authenticatedFetch('/api/notifications?limit=5').catch(err => {
+          console.error("Notifications fetch error (non-fatal):", err);
+          return null; // Return null to handle gracefully
         })
-      }
+      ]);
 
-      // Load active cycle
-      const cyclesResponse = await authenticatedFetch('/api/cycles?status=ACTIVE')
-      const cyclesData = await cyclesResponse.json()
-      if (cyclesData.success && cyclesData.data?.length > 0) {
-        setCurrentCycle(cyclesData.data[0])
-      }
+      // 2. Process KPIs
+      if (kpisResponse.ok) {
+        const kpisData = await kpisResponse.json()
+        if (kpisData.success) {
+          const userKpis = kpisData.data || []
+          setKpis(userKpis)
 
-      // Load notifications from real API
-      try {
-        const notificationsResponse = await authenticatedFetch('/api/notifications?limit=5')
-        const notificationsData = await notificationsResponse.json()
-        if (notificationsData.success) {
-          setNotifications(notificationsData.notifications || [])
-          setUnreadCount(notificationsData.stats?.unread || 0)
+          // Calculate stats
+          const total = userKpis.length
+          const submitted = userKpis.filter((k: KpiDefinition) =>
+            k.status !== 'DRAFT'
+          ).length
+          const approved = userKpis.filter((k: KpiDefinition) =>
+            k.status === 'APPROVED' || k.status === 'LOCKED_GOALS'
+          ).length
+          const pending = userKpis.filter((k: KpiDefinition) =>
+            k.status?.includes('PENDING')
+          ).length
+
+          setStats({
+            total,
+            submitted,
+            approved,
+            pending,
+            avgProgress: total > 0 ? Math.round((approved / total) * 100) : 0
+          })
         }
-      } catch (error) {
-        console.error("Error loading notifications:", error)
-        setNotifications([])
-        setUnreadCount(0)
+      }
+
+      // 3. Process Active Cycle
+      if (cyclesResponse.ok) {
+        const cyclesData = await cyclesResponse.json()
+        if (cyclesData.success && cyclesData.data?.length > 0) {
+          setCurrentCycle(cyclesData.data[0])
+        }
+      }
+
+      // 4. Process Notifications
+      if (notificationsResponse && notificationsResponse.ok) {
+        try {
+          const notificationsData = await notificationsResponse.json()
+          if (notificationsData.success) {
+            setNotifications(notificationsData.notifications || [])
+            setUnreadCount(notificationsData.stats?.unread || 0)
+          }
+        } catch (e) { console.error("Error parsing notifications", e) }
       }
 
     } catch (error) {

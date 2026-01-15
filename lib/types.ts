@@ -32,6 +32,7 @@ export interface OrgUnit {
   managerId?: string
   createdAt?: string
   updatedAt?: string
+  parent?: OrgUnit // For UI display
 }
 
 // KPI Types
@@ -51,6 +52,7 @@ export type KpiStatus =
   | "LOCKED_GOALS"
   | "CHANGE_REQUESTED"
   | "ARCHIVED"
+  | "PENDING_APPROVAL"
 
 export interface KpiDefinition {
   id: string

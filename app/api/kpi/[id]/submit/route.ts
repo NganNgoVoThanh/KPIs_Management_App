@@ -34,6 +34,23 @@ export async function POST(
 
     const isResubmission = kpi.status === 'REJECTED'
 
+    // [VALIDATION] Critical Check: Total Weight must be exactly 100%
+    const userKpis = await db.getKpiDefinitions({
+      userId: user.id,
+      cycleId: kpi.cycleId
+    })
+
+    // Filter out deleted/archived KPIs if necessary (assuming all returned are active)
+    // Calculate total weight including this KPI (since it's already in DB)
+    const totalWeight = userKpis.reduce((sum, k) => sum + (k.weight || 0), 0)
+
+    // Allow small float point tolerance (e.g. 99.999 is ok, 100.001 is ok)
+    if (Math.abs(totalWeight - 100) > 0.1) {
+      return NextResponse.json({
+        error: `Total KPI weight must be 100% to submit. Current total: ${totalWeight.toFixed(2)}%. Please adjust your KPIs.`
+      }, { status: 400 })
+    }
+
     // If this is a resubmission, cancel all old pending/rejected approvals for this KPI
     if (isResubmission) {
       console.log('[KPI-SUBMIT] Resubmitting REJECTED KPI - cancelling old approvals')
@@ -57,42 +74,37 @@ export async function POST(
       }
     }
 
-    // Identify approver (Line Manager)
+    // Identify approver (Line Manager - Level 1)
     let approver = null
 
-    // 1. Try to get user's direct manager
+    // 1. Priority: User's Direct Manager
     if (user.managerId) {
-      approver = await db.getUserById(user.managerId)
-      if (approver && approver.status !== 'ACTIVE') {
-        approver = null // Manager inactive
+      const directManager = await db.getUserById(user.managerId)
+      if (directManager && directManager.status === 'ACTIVE') {
+        approver = directManager
+        console.log(`[KPI-SUBMIT] Found Direct Manager: ${approver.email}`)
       }
     }
 
-    // 2. Fallback: Find any active Line Manager in same department
+    // 2. Fallback: Find any active Line Manager in SAME department
     if (!approver && user.department) {
-      const lineManagers = await db.getUsers({
+      console.log(`[KPI-SUBMIT] Direct manager not found. Looking for LINE_MANAGER in department: ${user.department}`)
+      const departmentLineManagers = await db.getUsers({
         role: 'LINE_MANAGER',
         status: 'ACTIVE',
-        department: user.department
+        department: user.department // Strict Department Match
       })
-      if (lineManagers && lineManagers.length > 0) {
-        approver = lineManagers[0]
+
+      if (departmentLineManagers && departmentLineManagers.length > 0) {
+        approver = departmentLineManagers[0]
+        console.log(`[KPI-SUBMIT] Found Department Line Manager: ${approver.email}`)
       }
     }
 
-    // 3. Fallback: Find ANY active Line Manager (cross-department)
+    // 3. Last Resort: Find Admin (Do NOT assign to random Line Manager of other departments)
+    // Assigning to random Line Mgr is dangerous for data privacy. Better to fail safe to Admin.
     if (!approver) {
-      const lineManagers = await db.getUsers({
-        role: 'LINE_MANAGER',
-        status: 'ACTIVE'
-      })
-      if (lineManagers && lineManagers.length > 0) {
-        approver = lineManagers[0]
-      }
-    }
-
-    // 4. Last resort: Assign to any ADMIN
-    if (!approver) {
+      console.log(`[KPI-SUBMIT] No Line Manager found. Fallback to ADMIN.`)
       const admins = await db.getUsers({ role: 'ADMIN', status: 'ACTIVE' })
       if (admins && admins.length > 0) {
         approver = admins[0]

@@ -133,7 +133,7 @@ function KpisPageContent() {
 
   const filteredKpis = kpis.filter(kpi => {
     const matchesSearch = kpi.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         kpi.description?.toLowerCase().includes(searchTerm.toLowerCase())
+      kpi.description?.toLowerCase().includes(searchTerm.toLowerCase())
     const matchesStatus = statusFilter === "all" || kpi.status === statusFilter
     const matchesCategory = categoryFilter === "all" || kpi.category === categoryFilter
     return matchesSearch && matchesStatus && matchesCategory
@@ -142,10 +142,18 @@ function KpisPageContent() {
   const kpiStats = {
     total: kpis.length,
     draft: kpis.filter(k => k.status === "DRAFT").length,
-    pending: kpis.filter(k => k.status === "WAITING_LINE_MGR" || k.status === "WAITING_MANAGER" || k.status === "SUBMITTED").length,
+    pending: kpis.filter(k =>
+      k.status === "WAITING_LINE_MGR" ||
+      k.status === "WAITING_MANAGER" ||
+      k.status === "SUBMITTED" ||
+      k.status === "PENDING_APPROVAL"
+    ).length,
     approved: kpis.filter(k => k.status === "APPROVED" || k.status === "LOCKED_GOALS").length,
     rejected: kpis.filter(k => k.status === "REJECTED").length,
-    totalWeight: kpis.reduce((sum, k) => sum + (k.weight || 0), 0),
+    // Fix: Total Weight should only include Active (Non-Rejected/Non-Archived) KPIs
+    totalWeight: kpis
+      .filter(k => k.status !== 'REJECTED' && k.status !== 'ARCHIVED')
+      .reduce((sum, k) => sum + (k.weight || 0), 0),
     avgSmartScore: kpis.length > 0 ? Math.round(kpis.reduce((sum, k) => sum + (k.smartScore || 0), 0) / kpis.length) : 0
   }
 
@@ -322,7 +330,7 @@ function KpisPageContent() {
         type: kpi.type
       }))
     }
-    
+
     const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -377,7 +385,7 @@ function KpisPageContent() {
                 <RefreshCw className="h-4 w-4 mr-2" />
                 Refresh
               </Button>
-              
+
               <Button
                 variant="outline"
                 onClick={handleExport}
@@ -386,6 +394,35 @@ function KpisPageContent() {
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
+
+              {/* Batch Submit Button */}
+              {kpis.some(k => k.status === 'DRAFT') && (
+                <Button
+                  variant="default"
+                  onClick={async () => {
+                    const drafts = kpis.filter(k => k.status === 'DRAFT');
+                    if (confirm(`Are you sure you want to submit all ${drafts.length} draft KPIs?`)) {
+                      setActionLoading(prev => ({ ...prev, 'batch-submit': true }));
+                      try {
+                        await Promise.all(drafts.map(k =>
+                          authenticatedFetch(`/api/kpi/${k.id}/submit`, { method: 'POST' })
+                        ));
+                        toast({ title: 'Batch Submission', description: `Successfully submitted ${drafts.length} KPIs.` });
+                        if (user) loadKpis(user.id);
+                      } catch (e) {
+                        toast({ title: 'Batch Submit Failed', description: 'Some KPIs could not be submitted.', variant: 'destructive' });
+                      } finally {
+                        setActionLoading(prev => ({ ...prev, 'batch-submit': false }));
+                      }
+                    }
+                  }}
+                  disabled={actionLoading['batch-submit']}
+                  className="bg-green-600 hover:bg-green-700 text-white shadow-md border border-green-700"
+                >
+                  {actionLoading['batch-submit'] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+                  Submit All Drafts
+                </Button>
+              )}
 
               <Button
                 onClick={handleCreateNew}
@@ -520,7 +557,7 @@ function KpisPageContent() {
                 {kpis.length === 0 ? "No KPIs Created Yet" : "No KPIs Match Your Filters"}
               </h3>
               <p className="text-gray-500 mb-6 max-w-md mx-auto">
-                {kpis.length === 0 
+                {kpis.length === 0
                   ? "Create your first set of KPIs to start tracking your performance goals."
                   : "Try adjusting your search terms or filters to find the KPIs you're looking for."
                 }
@@ -536,8 +573,8 @@ function KpisPageContent() {
         ) : (
           <div className="space-y-4">
             {filteredKpis.map((kpi) => (
-              <Card 
-                key={kpi.id} 
+              <Card
+                key={kpi.id}
                 className={`bg-white border-l-4 transition-all hover:shadow-xl ${getCategoryColor(kpi.category || "")}`}
               >
                 <CardHeader className="pb-3">
@@ -548,7 +585,7 @@ function KpisPageContent() {
                           {kpi.title}
                         </CardTitle>
                       </div>
-                      
+
                       {kpi.description && (
                         <CardDescription className="text-gray-600 line-clamp-2 text-base">
                           {kpi.description}
@@ -585,9 +622,9 @@ function KpisPageContent() {
 
                     <div className="bg-blue-50 p-3 rounded-lg text-center border border-blue-200">
                       <div className="text-xl font-bold text-blue-600">
-                        Type {kpi.type === 'QUANT_HIGHER_BETTER' ? '1' : 
-                              kpi.type === 'QUANT_LOWER_BETTER' ? '2' :
-                              kpi.type === 'BOOLEAN' ? '3' : '4'}
+                        Type {kpi.type === 'QUANT_HIGHER_BETTER' ? '1' :
+                          kpi.type === 'QUANT_LOWER_BETTER' ? '2' :
+                            kpi.type === 'BOOLEAN' ? '3' : '4'}
                       </div>
                       <div className="text-xs text-gray-600 font-medium">KPI Type</div>
                     </div>
@@ -619,19 +656,17 @@ function KpisPageContent() {
                     <div className="mb-4">
                       <div className="flex justify-between text-sm mb-2">
                         <span className="text-gray-700 font-medium">SMART Quality</span>
-                        <span className={`font-bold ${
-                          kpi.smartScore >= 80 ? 'text-green-600' :
+                        <span className={`font-bold ${kpi.smartScore >= 80 ? 'text-green-600' :
                           kpi.smartScore >= 60 ? 'text-yellow-600' : 'text-red-600'
-                        }`}>
+                          }`}>
                           {kpi.smartScore}/100
                         </span>
                       </div>
-                      <Progress 
-                        value={kpi.smartScore} 
-                        className={`h-2 ${
-                          kpi.smartScore >= 80 ? '[&>div]:bg-green-600' :
+                      <Progress
+                        value={kpi.smartScore}
+                        className={`h-2 ${kpi.smartScore >= 80 ? '[&>div]:bg-green-600' :
                           kpi.smartScore >= 60 ? '[&>div]:bg-yellow-600' : '[&>div]:bg-red-600'
-                        }`}
+                          }`}
                       />
                     </div>
                   )}
@@ -644,14 +679,14 @@ function KpisPageContent() {
                         <span className="ml-2 text-gray-600">{kpi.category}</span>
                       </div>
                     )}
-                    
+
                     {kpi.dataSource && (
                       <div>
                         <span className="font-semibold text-gray-700">Data Source:</span>
                         <span className="ml-2 text-gray-600">{kpi.dataSource}</span>
                       </div>
                     )}
-                    
+
                     {kpi.createdAt && (
                       <div>
                         <span className="font-semibold text-gray-700">Created:</span>
@@ -660,7 +695,7 @@ function KpisPageContent() {
                         </span>
                       </div>
                     )}
-                    
+
                     {kpi.submittedAt && (
                       <div>
                         <span className="font-semibold text-gray-700">Submitted:</span>

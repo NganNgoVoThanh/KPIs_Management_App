@@ -1,13 +1,12 @@
 // app/api/cycles/route.ts - Cycles Management API
 import { NextRequest, NextResponse } from 'next/server'
 import { getAuthenticatedUser } from '@/lib/auth-server'
-import { DatabaseService } from '@/lib/db'
+import { getDatabase } from '@/lib/repositories/DatabaseFactory'
 
 // Force dynamic rendering for authenticated routes
 export const dynamic = 'force-dynamic'
 
-
-const db = new DatabaseService()
+const db = getDatabase()
 
 /**
  * GET /api/cycles
@@ -99,6 +98,40 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Phase Timeline Validation (Strict)
+    const phases = [
+      { name: 'Setting', start: settingStart, end: settingEnd },
+      { name: 'Tracking', start: trackingStart, end: trackingEnd },
+      { name: 'Evaluation', start: evaluationStart, end: evaluationEnd }
+    ]
+
+    for (const phase of phases) {
+      if (phase.start && phase.end) {
+        const pStart = new Date(phase.start)
+        const pEnd = new Date(phase.end)
+
+        if (pEnd <= pStart) {
+          return NextResponse.json(
+            { error: `${phase.name} Phase: End date must be after Start date` },
+            { status: 400 }
+          )
+        }
+
+        // Strict Containment: Phase must be within (or equal to) Cycle Period
+        if (pStart < start || pEnd > end) {
+          return NextResponse.json(
+            { error: `${phase.name} Phase (${phase.start} - ${phase.end}) must be within the Cycle Period (${periodStart} - ${periodEnd})` },
+            { status: 400 }
+          )
+        }
+      } else if ((phase.start && !phase.end) || (!phase.start && phase.end)) {
+        return NextResponse.json(
+          { error: `${phase.name} Phase: Both Start and End dates are required if one is provided.` },
+          { status: 400 }
+        )
+      }
+    }
+
     // Create cycle
     const cycle = await db.createCycle({
       name,
@@ -109,7 +142,7 @@ export async function POST(request: NextRequest) {
       createdBy: user.id,
       targetUsers: targetUsers || null,
       settings: settings || null,
-      // Pass phase timelines
+      // Pass phase timelines with validation
       settingStart: settingStart ? new Date(settingStart) : null,
       settingEnd: settingEnd ? new Date(settingEnd) : null,
       trackingStart: trackingStart ? new Date(trackingStart) : null,

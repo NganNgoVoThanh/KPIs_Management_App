@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { AppLayout } from "@/components/layout/app-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -13,54 +13,26 @@ import { Users, Building2, Settings, FileText, Calendar, Shield, Database, Trash
 import { authenticatedFetch } from "@/lib/api-client"
 import { useToast } from "@/components/ui/use-toast"
 import type { User, OrgUnit, Cycle } from "@/lib/types"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
 
 // Mock data with proper types
-const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "Admin User",
-    email: "admin@intersnack.com.vn",
-    role: "ADMIN",
-    orgUnitId: "org-1",
-    status: "ACTIVE"
-  },
-  {
-    id: "2",
-    name: "Line Manager",
-    email: "lm@intersnack.com.vn",
-    role: "LINE_MANAGER",
-    orgUnitId: "org-1",
-    status: "ACTIVE"
-  }
-]
+// Mock data removed (mockUsers)
 
-const mockOrgUnits: OrgUnit[] = [
-  {
-    id: "org-1",
-    name: "Intersnack Vietnam",
-    parentId: null,
-    type: "COMPANY"
-  },
-  {
-    id: "org-2",
-    name: "R&D Department",
-    parentId: "org-1",
-    type: "DEPARTMENT"
-  }
-]
-
-const mockCycles: Cycle[] = [
-  {
-    id: "cycle-1",
-    name: "2025 Annual Review",
-    type: "YEARLY",
-    periodStart: "2025-01-01",
-    periodEnd: "2025-12-31",
-    status: "ACTIVE",
-    createdBy: "admin",
-    createdAt: new Date().toISOString()
-  }
-]
+// Mock data removed (mockOrgUnits, mockCycles)
 
 interface DebugInfo {
   summary: {
@@ -89,10 +61,93 @@ interface ResetResult {
 
 export default function AdminPage() {
   const { toast } = useToast()
-  const [activeTab, setActiveTab] = useState("users")
+  // Default to debug or org-units since we removed generic users tab
+  const [activeTab, setActiveTab] = useState("debug")
   const [loading, setLoading] = useState(false)
   const [debugInfo, setDebugInfo] = useState<DebugInfo | null>(null)
   const [resetResult, setResetResult] = useState<ResetResult | null>(null)
+  const [orgUnits, setOrgUnits] = useState<OrgUnit[]>([])
+  const [cycles, setCycles] = useState<Cycle[]>([])
+  const [showOrgDialog, setShowOrgDialog] = useState(false)
+  const [newOrgUnit, setNewOrgUnit] = useState({
+    name: "",
+    type: "DEPARTMENT",
+    parentId: "null" // "null" string to handle Select value
+  })
+
+  // Reusable fetch function
+  const fetchOrgUnits = async () => {
+    try {
+      const res = await authenticatedFetch('/api/org-units')
+      const data = await res.json()
+      if (data.success) setOrgUnits(data.data)
+    } catch (error) {
+      console.error("Failed to fetch org units", error)
+    }
+  }
+
+  const fetchCycles = async () => {
+    try {
+      const res = await authenticatedFetch('/api/cycles')
+      const data = await res.json()
+      if (data.success) {
+        if (Array.isArray(data.data)) setCycles(data.data)
+        else if (Array.isArray(data)) setCycles(data)
+      }
+    } catch (error) {
+      console.error("Failed to fetch cycles", error)
+    }
+  }
+
+  useEffect(() => {
+    fetchOrgUnits()
+    fetchCycles()
+  }, [])
+
+  const handleCreateOrgUnit = async () => {
+    if (!newOrgUnit.name) {
+      toast({
+        title: "Validation Error",
+        description: "Organization Name is required",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setLoading(true)
+    try {
+      const payload = {
+        name: newOrgUnit.name,
+        type: newOrgUnit.type,
+        parentId: newOrgUnit.parentId === "null" ? null : newOrgUnit.parentId
+      }
+
+      const res = await authenticatedFetch('/api/org-units', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await res.json()
+
+      if (data.success) {
+        toast({ title: "Success", description: "Organization Unit created successfully" })
+        setShowOrgDialog(false)
+        setNewOrgUnit({ name: "", type: "DEPARTMENT", parentId: "null" })
+        fetchOrgUnits() // Reload list
+      } else {
+        throw new Error(data.error || "Failed to create")
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const loadDebugInfo = async () => {
     setLoading(true)
@@ -188,10 +243,7 @@ export default function AdminPage() {
               <Database className="h-4 w-4" />
               Debug Tools
             </TabsTrigger>
-            <TabsTrigger value="users" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              Users
-            </TabsTrigger>
+            {/* Users Tab Removed - Use /admin/users instead */}
             <TabsTrigger value="org-units" className="flex items-center gap-2">
               <Building2 className="h-4 w-4" />
               Org Units
@@ -490,46 +542,93 @@ export default function AdminPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="users" className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">User Management</h2>
-              <Button>Add New User</Button>
-            </div>
-
-            <div className="grid gap-4">
-              {mockUsers.map((user) => (
-                <Card key={user.id}>
-                  <CardContent className="flex items-center justify-between p-4">
-                    <div>
-                      <h3 className="font-medium">{user.name}</h3>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Badge variant="outline">{user.role}</Badge>
-                      <Badge variant={user.status === "ACTIVE" ? "default" : "secondary"}>{user.status}</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          </TabsContent>
+          {/* Users TabContent Removed */}
 
           <TabsContent value="org-units" className="space-y-4">
             <div className="flex items-center justify-between">
               <h2 className="text-xl font-semibold">Organization Structure</h2>
-              <Button>Add Org Unit</Button>
+              <Button onClick={() => setShowOrgDialog(true)}>Add Org Unit</Button>
             </div>
 
             <div className="grid gap-4">
-              {mockOrgUnits.map((unit) => (
+              {orgUnits.length === 0 ? <p className="text-muted-foreground p-4">No organizations found.</p> : orgUnits.map((unit) => (
                 <Card key={unit.id}>
-                  <CardContent className="p-4">
-                    <h3 className="font-medium">{unit.name}</h3>
-                    <p className="text-sm text-muted-foreground">Type: {unit.type}</p>
+                  <CardContent className="p-4 flex justify-between items-center">
+                    <div>
+                      <h3 className="font-medium">{unit.name}</h3>
+                      <p className="text-sm text-muted-foreground">Type: <Badge variant="outline">{unit.type}</Badge></p>
+                    </div>
+                    {unit.parent && (
+                      <div className="text-xs text-muted-foreground text-right">
+                        Parent: <br /> <strong>{unit.parent.name}</strong>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               ))}
             </div>
+
+            {/* Create Org Unit Dialog */}
+            <Dialog open={showOrgDialog} onOpenChange={setShowOrgDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Add Organization Unit</DialogTitle>
+                  <DialogDescription>Create a new department, team, or division.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label>Name</Label>
+                    <Input
+                      placeholder="e.g. Marketing Dept"
+                      value={newOrgUnit.name}
+                      onChange={(e) => setNewOrgUnit({ ...newOrgUnit, name: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>Type</Label>
+                      <Select
+                        value={newOrgUnit.type}
+                        onValueChange={(val) => setNewOrgUnit({ ...newOrgUnit, type: val })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="COMPANY">Company</SelectItem>
+                          <SelectItem value="DIVISION">Division</SelectItem>
+                          <SelectItem value="DEPARTMENT">Department</SelectItem>
+                          <SelectItem value="TEAM">Team</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Parent Unit</Label>
+                      <Select
+                        value={newOrgUnit.parentId}
+                        onValueChange={(val) => setNewOrgUnit({ ...newOrgUnit, parentId: val })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="None (Top Level)" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="null">None (Top Level)</SelectItem>
+                          {orgUnits.map(org => (
+                            <SelectItem key={org.id} value={org.id}>{org.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setShowOrgDialog(false)}>Cancel</Button>
+                  <Button onClick={handleCreateOrgUnit} disabled={loading}>
+                    {loading ? "Creating..." : "Create Unit"}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </TabsContent>
 
           <TabsContent value="cycles" className="space-y-4">
@@ -539,7 +638,7 @@ export default function AdminPage() {
             </div>
 
             <div className="grid gap-4">
-              {mockCycles.map((cycle) => (
+              {cycles.length === 0 ? <p className="text-muted-foreground p-4">No cycles found.</p> : cycles.map((cycle) => (
                 <Card key={cycle.id}>
                   <CardContent className="p-4">
                     <div className="flex items-center justify-between">
