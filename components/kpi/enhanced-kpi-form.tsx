@@ -113,6 +113,9 @@ export function KpiForm({
   const [selectedKpiIndex, setSelectedKpiIndex] = useState<number>(0);
   const [smartValidationResults, setSmartValidationResults] = useState<Map<number, SMARTValidationResult>>(new Map());
 
+  // Determine if we are in Single Edit Mode
+  const isSingleEditMode = maxKpis === 1;
+
   // Warning for unsaved changes
   // Auto-save to LocalStorage
   useEffect(() => {
@@ -785,8 +788,8 @@ export function KpiForm({
             )}
             <Button
               onClick={handleSubmit}
-              disabled={isSubmitting || isDraftSaving || Math.abs(totalWeight - 100) > 0.1 || validKpiCount < minKpis}
-              className={`flex-1 md:flex-none text-white shadow-md font-bold px-8 ${Math.abs(totalWeight - 100) > 0.1 || validKpiCount < minKpis
+              disabled={isSubmitting || isDraftSaving || (!isSingleEditMode && (Math.abs(totalWeight - 100) > 0.1 || validKpiCount < minKpis))}
+              className={`flex-1 md:flex-none text-white shadow-md font-bold px-8 ${!isSingleEditMode && (Math.abs(totalWeight - 100) > 0.1 || validKpiCount < minKpis)
                 ? 'bg-gray-400 cursor-not-allowed'
                 : 'bg-gradient-to-r from-red-600 to-red-700 hover:from-red-700 hover:to-red-800'
                 }`}

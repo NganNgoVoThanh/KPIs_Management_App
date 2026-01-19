@@ -1,0 +1,13 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "module": "CommonJS",
+        "target": "ES2019",
+        "noEmit": true
+    },
+    "include": [
+        "scripts/**/*.ts",
+        "lib/**/*.ts",
+        "prisma/**/*.ts"
+    ]
+}

@@ -18,7 +18,7 @@ model User {
   email         String    @unique
   name          String
   role          String    // ADMIN, STAFF, LINE_MANAGER, MANAGER
-  orgUnitId     String
+  orgUnitId     String?
   department    String?
   employeeId    String?   @unique
   managerId     String?
@@ -30,7 +30,7 @@ model User {
   lastLoginAt   DateTime?
 
   // Relations
-  orgUnit              OrgUnit              @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
+  orgUnit              OrgUnit?             @relation(fields: [orgUnitId], references: [id], onDelete: Cascade)
   manager              User?                @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull, onUpdate: NoAction)
   subordinates         User[]               @relation("UserManager")
   
@@ -60,7 +60,7 @@ model User {
   @@index([orgUnitId])
   @@index([role])
   @@index([managerId])
-  @@map("users")
+  @@map("kpi_users")
 }
 
 model OrgUnit {
@@ -79,7 +79,7 @@ model OrgUnit {
   kpis      KpiDefinition[]
 
   @@index([parentId])
-  @@map("org_units")
+  @@map("kpi_org_units")
 }
 
 // ==================== KPI MANAGEMENT ====================
@@ -117,7 +117,7 @@ model Cycle {
   @@index([createdBy])
   @@index([periodStart])
   @@index([periodEnd])
-  @@map("cycles")
+  @@map("kpi_cycles")
 }
 
 // Enhanced KPI Template model - Unified system for all templates
@@ -323,7 +323,7 @@ model Approval {
   @@index([approverId])
   @@index([status])
   @@index([approverId, status])
-  @@map("approvals")
+  @@map("kpi_approvals")
 }
 
 model ChangeRequest {
@@ -350,7 +350,7 @@ model ChangeRequest {
   @@index([kpiDefinitionId])
   @@index([requesterId])
   @@index([status])
-  @@map("change_requests")
+  @@map("kpi_change_requests")
 }
 
 model ApprovalHierarchy {
@@ -372,7 +372,7 @@ model ApprovalHierarchy {
   @@index([userId])
   @@index([isActive])
   @@index([userId, isActive])
-  @@map("approval_hierarchies")
+  @@map("kpi_approval_hierarchies")
 }
 
 // ==================== FILES & EVIDENCE ====================
@@ -402,7 +402,7 @@ model Evidence {
 
   @@index([actualId])
   @@index([provider])
-  @@map("evidences")
+  @@map("kpi_evidences")
 }
 
 model CompanyDocument {
@@ -428,7 +428,7 @@ model CompanyDocument {
   @@index([type])
   @@index([aiIndexed])
   @@index([department])
-  @@map("company_documents")
+  @@map("kpi_company_documents")
 }
 
 // ==================== KPI LIBRARY ====================
@@ -607,7 +607,7 @@ model ProxyAction {
   @@index([entityId])
   @@index([actionType])
   @@index([performedAt])
-  @@map("proxy_actions")
+  @@map("kpi_proxy_actions")
 }
 
 // ==================== NOTIFICATIONS ====================
@@ -634,7 +634,7 @@ model Notification {
   @@index([status])
   @@index([createdAt])
   @@index([userId, status])
-  @@map("notifications")
+  @@map("kpi_notifications")
 }
 
 // ==================== HISTORICAL & ANALYTICS ====================
@@ -657,7 +657,7 @@ model HistoricalKpiData {
   @@index([userId])
   @@index([year])
   @@index([userId, year])
-  @@map("historical_kpi_data")
+  @@map("kpi_historical_data")
 }
 
 // ==================== AUDIT & LOGGING ====================
@@ -684,7 +684,7 @@ model AuditLog {
   @@index([entityId])
   @@index([createdAt])
   @@index([entityType, entityId])
-  @@map("audit_logs")
+  @@map("kpi_audit_logs")
 }
 
 // ==================== SYSTEM CONFIGURATION ====================
@@ -695,5 +695,5 @@ model SystemConfig {
   value     String   @db.Text // JSON value
   updatedAt DateTime @updatedAt
   
-  @@map("system_configs")
+  @@map("kpi_system_configs")
 }

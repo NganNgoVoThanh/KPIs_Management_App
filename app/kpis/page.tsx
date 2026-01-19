@@ -439,7 +439,7 @@ function KpisPageContent() {
                   className="bg-green-600 hover:bg-green-700 text-white shadow-md border border-green-700"
                 >
                   {actionLoading['batch-submit'] ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
-                  Submit All Drafts
+                  Submit All
                 </Button>
               )}
 

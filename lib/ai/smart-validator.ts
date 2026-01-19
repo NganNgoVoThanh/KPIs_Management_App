@@ -235,34 +235,47 @@ export class SmartValidator {
    * Process AI validation response and add visual metrics
    */
   private processValidationResponse(aiResponse: any, originalInput: KpiInput): SmartValidationResult {
+    // Process AI response and add visual metrics
     const { criteria, autoImprovements } = aiResponse;
+
+    // Safety Check: Ensure criteria object exists and has all required fields
+    // This prevents "Cannot read properties of undefined (reading 'specific')" error
+    const safeCriteria = criteria || {};
+    const defaultCriterion = { score: 0, level: 'Poor', feedback: 'Evaluation unavailable', improvements: [], examples: [] };
+
+    // Ensure all 5 SMART criteria exist
+    safeCriteria.specific = safeCriteria.specific || { ...defaultCriterion };
+    safeCriteria.measurable = safeCriteria.measurable || { ...defaultCriterion };
+    safeCriteria.achievable = safeCriteria.achievable || { ...defaultCriterion };
+    safeCriteria.relevant = safeCriteria.relevant || { ...defaultCriterion };
+    safeCriteria.timeBound = safeCriteria.timeBound || { ...defaultCriterion };
 
     // Calculate overall score
     const overallScore = Math.round(
-      (criteria.specific.score +
-        criteria.measurable.score +
-        criteria.achievable.score +
-        criteria.relevant.score +
-        criteria.timeBound.score) / 5
+      (safeCriteria.specific.score +
+        safeCriteria.measurable.score +
+        safeCriteria.achievable.score +
+        safeCriteria.relevant.score +
+        safeCriteria.timeBound.score) / 5
     );
 
     // Determine overall level
     const overallLevel = this.getScoreLevel(overallScore);
 
     // Generate visual metrics for UI components
-    const visualMetrics = this.generateVisualMetrics(criteria, overallScore);
+    const visualMetrics = this.generateVisualMetrics(safeCriteria, overallScore);
 
     // Enhance auto-improvements
     const enhancedImprovements = this.enhanceAutoImprovements(
-      autoImprovements,
-      criteria,
+      autoImprovements || {}, // Safety check for autoImprovements too
+      safeCriteria,
       originalInput
     );
 
     return {
       overallScore,
       level: overallLevel,
-      criteria: this.processCriteria(criteria),
+      criteria: this.processCriteria(safeCriteria),
       autoImprovements: enhancedImprovements,
       visualMetrics,
       validationHistory: this.getValidationHistory(originalInput)

@@ -127,21 +127,31 @@ export class SmartKpiSuggestionService {
   }
 
   async generateSmartKpiSuggestions(input: KpiSuggestionInput): Promise<SuggestionResult> {
-    const ogsmObjectives = await this.loadOGSMObjectives(input.user.department || '');
-    const departmentTemplate = await this.loadDepartmentTemplate(input.user.department || '', input.user.jobTitle || '');
+    // Determine effective job title (fallback to Role if title missing)
+    // Prisma Schema does not have jobTitle, so we must rely on Role (ADMIN, STAFF, MANAGER)
+    const userRole = input.user.role
+      ? input.user.role.charAt(0).toUpperCase() + input.user.role.slice(1).toLowerCase()
+      : 'Staff';
+    const effectiveJobTitle = (input.user as any).jobTitle || userRole;
+    const effectiveDepartment = input.user.department || 'General';
+
+    const ogsmObjectives = await this.loadOGSMObjectives(effectiveDepartment);
+    const departmentTemplate = await this.loadDepartmentTemplate(effectiveDepartment, effectiveJobTitle);
     const historicalAnalysis = await this.analyzeHistoricalPerformance(input.user.id, input.historicalData);
-    const peerBenchmarks = await this.getPeerBenchmarks(input.user.department || '', input.user.jobTitle || '');
+    const peerBenchmarks = await this.getPeerBenchmarks(effectiveDepartment, effectiveJobTitle);
 
     // RAG: Retrieve context from Knowledge Base
     const { KnowledgeBaseService } = await import('./knowledge-base-service');
     const kbService = new KnowledgeBaseService();
+
+    // Search Knowledge Base with effective title
     const ragContext = await kbService.retrieveContext(
-      `KPIs for ${input.user.jobTitle} in ${input.user.department}`,
-      { department: input.user.department }
+      `KPIs for ${effectiveJobTitle} in ${effectiveDepartment}`,
+      { department: input.user.department || undefined }
     );
 
     const aiPrompt = this.buildKpiSuggestionPrompt(
-      input.user,
+      { ...input.user, jobTitle: effectiveJobTitle, department: effectiveDepartment } as any,
       ogsmObjectives,
       departmentTemplate,
       historicalAnalysis,

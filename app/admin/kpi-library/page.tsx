@@ -98,6 +98,12 @@ export default function KpiLibraryPage() {
   const [templateSearch, setTemplateSearch] = useState('')
   const [templateCategoryFilter, setTemplateCategoryFilter] = useState('ALL')
   const [templateSortBy, setTemplateSortBy] = useState('name')
+  // New Filters & Pagination
+  const [departmentFilter, setDepartmentFilter] = useState('ALL')
+  const [statusFilter, setStatusFilter] = useState('ALL')
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   // Bulk Upload state
   const [file, setFile] = useState<File | null>(null)
@@ -144,6 +150,12 @@ export default function KpiLibraryPage() {
 
   const { toast } = useToast()
 
+  // Computed values for UI
+  const uniqueDepartments = Array.from(new Set(templates.map(t => t.department).filter(Boolean))).sort()
+  const startStartIndex = (currentPage - 1) * itemsPerPage
+  const paginatedTemplates = filteredTemplates.slice(startStartIndex, startStartIndex + itemsPerPage)
+  const totalPages = Math.ceil(filteredTemplates.length / itemsPerPage)
+
   // ==================== MANUAL TEMPLATES FUNCTIONS ====================
 
   const fetchTemplates = async () => {
@@ -177,6 +189,20 @@ export default function KpiLibraryPage() {
       result = result.filter(t => t.category === templateCategoryFilter)
     }
 
+    // Department filter
+    if (departmentFilter !== 'ALL') {
+      result = result.filter(t => t.department === departmentFilter)
+    }
+
+    // Status filter
+    if (statusFilter !== 'ALL') {
+      result = result.filter(t =>
+        statusFilter === 'ACTIVE' ? (t.status === 'ACTIVE' || t.status === 'APPROVED') :
+          statusFilter === 'DRAFT' ? (t.status === 'DRAFT' || t.status === 'PENDING') :
+            t.status === statusFilter
+      )
+    }
+
     // Sort
     result.sort((a, b) => {
       switch (templateSortBy) {
@@ -192,7 +218,8 @@ export default function KpiLibraryPage() {
     })
 
     setFilteredTemplates(result)
-  }, [templates, templateSearch, templateCategoryFilter, templateSortBy])
+    setCurrentPage(1) // Reset to first page on filter change
+  }, [templates, templateSearch, templateCategoryFilter, templateSortBy, departmentFilter, statusFilter])
 
   const handleCreateTemplate = async () => {
     if (!templateForm.kpiName || !templateForm.category) {
@@ -1684,9 +1711,9 @@ export default function KpiLibraryPage() {
               </CardHeader>
               <CardContent className="space-y-4">
                 {/* Search and Filters */}
-                <div className="flex items-center gap-4">
-                  <div className="flex-1 grid grid-cols-4 gap-4">
-                    <div className="col-span-2">
+                <div className="flex flex-col gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                    <div className="col-span-1 md:col-span-2">
                       <Input
                         placeholder="Search templates..."
                         value={templateSearch}
@@ -1708,48 +1735,65 @@ export default function KpiLibraryPage() {
                       </Select>
                     </div>
                     <div>
-                      <Select value={templateSortBy} onValueChange={setTemplateSortBy}>
+                      <Select value={departmentFilter} onValueChange={setDepartmentFilter}>
                         <SelectTrigger>
-                          <SelectValue placeholder="Sort by" />
+                          <SelectValue placeholder="Department" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="name">Name A-Z</SelectItem>
-                          <SelectItem value="usage">Most Used</SelectItem>
-                          <SelectItem value="date">Newest First</SelectItem>
+                          <SelectItem value="ALL">All Departments</SelectItem>
+                          {uniqueDepartments.map(dept => (
+                            <SelectItem key={dept} value={dept}>{dept}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Select value={statusFilter} onValueChange={setStatusFilter}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="ALL">All Status</SelectItem>
+                          <SelectItem value="ACTIVE">Active</SelectItem>
+                          <SelectItem value="DRAFT">Draft</SelectItem>
+                          <SelectItem value="ARCHIVED">Archived</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
-                  <div className="flex gap-2">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => {
-                        setTemplateSearch('')
-                        setTemplateCategoryFilter('ALL')
-                        setTemplateSortBy('name')
-                      }}
-                    >
-                      Clear
-                    </Button>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={handleExportTemplates}
-                      disabled={filteredTemplates.length === 0}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Export
-                    </Button>
+
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Showing {filteredTemplates.length} templates
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setTemplateSearch('')
+                          setTemplateCategoryFilter('ALL')
+                          setTemplateSortBy('name')
+                          setDepartmentFilter('ALL')
+                          setStatusFilter('ALL')
+                        }}
+                      >
+                        Clear Filters
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handleExportTemplates}
+                        disabled={filteredTemplates.length === 0}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Export
+                      </Button>
+                    </div>
                   </div>
                 </div>
 
-                {/* Results count */}
-                {templates.length > 0 && (
-                  <div className="text-sm text-gray-600">
-                    Showing {filteredTemplates.length} of {templates.length} templates
-                  </div>
-                )}
+
 
                 {filteredTemplates.length === 0 ? (
                   <div className="text-center py-12">
@@ -1765,7 +1809,7 @@ export default function KpiLibraryPage() {
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {filteredTemplates.map((template) => (
+                    {paginatedTemplates.map((template) => (
                       <div
                         key={template.id}
                         className="rounded-lg border border-gray-200 p-4 hover:border-gray-300 transition-colors"
@@ -1807,13 +1851,13 @@ export default function KpiLibraryPage() {
                           <div className="flex items-center gap-2">
                             <Badge
                               className={
-                                template.status === 'ACTIVE' ? 'bg-green-600 hover:bg-green-700' :
-                                  template.status === 'APPROVED' ? 'bg-blue-600 hover:bg-blue-700' :
-                                    template.status === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' :
-                                      'bg-gray-500 hover:bg-gray-600'
+                                (template.status === 'ACTIVE' || template.status === 'APPROVED') ? 'bg-green-600 hover:bg-green-700' :
+                                  template.status === 'REJECTED' ? 'bg-red-600 hover:bg-red-700' :
+                                    'bg-gray-500 hover:bg-gray-600'
                               }
                             >
-                              {template.status ? (template.status.charAt(0) + template.status.slice(1).toLowerCase()) : 'Draft'}
+                              {(template.status === 'ACTIVE' || template.status === 'APPROVED') ? 'Active' :
+                                template.status ? (template.status.charAt(0) + template.status.slice(1).toLowerCase()) : 'Draft'}
                             </Badge>
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
@@ -1869,7 +1913,7 @@ export default function KpiLibraryPage() {
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
                                 <DropdownMenuItem
-                                  onClick={() => handleDeleteTemplate(template.id)}
+                                  onClick={() => setDeleteConfirmId(template.id)}
                                   className="text-red-600 focus:text-red-600"
                                 >
                                   <Trash2 className="mr-2 h-4 w-4" />
@@ -1883,7 +1927,48 @@ export default function KpiLibraryPage() {
                     ))}
                   </div>
                 )}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-end gap-2 mt-4 pt-4 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                      disabled={currentPage === 1}
+                    >
+                      Previous
+                    </Button>
+                    <span className="text-sm text-gray-600">
+                      Page {currentPage} of {totalPages}
+                    </span>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                      disabled={currentPage === totalPages}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                )}
               </CardContent>
+
+              <Dialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Confirm Delete</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to delete this template? This action cannot be undone.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+                    <Button variant="destructive" onClick={() => {
+                      if (deleteConfirmId) handleDeleteTemplate(deleteConfirmId);
+                      setDeleteConfirmId(null);
+                    }}>Delete</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </Card>
           </TabsContent>
 

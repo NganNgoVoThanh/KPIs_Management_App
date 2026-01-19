@@ -63,6 +63,20 @@ export async function PUT(
 
     const body = await request.json()
 
+    // Ensure numeric fields are numbers
+    if (body.targetValue !== undefined && body.targetValue !== null) {
+      body.targetValue = typeof body.targetValue === 'string' ? parseFloat(body.targetValue) : body.targetValue
+    }
+    if (body.weight !== undefined && body.weight !== null) {
+      body.weight = typeof body.weight === 'string' ? parseFloat(body.weight) : body.weight
+    }
+
+    // Prevent updating immutable fields
+    delete body.id
+    delete body.createdAt
+    delete body.updatedAt
+    delete body.createdBy
+
     const db = getDatabase()
     const template = await db.updateKpiTemplate(params.id, body)
 

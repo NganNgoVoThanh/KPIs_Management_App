@@ -1045,7 +1045,7 @@ export class MySQLRepository implements IDatabaseRepository {
             frequency: row[9]?.toString() || 'MONTHLY',
             source: 'EXCEL_UPLOAD',
             uploadId: upload.id,
-            status: 'APPROVED', // Auto-approve
+            status: 'ACTIVE', // Auto-approve to ACTIVE directly
             version: 1,
             usageCount: 0,
             isActive: true,
@@ -1124,7 +1124,7 @@ export class MySQLRepository implements IDatabaseRepository {
     return await this.client.kpiTemplate.update({
       where: { id },
       data: {
-        status: 'APPROVED',
+        status: 'ACTIVE',
         reviewedBy,
         reviewedAt: new Date(),
         reviewComment: comment

@@ -183,9 +183,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
 
           <div className="pt-8 mt-8 border-t border-gray-100 text-center">
             <p className="text-xs text-gray-400 font-medium px-8 leading-relaxed">
-              By accessing the system, you agree to comply with the
-              <br />
-              <span className="text-gray-600">IT Security Policies</span> of Intersnack Group.
+              Developed by Process RD & Optimization
             </p>
             <p className="text-[10px] text-red-500 mt-4 font-mono">Version 01.03</p>
           </div>

@@ -98,109 +98,51 @@ export async function POST(request: NextRequest) {
     // If orgUnitId is dummy "default-org" or missing, resolve it dynamically
     let finalOrgUnitId = orgUnitId;
 
+    // [CRITICAL FIX] Handle OrgUnitId foreign key constraint
+    // If orgUnitId is missing or a placeholder, create a new OrgUnit for the department
+
+
     if (!finalOrgUnitId || finalOrgUnitId === 'default-org' || finalOrgUnitId === 'org-1') {
-      console.log('[CREATE-USER] Resolving OrgUnitId...');
+      console.log('[CREATE-USER] Invalid OrgUnitId provided. Attempting to auto-create OrgUnit...');
 
-      // Strategy 1: Find OrgUnit by Department Name
-      let targetDeptName = department && department.trim().length > 0 ? department.trim() : 'General';
-
-      // Try to find existing
-      const existingOrgs = await db.getOrgUnits(); // Assuming this method exists or we use prisma directly
-      // Wait, db wrapper might not have getOrgUnits exposed fully. 
-      // Let's use the underlying mechanism if possible, or assume db.prisma works if DatabaseService exposes it.
-      // Checking DatabaseFactory... it returns IDatabaseService.
-      // MySQLRepository implements it.
-      // Let's rely on `db.getOrgUnits()`? 
-      // If not available, we have to create one blindly or use a specific lookup.
-      // Simplest robust way without changing interface: 
-      // Use SQL directly? No.
-      // Let's try to fetch all orgs (usually small list) or just resolve.
-
-      // ACTUALLY: The best way is to try to Find or Create via Prisma unique name if possible.
-      // But we are in the API layer.
-      // Let's try to assume there is AT LEAST one org unit from seeding.
-
-      // For now, let's use a fail-safe:
-      // If we can't find specific, use the first one available.
-      // We need a way to get OrgUnits. 
-      // `db.getOrganizations()` might exist?
-      // Let's check `MySQLRepository.ts` if I could... but I can't view it right now easily without tool call.
-
-      // Workaround: We will use `db.client.orgUnit` access if `db` exposes client, 
-      // OR we just assume `orgUnitId` passed from FrontEnd MIGHT be valid if we fix Frontend.
-      // BUT User requested automatic fix.
-
-      // Let's assume `db` has `getOrgUnits`. If not, we might need to add it.
-      // Wait, `MySQLRepository.ts` usually has `getOrgUnitById`.
-      // Let's try to get ALL org units.
-
-      // To be safe: I will attempt to CREATE a default OrgUnit if I can't find one.
-      // But creating requires `db.createOrgUnit`.
-
-      // Let's use `db.client` (Prisma) if accessible.
-      // `MySQLRepository` has `client` property but it might be private.
-      // Use case: The simple solution is to just query OrgUnits using a new DB method or...
-
-      // Okay, I will try to use `db.getUsers()` to find a user, then get their OrgUnitId? No.
-
-      // Let's look at `db.ts` or `MySQLRepository.ts` capabilities from memory (Step 228 checkpoint).
-      // `MySQLRepository` uses Prisma.
-
-      // REAL FIX:
-      // I'll add a check. If passing 'default-org', I will use the ID of the first OrgUnit I can find.
-      // But I can't find it without a method.
-
-      // I will assume there is a method `getAllOrgUnits` or similar.
-      // If not, I'll use the one valid ID we know from SEEDING if possible? No, dynamic.
-
-      // Let's just catch the error and try to create a default logic?
-      // No.
-
-      // Let's use `db.createOrgUnit` if it exists.
-      // It likely exists.
-
-      // Strategy:
-      // 1. If department provided, try `createOrgUnit` with that name (Store will handle duplicate or return existing).
-      // A lot of "Store" implementations upsert.
-      // If `createOrgUnit` creates a new one, we get ID.
-      // If it fails (duplicate), we need to find it.
-
-      // Let's try to just PASS valid data from Frontend? No, user wants backend fix.
-
-      // OK. I will inject a "Find One" query using the `getUsers` trick? No.
-
-      // Let's assume `db` instance allows direct Prisma access? No.
-
-      // I will use `db` to Create an Org Unit for this department.
-      // Note: `createOrgUnit` usually returns the created object.
-      // If it fails (duplicate), I'll need to fetch.
-
-      // REVISED PLAN:
-      // Since I can't easily query OrgUnits without interface support, 
-      // I will Create a new Org Unit for this Department if `orgUnitId` is invalid.
-      // If creation fails (already exists), I will need to fetch it.
-      // Implementation:
+      const targetDeptName = department && department.trim().length > 0 ? department.trim() : 'General';
 
       try {
-        // Try to create an Org Unit for this department
-        // If 'Marketing' exists, this might throw if Name is Unique?
-        // OrgUnit Name is likely NOT unique constraints in schema (usually Key is ID).
-        // Checking Schema: `model OrgUnit { id String @id... name String ... }`. NO @unique on Name.
-        // GREAT! So we can just create a new Org Unit "Marketing" if we want, or duplicates allowed.
-        // To avoid spamming duplicates, ideally we shouldn't.
+        // Create a new OrgUnit for this department
+        // Priority 1: Check if Name already exists in OrgUnits (to reuse existing ID)
+        // Since `createOrgUnit` might just create duplicate, we want to FIND first.
+        // We lack a direct `findOrgUnitByName` method on `db` wrapper, so we iterate or just create.
+        // BUT, if users say "Process RD" exists, maybe they typed it exactly.
 
-        // But to Fix the Error "Foreign Key":
-        // We just create a new Org Unit and use its ID.
-        const newOrg = await db.createOrgUnit({
-          name: targetDeptName,
-          type: 'DEPARTMENT',
-          parentId: null
-        });
-        finalOrgUnitId = newOrg.id;
+        // Let's try to fetch all org units first to find a match (assuming list is small)
+        const allOrgs = await db.getOrgUnits();
+        const existingOrg = allOrgs.find((o: any) => o.name.toLowerCase() === targetDeptName.toLowerCase());
+
+        if (existingOrg) {
+          finalOrgUnitId = existingOrg.id;
+          console.log(`[CREATE-USER] Found existing OrgUnit: ${targetDeptName} (${finalOrgUnitId})`);
+        } else {
+          // Create new if not found
+          const newOrg = await db.createOrgUnit({
+            name: targetDeptName,
+            type: 'DEPARTMENT',
+            parentId: null
+          });
+          finalOrgUnitId = newOrg.id;
+          console.log(`[CREATE-USER] Auto-created OrgUnit: ${targetDeptName} (${finalOrgUnitId})`);
+        }
+
       } catch (err) {
-        console.log('Failed to auto-create OrgUnit:', err);
-        // Fallback?
+        console.error('[CREATE-USER] Failed to auto-create OrgUnit:', err);
+        // If this fails, we let it proceed to fail at createUser level with original error
       }
+    }
+
+    // Logic handled above
+    if (!finalOrgUnitId) {
+      // If auto-create failed, maybe try to fetch ALL and pick first? 
+      // or just fail. 
+      // Let's rely on the auto-creation above.
     }
 
     // Create user with VALID finalOrgUnitId

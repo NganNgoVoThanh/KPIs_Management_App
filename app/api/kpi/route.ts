@@ -177,7 +177,8 @@ export async function POST(request: NextRequest) {
         startDate: kpiData.startDate ? new Date(kpiData.startDate) : null,
         dueDate: kpiData.dueDate ? new Date(kpiData.dueDate) : null,
 
-        status: 'DRAFT',
+        // Respect status from frontend (DRAFT vs PENDING_APPROVAL/SUBMITTED)
+        status: kpiData.status || 'DRAFT',
         createdAt: new Date(),
         updatedAt: new Date()
       }
