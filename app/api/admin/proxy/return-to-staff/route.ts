@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     // UPDATE ENTITY STATUS TO DRAFT (or CHANGE_REQUESTED)
     if (entityType === 'KPI') {
       await db.updateKpiDefinition(entityId, {
-        status: 'DRAFT',
+        status: 'CHANGE_REQUESTED',
         updatedAt: new Date().toISOString(),
         changeRequestReason: reason
       });

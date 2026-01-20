@@ -56,7 +56,7 @@ export function ApprovalDialog({ kpi, isOpen, onClose, onApprove, onReject }: Ap
     const fetchApprovers = async () => {
       const history = getApprovalHistory(kpi.id)
       const approverIds = [...new Set(history.map(h => h.approverId))]
-      
+
       const approversData: Record<string, User> = {}
       for (const id of approverIds) {
         try {
@@ -254,12 +254,12 @@ export function ApprovalDialog({ kpi, isOpen, onClose, onApprove, onReject }: Ap
             <>
               <Alert variant={action === "reject" ? "destructive" : "default"}>
                 <AlertDescription>
-                  {action === "reject" 
+                  {action === "reject"
                     ? "⚠️ Rejection comment is REQUIRED. Please explain why this KPI needs revision."
                     : "Optional: Add feedback or comments for the staff member."}
                 </AlertDescription>
               </Alert>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 <Label htmlFor="comment">
                   {action === "approve" ? "Approval Comment (Optional)" : "Rejection Reason (Required) *"}
                 </Label>
@@ -288,8 +288,8 @@ export function ApprovalDialog({ kpi, isOpen, onClose, onApprove, onReject }: Ap
             {action ? "Cancel" : "Close"}
           </Button>
           {action && (
-            <Button 
-              onClick={handleSubmit} 
+            <Button
+              onClick={handleSubmit}
               variant={action === "approve" ? "default" : "destructive"}
               disabled={action === "reject" && !comment.trim()}
             >

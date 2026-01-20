@@ -261,11 +261,11 @@ function KpisPageContent() {
 
   // Open submit confirmation dialog
   const handleSubmitClick = (kpi: KpiDefinition) => {
-    const submitableStatuses = ['DRAFT', 'REJECTED']
+    const submitableStatuses = ['DRAFT', 'REJECTED', 'CHANGE_REQUESTED']
     if (!submitableStatuses.includes(kpi.status)) {
       toast({
         title: "Cannot Submit KPI",
-        description: "Only KPIs in DRAFT or REJECTED status can be submitted.",
+        description: "Only KPIs in DRAFT, REJECTED or CHANGE_REQUESTED status can be submitted.",
         variant: "destructive"
       })
       return

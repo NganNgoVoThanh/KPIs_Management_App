@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
 
     // Update KPI status to CHANGE_REQUESTED
     await db.updateKpiDefinition(kpiDefinitionId, {
-      status: 'CHANGE_REQUESTED'
+      status: 'CHANGE_REQUESTED',
+      changeRequestReason: reason
     })
 
     console.log('[CHANGE-REQUEST] KPI status updated to CHANGE_REQUESTED')

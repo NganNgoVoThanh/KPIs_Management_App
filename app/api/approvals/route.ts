@@ -27,18 +27,23 @@ export async function GET(request: NextRequest) {
       role: user.role
     })
 
-    // Only managers can access approvals
+    // Only managers can access approvals list, but STAFF can see history of specific KPI
+    const { searchParams } = new URL(request.url)
+    const kpiDefinitionId = searchParams.get('kpiDefinitionId')
+
     if (!['LINE_MANAGER', 'MANAGER', 'ADMIN'].includes(user.role)) {
-      return NextResponse.json(
-        { error: 'Access denied. Manager role required.' },
-        { status: 403 }
-      )
+      // If user is STAFF (or other), they MUST provide a kpiDefinitionId to see its history
+      if (!kpiDefinitionId) {
+        return NextResponse.json(
+          { error: 'Access denied. Manager role required for general approval list.' },
+          { status: 403 }
+        )
+      }
     }
 
-    const { searchParams } = new URL(request.url)
     const status = searchParams.get('status') || 'PENDING'
     const entityType = searchParams.get('entityType') || undefined
-    const kpiDefinitionId = searchParams.get('kpiDefinitionId')
+    // kpiDefinitionId is already extracted above
 
     const db = getDatabase()
 

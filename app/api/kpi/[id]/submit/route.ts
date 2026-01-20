@@ -33,11 +33,11 @@ export async function POST(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    if (kpi.status !== 'DRAFT' && kpi.status !== 'REJECTED') {
-      return NextResponse.json({ error: 'Only DRAFT/REJECTED KPIs can be submitted' }, { status: 400 })
+    if (kpi.status !== 'DRAFT' && kpi.status !== 'REJECTED' && kpi.status !== 'CHANGE_REQUESTED') {
+      return NextResponse.json({ error: 'Only DRAFT, REJECTED, or CHANGE REQUESTED KPIs can be submitted' }, { status: 400 })
     }
 
-    const isResubmission = kpi.status === 'REJECTED'
+    const isResubmission = kpi.status === 'REJECTED' || kpi.status === 'CHANGE_REQUESTED'
 
     // [VALIDATION] Critical Check: Total Weight must be exactly 100%
     const userKpis = await db.getKpiDefinitions({
@@ -58,7 +58,7 @@ export async function POST(
 
     // If this is a resubmission, cancel all old pending/rejected approvals for this KPI
     if (isResubmission) {
-      console.log('[KPI-SUBMIT] Resubmitting REJECTED KPI - cancelling old approvals')
+      console.log('[KPI-SUBMIT] Resubmitting REJECTED/CHANGE_REQUESTED KPI - cancelling old approvals')
       const oldApprovals = await db.getApprovals({ kpiDefinitionId: kpi.id })
       console.log('[KPI-SUBMIT] Found old approvals:', oldApprovals.map(a => ({
         id: a.id,
@@ -177,6 +177,7 @@ export async function POST(
       updateData.rejectedBy = null
       updateData.rejectedAt = null
       updateData.rejectionReason = null
+      updateData.changeRequestReason = null
     }
 
     await db.updateKpiDefinition(params.id, updateData)

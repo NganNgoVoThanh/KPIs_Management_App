@@ -280,8 +280,8 @@ export default function KpiDetailPage() {
   return (
     <AppLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
-        {/* Returned to Staff Alert */}
-        {kpi.status === 'DRAFT' && kpi.changeRequestReason && kpi.userId === currentUser?.id && (
+        {/* Returned to Staff Alert (CHANGE_REQUESTED) */}
+        {kpi.status === 'CHANGE_REQUESTED' && kpi.changeRequestReason && kpi.userId === currentUser?.id && (
           <Alert className="border-orange-500 bg-orange-50 mb-6">
             <AlertCircle className="h-4 w-4 text-orange-600" />
             <AlertDescription className="text-orange-800">
@@ -371,7 +371,7 @@ export default function KpiDetailPage() {
             {(kpi.status === 'REJECTED' || kpi.status === 'CHANGE_REQUESTED') && kpi.userId === currentUser?.id && (
               <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
                 <Send className="h-4 w-4 mr-2" />
-                Submit for Approval
+                Submit
               </Button>
             )}
 
@@ -393,7 +393,7 @@ export default function KpiDetailPage() {
               </Button>
             )}
 
-            {kpi.status === "APPROVED" && (
+            {kpi.status === "APPROVED" && currentUser?.role === 'ADMIN' && (
               <Button
                 variant="outline"
                 onClick={handleRequestChange}
