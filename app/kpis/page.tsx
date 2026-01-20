@@ -419,8 +419,30 @@ function KpisPageContent() {
                 <Button
                   variant="default"
                   onClick={async () => {
+                    // VALIDATION CHECK
+                    // 1. Check Total Weight
+                    if (Math.abs(kpiStats.totalWeight - 100) > 0.5) {
+                      toast({
+                        title: "Cannot Submit KPIs",
+                        description: `Total weight must be 100% to submit. Current total: ${kpiStats.totalWeight}%`,
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+
+                    // 2. Check KPI Count (Min 3)
+                    const activeCount = activeCycleKpis.filter(k => k.status !== 'ARCHIVED').length;
+                    if (activeCount < 3) {
+                      toast({
+                        title: "Cannot Submit KPIs",
+                        description: `You must have at least 3 KPIs defined. Current count: ${activeCount}`,
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+
                     const drafts = kpis.filter(k => k.status === 'DRAFT');
-                    if (confirm(`Are you sure you want to submit all ${drafts.length} draft KPIs?`)) {
+                    if (confirm(`Are you sure you want to submit all ${drafts.length} draft KPIs? This will start the approval process.`)) {
                       setActionLoading(prev => ({ ...prev, 'batch-submit': true }));
                       try {
                         await Promise.all(drafts.map(k =>
@@ -761,55 +783,58 @@ function KpisPageContent() {
                               <span className="ml-2">View</span>
                             </Button>
 
-                            {(kpi.status === 'DRAFT' || kpi.status === 'REJECTED') && (
-                              <>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleSubmitClick(kpi)}
-                                  disabled={actionLoading[`submit-${kpi.id}`]}
-                                  className="text-white bg-green-600 hover:bg-green-700 border border-green-700 disabled:opacity-50"
-                                >
-                                  {actionLoading[`submit-${kpi.id}`] ? (
-                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                  ) : (
-                                    <Send className="h-4 w-4 mr-1" />
-                                  )}
-                                  Submit
-                                </Button>
-
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleEditKpi(kpi.id)}
-                                  disabled={actionLoading[`edit-${kpi.id}`]}
-                                  className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-300"
-                                >
-                                  {actionLoading[`edit-${kpi.id}`] ? (
-                                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                  ) : (
-                                    <Edit className="h-4 w-4 mr-1" />
-                                  )}
-                                  Edit
-                                </Button>
-
-                                {kpi.status === 'DRAFT' && (
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    onClick={() => handleDeleteClick(kpi)}
-                                    disabled={actionLoading[`delete-${kpi.id}`]}
-                                    className="text-gray-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-300"
-                                  >
-                                    {actionLoading[`delete-${kpi.id}`] ? (
-                                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                                    ) : (
-                                      <Trash2 className="h-4 w-4 mr-1" />
-                                    )}
-                                    Delete
-                                  </Button>
+                            {/* Individual Submit only for REJECTED or CHANGE_REQUESTED (Re-submission) */}
+                            {(kpi.status === 'REJECTED' || kpi.status === 'CHANGE_REQUESTED') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleSubmitClick(kpi)}
+                                disabled={actionLoading[`submit-${kpi.id}`]}
+                                className="text-white bg-green-600 hover:bg-green-700 border border-green-700 disabled:opacity-50"
+                              >
+                                {actionLoading[`submit-${kpi.id}`] ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <Send className="h-4 w-4 mr-1" />
                                 )}
-                              </>
+                                Submit
+                              </Button>
+                            )}
+
+                            {/* Edit Action - DRAFT, REJECTED, CHANGE_REQUESTED */}
+                            {(kpi.status === 'DRAFT' || kpi.status === 'REJECTED' || kpi.status === 'CHANGE_REQUESTED') && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleEditKpi(kpi.id)}
+                                disabled={actionLoading[`edit-${kpi.id}`]}
+                                className="text-gray-600 hover:text-blue-600 hover:bg-blue-50 border border-transparent hover:border-blue-300"
+                              >
+                                {actionLoading[`edit-${kpi.id}`] ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <Edit className="h-4 w-4 mr-1" />
+                                )}
+                                Edit
+                              </Button>
+                            )}
+
+                            {/* Delete Action - DRAFT only */}
+                            {kpi.status === 'DRAFT' && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteClick(kpi)}
+                                disabled={actionLoading[`delete-${kpi.id}`]}
+                                className="text-gray-600 hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-300"
+                              >
+                                {actionLoading[`delete-${kpi.id}`] ? (
+                                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                                ) : (
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                )}
+                                Delete
+                              </Button>
                             )}
                           </div>
                         </div>

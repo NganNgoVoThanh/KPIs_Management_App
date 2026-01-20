@@ -1,11 +1,11 @@
 // app/api/admin/proxy/reassign-approver/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminProxyService } from '@/lib/admin-proxy-service';
-import { authService } from '@/lib/auth-service';
+import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getDatabase } from '@/lib/repositories/DatabaseFactory';
 
 export async function POST(request: NextRequest) {
   try {
-    const user = authService.getCurrentUser();
+    const user = await getAuthenticatedUser(request);
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Admin access required' },
@@ -14,41 +14,93 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { entityType, entityId, level, newApproverId, reason, comment } = body;
+    const { entityType, entityId, level, newApproverId, newApproverEmail, reason, comment } = body;
 
-    if (!entityType || !entityId || !level || !newApproverId || !reason) {
+    if (!entityType || !entityId || !level || !reason) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    if (![1, 2, 3].includes(level)) {
+    // Resolve New Approver
+    let resolvedApproverId = newApproverId;
+    const db = getDatabase();
+
+    if (newApproverEmail) {
+      const approverUser = await db.getUserByEmail(newApproverEmail);
+      if (!approverUser) {
+        return NextResponse.json(
+          { error: `User with email ${newApproverEmail} not found` },
+          { status: 400 }
+        );
+      }
+      resolvedApproverId = approverUser.id;
+    }
+
+    if (!resolvedApproverId) {
       return NextResponse.json(
-        { error: 'Level must be 1, 2, or 3' },
+        { error: 'New Approver ID or Email is required' },
         { status: 400 }
       );
     }
 
-    const result = await adminProxyService.reassignApprover({
-      entityType,
-      entityId,
-      level,
-      newApproverId,
-      reason,
-      comment
+    // FETCH APPROVAL
+    const approvals = await db.getApprovals({
+      entityId: entityId,
+      entityType: entityType,
+      status: 'PENDING'
     });
 
-    if (!result.success) {
+    const approval = approvals.find((a: any) => a.level === level);
+
+    if (!approval) {
       return NextResponse.json(
-        { error: result.message },
-        { status: 400 }
+        { error: 'Pending approval not found for this level' },
+        { status: 404 }
       );
+    }
+
+    // UPDATE APPROVAL
+    const previousApproverId = approval.approverId;
+
+    await db.updateApproval(approval.id, {
+      approverId: resolvedApproverId,
+      reassignedBy: user.id,
+      reassignedAt: new Date().toISOString(),
+      reassignReason: reason,
+      comment: comment // Might want to append?
+    });
+
+    // LOG PROXY ACTION
+    try {
+      await db.createProxyAction({
+        actionType: 'REASSIGN_APPROVER',
+        performedBy: user.id,
+        entityType,
+        entityId,
+        level,
+        reason,
+        comment,
+        previousApproverId, // Assuming DB supports storing this metadata
+        newApproverId: resolvedApproverId
+      });
+
+      // NOTIFY NEW APPROVER (If notification repository supports it)
+      await db.createNotification({
+        userId: resolvedApproverId,
+        type: 'APPROVAL_ASSIGNED',
+        message: `You have been assigned as approver for ${entityType} (Level ${level}) by Admin`,
+        data: { entityId, entityType, level }
+      });
+
+    } catch (e) {
+      console.error('Failed to log proxy action or notify', e);
     }
 
     return NextResponse.json({
       success: true,
-      message: result.message
+      message: 'Reassigned successfully'
     });
 
   } catch (error: any) {

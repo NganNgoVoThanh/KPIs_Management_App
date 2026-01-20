@@ -64,7 +64,7 @@ export default function KpiDetailPage() {
   // Derived state
   const actual = kpi?.actuals?.length ? kpi.actuals[kpi.actuals.length - 1] : null
   const changeRequests = kpi?.changeRequests || []
-  const pendingChangeRequest = changeRequests.find(cr => cr.status === 'PENDING')
+  const pendingChangeRequest = changeRequests.find((cr: ChangeRequest) => cr.status === 'PENDING')
 
   const currentUser = authService.getCurrentUser()
 
@@ -280,6 +280,31 @@ export default function KpiDetailPage() {
   return (
     <AppLayout>
       <div className="p-6 max-w-7xl mx-auto space-y-6">
+        {/* Returned to Staff Alert */}
+        {kpi.status === 'DRAFT' && kpi.changeRequestReason && kpi.userId === currentUser?.id && (
+          <Alert className="border-orange-500 bg-orange-50 mb-6">
+            <AlertCircle className="h-4 w-4 text-orange-600" />
+            <AlertDescription className="text-orange-800">
+              <div className="space-y-2">
+                <p className="font-semibold">KPI Returned by Admin</p>
+                <p className="text-sm">
+                  <strong>Reason:</strong> {kpi.changeRequestReason}
+                </p>
+                <div className="mt-2">
+                  <Button
+                    size="sm"
+                    onClick={handleSubmit}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <Send className="h-3 w-3 mr-1" />
+                    Resubmit
+                  </Button>
+                </div>
+              </div>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Pending Change Request Alert */}
         {pendingChangeRequest && kpi.userId === currentUser?.id && (
           <Alert className="border-orange-500 bg-orange-50">
@@ -343,7 +368,7 @@ export default function KpiDetailPage() {
               {kpi.status.replace(/_/g, " ")}
             </Badge>
 
-            {(kpi.status === 'DRAFT' || kpi.status === 'REJECTED') && kpi.userId === currentUser?.id && (
+            {(kpi.status === 'REJECTED' || kpi.status === 'CHANGE_REQUESTED') && kpi.userId === currentUser?.id && (
               <Button onClick={handleSubmit} className="bg-green-600 hover:bg-green-700">
                 <Send className="h-4 w-4 mr-2" />
                 Submit for Approval
@@ -765,9 +790,9 @@ export default function KpiDetailPage() {
                                 {cr.changeType.replace(/_/g, ' ')}
                               </Badge>
                               <Badge variant={
-                                cr.status === "COMPLETED" ? "default" :
-                                cr.status === "PENDING" ? "outline" :
-                                "secondary"
+                                cr.status === "APPROVED" ? "default" :
+                                  cr.status === "PENDING" ? "outline" :
+                                    "secondary"
                               }>
                                 {cr.status}
                               </Badge>

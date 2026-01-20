@@ -215,6 +215,12 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
           href: "/admin/proxy",
           icon: Shield,
           show: true
+        },
+        {
+          label: "Org Units",
+          href: "/admin/org-units",
+          icon: Building2,
+          show: true
         }
       ]
     }
@@ -302,7 +308,7 @@ export function Sidebar({ user, onLogout }: SidebarProps) {
         <div className="flex items-center gap-3">
           <div className="relative h-10 w-10 overflow-hidden rounded-lg shadow-sm shrink-0 bg-white ring-1 ring-gray-100 p-0.5">
             <Image
-              src="/logo1.jpg"
+              src="/logo1.png"
               alt="Intersnack Logo"
               fill
               className="object-contain"

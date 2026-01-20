@@ -17,6 +17,11 @@ export async function POST(
       return NextResponse.json({ error: 'Auth required' }, { status: 401 })
     }
 
+    console.log(`[KPI-SUBMIT-DEBUG] Submitting user: ${user.email} (ID: ${user.id})`)
+    console.log(`[KPI-SUBMIT-DEBUG] User Role: ${user.role}`)
+    console.log(`[KPI-SUBMIT-DEBUG] User ManagerID from Auth: ${user.managerId}`)
+    console.log(`[KPI-SUBMIT-DEBUG] User Department: ${user.department}`)
+
     const db = getDatabase()
     const kpi = await db.getKpiDefinitionById(params.id)
 
@@ -77,27 +82,59 @@ export async function POST(
     // Identify approver (Line Manager - Level 1)
     let approver = null
 
-    // 1. Priority: User's Direct Manager
-    if (user.managerId) {
+    // 0. Priority: Active Approval Hierarchy (Admin configured)
+    console.log('[KPI-SUBMIT-DEBUG] Checking Approval Hierarchy...')
+    const activeHierarchy = await db.getActiveApprovalHierarchy(user.id)
+    if (activeHierarchy && activeHierarchy.level1Approver) {
+      approver = activeHierarchy.level1Approver
+      console.log(`[KPI-SUBMIT] Found configured Level 1 Approver from Hierarchy: ${approver.email}`)
+    } else {
+      console.log('[KPI-SUBMIT-DEBUG] No active hierarchy or Level 1 approver found.')
+    }
+
+    // 1. Fallback: User's Direct Manager
+    if (!approver && user.managerId) {
+      console.log(`[KPI-SUBMIT-DEBUG] Checking Direct Manager (ID: ${user.managerId})...`)
       const directManager = await db.getUserById(user.managerId)
-      if (directManager && directManager.status === 'ACTIVE') {
-        approver = directManager
-        console.log(`[KPI-SUBMIT] Found Direct Manager: ${approver.email}`)
+      if (directManager) {
+        if (directManager.status === 'ACTIVE') {
+          approver = directManager
+          console.log(`[KPI-SUBMIT] Found Direct Manager: ${approver.email}`)
+        } else {
+          console.log(`[KPI-SUBMIT-DEBUG] Direct Manager found but INACTIVE.`)
+        }
+      } else {
+        console.log(`[KPI-SUBMIT-DEBUG] Direct Manager ID exists but user not found in DB.`)
       }
+    } else if (!approver) {
+      console.log('[KPI-SUBMIT-DEBUG] User has no managerId set.')
     }
 
     // 2. Fallback: Find any active Line Manager in SAME department
     if (!approver && user.department) {
-      console.log(`[KPI-SUBMIT] Direct manager not found. Looking for LINE_MANAGER in department: ${user.department}`)
-      const departmentLineManagers = await db.getUsers({
-        role: 'LINE_MANAGER',
+      // Find department manager/HOD first
+      const departmentManagers = await db.getUsers({
+        role: 'MANAGER',
         status: 'ACTIVE',
-        department: user.department // Strict Department Match
+        department: user.department
       })
 
-      if (departmentLineManagers && departmentLineManagers.length > 0) {
-        approver = departmentLineManagers[0]
-        console.log(`[KPI-SUBMIT] Found Department Line Manager: ${approver.email}`)
+      if (departmentManagers.length > 0) {
+        approver = departmentManagers[0]
+        console.log(`[KPI-SUBMIT] Found Department Manager: ${approver.email}`)
+      } else {
+        // Find line manager if no HOD
+        console.log(`[KPI-SUBMIT] Direct manager not found. Looking for LINE_MANAGER in department: ${user.department}`)
+        const departmentLineManagers = await db.getUsers({
+          role: 'LINE_MANAGER',
+          status: 'ACTIVE',
+          department: user.department // Strict Department Match
+        })
+
+        if (departmentLineManagers && departmentLineManagers.length > 0) {
+          approver = departmentLineManagers[0]
+          console.log(`[KPI-SUBMIT] Found Department Line Manager: ${approver.email}`)
+        }
       }
     }
 

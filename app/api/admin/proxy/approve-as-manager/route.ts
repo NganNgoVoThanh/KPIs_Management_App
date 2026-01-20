@@ -1,11 +1,11 @@
 // app/api/admin/proxy/approve-as-manager/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminProxyService } from '@/lib/admin-proxy-service';
-import { authService } from '@/lib/auth-service';
+import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getDatabase } from '@/lib/repositories/DatabaseFactory';
 
 export async function POST(request: NextRequest) {
   try {
-    const user = authService.getCurrentUser();
+    const user = await getAuthenticatedUser(request);
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Admin access required' },
@@ -14,11 +14,33 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { entityType, entityId, level, managerId, comment, reason } = body;
+    const { entityType, entityId, level, managerId, managerEmail, comment, reason } = body;
 
-    if (!entityType || !entityId || !level || !managerId || !reason) {
+    if (!entityType || !entityId || !level || !reason) {
       return NextResponse.json(
         { error: 'Missing required fields' },
+        { status: 400 }
+      );
+    }
+
+    // Resolve Manager ID
+    let resolvedManagerId = managerId;
+    const db = getDatabase();
+
+    if (managerEmail) {
+      const mgr = await db.getUserByEmail(managerEmail);
+      if (!mgr) {
+        return NextResponse.json(
+          { error: `Manager with email ${managerEmail} not found` },
+          { status: 400 }
+        );
+      }
+      resolvedManagerId = mgr.id;
+    }
+
+    if (!resolvedManagerId) {
+      return NextResponse.json(
+        { error: 'Manager ID or Email is required' },
         { status: 400 }
       );
     }
@@ -30,25 +52,69 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await adminProxyService.approveAsManager({
-      entityType,
-      entityId,
-      level,
-      managerId,
-      comment,
-      reason
+    // FETCH APPROVAL
+    const approvals = await db.getApprovals({
+      entityId: entityId,
+      entityType: entityType,
+      status: 'PENDING'
     });
 
-    if (!result.success) {
+    const approval = approvals.find((a: any) => a.level === level);
+
+    if (!approval) {
       return NextResponse.json(
-        { error: result.message },
-        { status: 400 }
+        { error: 'Pending approval not found for this level' },
+        { status: 404 }
       );
+    }
+
+    // UPDATE APPROVAL
+    await db.updateApproval(approval.id, {
+      status: 'APPROVED',
+      decidedAt: new Date().toISOString(),
+      comment: comment || `Approved by Admin ${user.name}`,
+      reassignedBy: user.id, // Using this field to track admin intervention
+      reassignedAt: new Date().toISOString(),
+      reassignReason: reason
+    });
+
+    // LOG PROXY ACTION
+    try {
+      await db.createProxyAction({
+        actionType: 'APPROVE_AS_MANAGER',
+        performedBy: user.id,
+        targetUserId: resolvedManagerId,
+        entityType,
+        entityId,
+        level,
+        reason,
+        comment
+      });
+    } catch (e) {
+      console.error('Failed to log proxy action', e);
+    }
+
+    // HANDLE WORKFLOW (Optimistic: Assume DB trigger or Service handles status propagation, 
+    // OR minimal manual propagation here if needed. 
+    // For now, mirroring adminProxyService simple logic: if Level 2 approved -> Entity Approved)
+
+    if (level === 2) {
+      if (entityType === 'KPI') {
+        await db.updateKpiDefinition(entityId, {
+          status: 'APPROVED',
+          approvedAt: new Date().toISOString()
+        })
+      } else if (entityType === 'ACTUAL') {
+        await db.updateKpiActual(entityId, {
+          status: 'APPROVED',
+          approvedAt: new Date().toISOString()
+        })
+      }
     }
 
     return NextResponse.json({
       success: true,
-      message: result.message
+      message: 'Approved successfully via Proxy'
     });
 
   } catch (error: any) {

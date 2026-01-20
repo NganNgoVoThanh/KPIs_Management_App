@@ -1,11 +1,11 @@
 // app/api/admin/proxy/return-to-staff/route.ts
 import { NextRequest, NextResponse } from 'next/server';
-import { adminProxyService } from '@/lib/admin-proxy-service';
-import { authService } from '@/lib/auth-service';
+import { getAuthenticatedUser } from '@/lib/auth-server';
+import { getDatabase } from '@/lib/repositories/DatabaseFactory';
 
 export async function POST(request: NextRequest) {
   try {
-    const user = authService.getCurrentUser();
+    const user = await getAuthenticatedUser(request);
     if (!user || user.role !== 'ADMIN') {
       return NextResponse.json(
         { error: 'Admin access required' },
@@ -23,24 +23,63 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await adminProxyService.returnToStaff({
-      entityType,
-      entityId,
-      staffUserId,
-      reason,
-      comment
+    const db = getDatabase();
+
+    // UPDATE ENTITY STATUS TO DRAFT (or CHANGE_REQUESTED)
+    if (entityType === 'KPI') {
+      await db.updateKpiDefinition(entityId, {
+        status: 'DRAFT',
+        updatedAt: new Date().toISOString(),
+        changeRequestReason: reason
+      });
+    } else if (entityType === 'ACTUAL') {
+      await db.updateKpiActual(entityId, {
+        status: 'DRAFT',
+        lastModifiedAt: new Date(),
+        rejectionReason: reason
+      });
+    }
+
+    // CANCEL PENDING APPROVALS
+    const approvals = await db.getApprovals({
+      entityId: entityId,
+      entityType: entityType,
+      status: 'PENDING'
     });
 
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.message },
-        { status: 400 }
-      );
+    for (const approval of approvals) {
+      await db.updateApproval(approval.id, {
+        status: 'CANCELLED',
+        comment: `Returned to staff by admin: ${reason}`,
+        decidedAt: new Date().toISOString()
+      });
+    }
+
+    // LOG PROXY ACTION
+    try {
+      await db.createProxyAction({
+        actionType: 'RETURN_TO_STAFF',
+        performedBy: user.id,
+        targetUserId: staffUserId,
+        entityType,
+        entityId,
+        reason,
+        comment
+      });
+
+      await db.createNotification({
+        userId: staffUserId,
+        type: 'KPI_RETURNED',
+        message: `Admin returned your ${entityType} for revision`,
+        data: { entityId, reason }
+      });
+    } catch (e) {
+      console.error('Failed to log proxy action', e);
     }
 
     return NextResponse.json({
       success: true,
-      message: result.message
+      message: 'Returned to staff successfully'
     });
 
   } catch (error: any) {

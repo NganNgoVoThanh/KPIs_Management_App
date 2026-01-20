@@ -72,7 +72,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
           <div className="flex items-center gap-4">
             <div className="bg-white/90 p-2.5 rounded-2xl shadow-xl backdrop-blur-md transition-transform hover:scale-105 duration-300">
               <Image
-                src="/logo1.jpg"
+                src="/logo1.png"
                 alt="Intersnack Cashew Logo"
                 width={56}
                 height={56}
@@ -185,7 +185,7 @@ export function LoginForm({ onLogin }: LoginFormProps) {
             <p className="text-xs text-gray-400 font-medium px-8 leading-relaxed">
               Developed by Process RD & Optimization
             </p>
-            <p className="text-[10px] text-red-500 mt-4 font-mono">Version 01.03</p>
+            <p className="text-[10px] text-red-500 mt-4 font-mono">Version 02.01</p>
           </div>
         </div>
       </div>

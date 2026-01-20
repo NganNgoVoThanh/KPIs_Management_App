@@ -55,8 +55,7 @@ export async function POST(request: NextRequest) {
             name: body.name,
             type: body.type,
             parentId: body.parentId || null,
-            managerId: body.managerId || null,
-            description: body.description || null
+            managerId: body.managerId || null
         })
 
         return NextResponse.json({

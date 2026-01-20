@@ -329,49 +329,59 @@ export default function ApprovalsPage() {
           )}
 
           {/* Actions */}
-          <div className="flex gap-2">
-            <Button
-              className="flex-1 bg-green-600 hover:bg-green-700"
-              onClick={() => handleApprovalAction(item, 'APPROVE')}
-            >
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Approve
-            </Button>
+          {/* Actions */}
+          <div className="flex gap-2 justify-end">
+            {/* ⭐ NÚT CHANGE REQUEST (ADMIN REQUEST) */}
+            {user?.role === 'ADMIN' && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setSelectedForProxy(item)
+                  setShowAdminProxy(true)
+                }}
+                className="border-orange-500 text-orange-700 hover:bg-orange-50 mr-auto"
+              >
+                Change Request
+              </Button>
+            )}
             <Button
               variant="destructive"
-              className="flex-1"
+              size="sm"
               onClick={() => handleApprovalAction(item, 'REJECT')}
             >
               <XCircle className="h-4 w-4 mr-2" />
               Reject
             </Button>
-            {/* ⭐ NÚT ADMIN ACTIONS - CHỈ HIỆN CHO ADMIN */}
-            {user?.role === 'ADMIN' && (
-              <Button
-                variant="outline"
-                onClick={() => handleAdminProxyView(item)}
-                className="border-yellow-500 text-yellow-700 hover:bg-yellow-50"
-              >
-                Admin Actions
-              </Button>
-            )}
+            <Button
+              className="bg-green-600 hover:bg-green-700"
+              size="sm"
+              onClick={() => handleApprovalAction(item, 'APPROVE')}
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Approve
+            </Button>
           </div>
 
           {/* ⭐ ADMIN PROXY PANEL - INLINE */}
-          {user?.role === 'ADMIN' && showAdminProxy && selectedForProxy?.approval.entityId === approval.entityId && (
+          {user?.role === 'ADMIN' && showAdminProxy && selectedForProxy?.approval.id === item.approval.id && (
             <div className="mt-4">
               <AdminProxyActions
-                entityType={approval.entityType}
-                entityId={entity.id}
-                staffUserId={entity.userId}
-                staffName={submitter.name}
+                entityType={selectedForProxy.approval.entityType}
+                entityId={selectedForProxy.entity.id}
+                staffUserId={selectedForProxy.entity.userId}
+                staffName={selectedForProxy.submitter.name}
+                currentLevel={selectedForProxy.approval.level}
+                currentApproverId={selectedForProxy.approval.approverId}
+                defaultTab="return" // Force to Change Request tab
+                hideTabs={true} // Only show Change Request UI
                 onActionComplete={() => {
                   setShowAdminProxy(false)
                   setSelectedForProxy(null)
                   if (user) loadApprovals(user)
                   toast({
                     title: "Action completed",
-                    description: "The admin action has been processed successfully"
+                    description: "Proxy action processed successfully"
                   })
                 }}
               />

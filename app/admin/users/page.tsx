@@ -12,6 +12,7 @@ import { authService } from "@/lib/auth-service" // Still needed for client-side
 import { authenticatedFetch } from "@/lib/api-client"
 import { Users, UserPlus, Edit, Trash2, Shield, Search, Filter, Loader2 } from "lucide-react"
 import type { User, UserRole, UserStatus } from "@/lib/types"
+import { useToast } from "@/components/ui/use-toast"
 
 export default function AdminUsersPage() {
   const [currentUser, setCurrentUser] = useState<User | null>(null)
@@ -28,6 +29,51 @@ export default function AdminUsersPage() {
   // Potential Managers List (for Dropdown)
   const [potentialManagers, setPotentialManagers] = useState<User[]>([])
 
+  // Fetch Org Units for dropdown
+  const [orgUnits, setOrgUnits] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchOrgUnits = async () => {
+      try {
+        const res = await authenticatedFetch('/api/org-units')
+        const data = await res.json()
+        if (data.success) {
+          // Filter only departments? Or show all type? Usually departments.
+          setOrgUnits(data.data)
+        }
+      } catch (error) {
+        console.error("Failed to load org units", error)
+      }
+    }
+    fetchOrgUnits()
+  }, [])
+
+  // Helper to render Department Select
+  const renderDepartmentSelect = () => (
+    <div className="space-y-2">
+      <Label>Department</Label>
+      <select
+        value={formData.department}
+        onChange={(e) => {
+          const selectedOrg = orgUnits.find(o => o.name === e.target.value)
+          setFormData({
+            ...formData,
+            department: e.target.value,
+            orgUnitId: selectedOrg ? selectedOrg.id : (formData.orgUnitId || 'default')
+          })
+        }}
+        className="w-full border p-2 rounded"
+      >
+        <option value="">-- Select Department --</option>
+        {orgUnits.map((org) => (
+          <option key={org.id} value={org.name}>
+            {org.name} ({org.type})
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+
   // Form state
   const [formData, setFormData] = useState({
     name: "",
@@ -41,16 +87,19 @@ export default function AdminUsersPage() {
     status: "ACTIVE" as UserStatus
   })
 
+  // Add toast hook
+  const { toast } = useToast()
+
   useEffect(() => {
     const user = authService.getCurrentUser()
     if (!user || user.role !== "ADMIN") {
-      alert("Access denied. Admin only!")
-      window.location.href = "/"
+      toast({ title: "Access Denied", description: "Admin access required.", variant: "destructive" })
+      setTimeout(() => window.location.href = "/", 1000)
       return
     }
 
     setCurrentUser(user)
-    loadUsers()
+    loadUsers(true) // Initial load with spinner
   }, [])
 
   useEffect(() => {
@@ -64,8 +113,8 @@ export default function AdminUsersPage() {
     setPotentialManagers(mgrs)
   }, [users, searchQuery, roleFilter, statusFilter])
 
-  const loadUsers = async () => {
-    setLoading(true)
+  const loadUsers = async (showLoading = false) => {
+    if (showLoading) setLoading(true)
     try {
       const res = await authenticatedFetch('/api/users')
       const data = await res.json()
@@ -74,11 +123,13 @@ export default function AdminUsersPage() {
         setFilteredUsers(data.data)
       } else {
         console.error("Failed to load users:", data.error)
+        toast({ title: "Error", description: "Failed to load users list", variant: "destructive" })
       }
     } catch (error) {
       console.error("Error loading users:", error)
+      toast({ title: "Error", description: "Network error loading users", variant: "destructive" })
     } finally {
-      setLoading(false)
+      if (showLoading) setLoading(false)
     }
   }
 
@@ -116,7 +167,7 @@ export default function AdminUsersPage() {
 
   const handleCreateUser = async () => {
     if (!formData.name || !formData.email) {
-      alert("Please fill in required fields")
+      toast({ title: "Validation Error", description: "Name and Email are required.", variant: "destructive" })
       return
     }
 
@@ -128,16 +179,16 @@ export default function AdminUsersPage() {
       const data = await res.json()
 
       if (data.success) {
-        alert("User created successfully!")
-        loadUsers()
-        setIsCreateDialogOpen(false)
+        toast({ title: "Success", description: "User created successfully." })
+        setIsCreateDialogOpen(false) // Close dialog first
         resetForm()
+        loadUsers(false) // Reload silently
       } else {
-        alert("Failed to create user: " + data.error)
+        toast({ title: "Failed", description: data.error || "Could not create user.", variant: "destructive" })
       }
     } catch (error) {
       console.error("Create error:", error)
-      alert("An error occurred")
+      toast({ title: "Error", description: "An unexpected error occurred.", variant: "destructive" })
     }
   }
 
@@ -152,16 +203,16 @@ export default function AdminUsersPage() {
       const data = await res.json()
 
       if (data.success) {
-        alert("User updated successfully!")
-        loadUsers()
+        toast({ title: "Success", description: "User updated successfully." })
         setEditingUser(null)
         resetForm()
+        loadUsers(false) // Reload silently
       } else {
-        alert("Failed to update user: " + data.error)
+        toast({ title: "Failed", description: data.error || "Could not update user.", variant: "destructive" })
       }
     } catch (error) {
       console.error("Update error:", error)
-      alert("An error occurred")
+      toast({ title: "Error", description: "An updated error occurred.", variant: "destructive" })
     }
   }
 
@@ -173,13 +224,14 @@ export default function AdminUsersPage() {
       const data = await res.json()
 
       if (data.success) {
-        alert("User deactivated successfully!")
-        loadUsers()
+        toast({ title: "Success", description: "User deactivated successfully." })
+        loadUsers(false) // Reload silently
       } else {
-        alert("Failed to delete user: " + data.error)
+        toast({ title: "Failed", description: data.error || "Could not deactivate user.", variant: "destructive" })
       }
     } catch (error) {
       console.error("Delete error:", error)
+      toast({ title: "Error", description: "Delete failed.", variant: "destructive" })
     }
   }
 
@@ -335,10 +387,7 @@ export default function AdminUsersPage() {
                         <option value="ADMIN">Admin</option>
                       </select>
                     </div>
-                    <div className="space-y-2">
-                      <Label>Department</Label>
-                      <Input value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} placeholder="e.g. MARKETING" />
-                    </div>
+                    {renderDepartmentSelect()}
                   </div>
 
                   {renderManagerSelect()}
@@ -476,10 +525,7 @@ export default function AdminUsersPage() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <Label>Department</Label>
-                    <Input value={formData.department} onChange={(e) => setFormData({ ...formData, department: e.target.value })} />
-                  </div>
+                  {renderDepartmentSelect()}
 
                   {renderManagerSelect()}
 
