@@ -1,0 +1,254 @@
+/* app/globals.css - Fixed version without unknown @apply rules */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* Professional Red Theme Color Palette */
+  --background: 0 0% 100%;
+  /* Pure white */
+  --foreground: 0 0% 20%;
+  /* Dark gray for text */
+
+  /* Primary red colors matching Trips app */
+  --primary: 0 84% 50%;
+  /* #E82228 - Main red */
+  --primary-foreground: 0 0% 100%;
+
+  /* Secondary colors */
+  --secondary: 0 70% 45%;
+  /* Darker red */
+  --secondary-foreground: 0 0% 100%;
+
+  /* Card and surface colors */
+  --card: 0 0% 98%;
+  /* Light gray background */
+  --card-foreground: 0 0% 20%;
+
+  /* Accent colors */
+  --accent: 0 84% 95%;
+  /* Light red for backgrounds */
+  --accent-foreground: 0 84% 40%;
+
+  /* Muted colors */
+  --muted: 0 0% 96%;
+  --muted-foreground: 0 0% 45%;
+
+  /* Status colors */
+  --success: 142 71% 45%;
+  /* Green */
+  --warning: 38 92% 50%;
+  /* Yellow */
+  --error: 0 84% 50%;
+  /* Red */
+  --info: 199 89% 48%;
+  /* Blue */
+
+  --destructive: 0 84% 50%;
+  --destructive-foreground: 0 0% 98%;
+
+  /* Border and input */
+  --border: 0 0% 90%;
+  --input: 0 0% 90%;
+  --ring: 0 84% 50%;
+
+  /* Chart colors */
+  --chart-1: 0 84% 50%;
+  /* Red */
+  --chart-2: 142 71% 45%;
+  /* Green */
+  --chart-3: 199 89% 48%;
+  /* Blue */
+  --chart-4: 38 92% 50%;
+  /* Yellow */
+  --chart-5: 262 52% 47%;
+  /* Purple */
+
+  --radius: 0.5rem;
+
+  /* Sidebar specific */
+  --sidebar-background: 0 0% 98%;
+  --sidebar-foreground: 0 0% 20%;
+  --sidebar-primary: 0 84% 50%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 0 84% 95%;
+  --sidebar-accent-foreground: 0 84% 40%;
+  --sidebar-border: 0 0% 90%;
+
+  /* Popover colors - Fix for transparent dropdowns */
+  --popover: 0 0% 100%;
+  --popover-foreground: 0 0% 20%;
+}
+
+.dark {
+  --background: 0 0% 7%;
+  --foreground: 0 0% 95%;
+
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 0 0% 98%;
+
+  --primary: 0 84% 60%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 0 70% 50%;
+  --secondary-foreground: 0 0% 100%;
+
+  --card: 0 0% 10%;
+  --card-foreground: 0 0% 95%;
+
+  --accent: 0 84% 15%;
+  --accent-foreground: 0 84% 70%;
+
+  --muted: 0 0% 15%;
+  --muted-foreground: 0 0% 65%;
+
+  --border: 0 0% 20%;
+  --input: 0 0% 20%;
+
+  --sidebar-background: 0 0% 10%;
+  --sidebar-foreground: 0 0% 95%;
+  --sidebar-accent: 0 84% 15%;
+
+  --popover: 0 0% 10%;
+  --popover-foreground: 0 0% 95%;
+}
+
+/* Global styles */
+* {
+  border-color: hsl(var(--border));
+}
+
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring) / 0.5);
+  outline-offset: 2px;
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif;
+}
+
+/* Professional button styles - Fixed @apply rules */
+@layer components {
+  .btn-primary {
+    @apply bg-red-600 hover:bg-red-700 text-white font-medium transition-colors duration-200 px-4 py-2 rounded;
+  }
+
+  .btn-secondary {
+    @apply bg-gray-100 hover:bg-gray-200 text-gray-700 font-medium transition-colors duration-200 px-4 py-2 rounded;
+  }
+
+  .btn-success {
+    @apply bg-green-600 hover:bg-green-700 text-white font-medium transition-colors duration-200 px-4 py-2 rounded;
+  }
+
+  .btn-warning {
+    @apply bg-yellow-500 hover:bg-yellow-600 text-white font-medium transition-colors duration-200 px-4 py-2 rounded;
+  }
+
+  /* Card enhancements */
+  .card-hover {
+    @apply transition-all duration-200 hover:shadow-lg hover:-translate-y-1;
+  }
+
+  /* Status badges */
+  .badge-draft {
+    @apply bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-pending {
+    @apply bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-approved {
+    @apply bg-green-100 text-green-700 px-2 py-1 rounded-full text-sm font-medium;
+  }
+
+  .badge-rejected {
+    @apply bg-red-100 text-red-700 px-2 py-1 rounded-full text-sm font-medium;
+  }
+
+  /* Form enhancements */
+  .form-input {
+    @apply border border-gray-300 focus:border-red-500 focus:ring-1 focus:ring-red-500 px-3 py-2 rounded;
+  }
+
+  /* Table styles */
+  .table-header {
+    @apply bg-gray-50 border-b-2 border-gray-200;
+  }
+
+  .table-row-hover {
+    @apply hover:bg-gray-50 transition-colors duration-150 cursor-pointer;
+  }
+
+  /* Progress indicators */
+  .progress-bar {
+    @apply bg-red-600;
+  }
+
+  /* Sidebar active state */
+  .sidebar-item-active {
+    @apply bg-red-50 text-red-600 border-l-4 border-red-600;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .border-l-3 {
+    border-left-width: 3px;
+  }
+
+  .shadow-professional {
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  }
+
+  .shadow-professional-lg {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  }
+}
+
+/* Animation classes */
+@keyframes slideIn {
+  from {
+    transform: translateX(-100%);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slideIn {
+  animation: slideIn 0.3s ease-out;
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Responsive utilities */
+@media (max-width: 768px) {
+  .hide-mobile {
+    display: none;
+  }
+}
+
+@media (min-width: 769px) {
+  .hide-desktop {
+    display: none;
+  }
+}
